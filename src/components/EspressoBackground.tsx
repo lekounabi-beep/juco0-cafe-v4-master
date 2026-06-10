@@ -1,5 +1,3 @@
-import videoAsset from "@/assets/espresso-loop.mp4.asset.json";
-
 // Full-screen looping macro espresso video, fixed behind all content.
 // Autoplays muted+inline so it works on iOS/Safari without user gesture.
 // GPU-accelerated with will-change-transform for smooth 60/120 FPS.
@@ -7,7 +5,7 @@ export function EspressoBackground() {
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-black">
       <video
-        src={videoAsset.url}
+        src="/coffee-bg.mp4"
         autoPlay
         muted
         loop

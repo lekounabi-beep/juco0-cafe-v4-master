@@ -3,7 +3,8 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
+import Script from "next/script";
+import { useState, useEffect, useRef } from "react";
 import {
   ShoppingBag,
   MapPin,
@@ -22,6 +23,15 @@ import { useCart, calcDeliveryFee, formatEur, FREE_DELIVERY_THRESHOLD } from "@/
 import { supabase } from "@/integrations/supabase/client";
 import { EspressoBackground } from "@/components/EspressoBackground";
 import { createVivaOrderCode, redirectToVivaPayment } from "@/services/paymentService";
+import { productImages } from "@/data/productImages";
+
+// Type declarations for Google Maps
+declare global {
+  interface Window {
+    initGoogleMaps?: () => void;
+    google?: any;
+  }
+}
 
 type Step = 1 | 2 | 3;
 type PaymentMethod = "cod" | "card";
@@ -50,6 +60,174 @@ function CheckoutPage() {
   const [payment, setPayment] = useState<PaymentMethod>("cod");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
+  const [autocomplete, setAutocomplete] = useState<any>(null);
+  const addressInputRef = useRef<HTMLInputElement>(null);
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null);
+
+  // Load Google Maps script
+  useEffect(() => {
+    window.initGoogleMaps = () => {
+      setGoogleMapsLoaded(true);
+    };
+  }, []);
+
+  // Initialize Places Autocomplete when Google Maps is loaded
+  useEffect(() => {
+    if (googleMapsLoaded && addressInputRef.current && window.google) {
+      const autocompleteInstance = new window.google.maps.places.Autocomplete(addressInputRef.current, {
+        types: ['address'],
+        componentRestrictions: { country: 'GR' },
+        fields: ['formatted_address', 'geometry', 'name'],
+      });
+      
+      autocompleteInstance.addListener('place_changed', () => {
+        const place = autocompleteInstance.getPlace();
+        if (place.formatted_address) {
+          setAddress(place.formatted_address);
+        }
+        
+        if (place.geometry && place.geometry.location) {
+          const newCoords = {
+            lat: place.geometry.location.lat(),
+            lng: place.geometry.location.lng(),
+          };
+          setCoords(newCoords);
+          setMapCenter(newCoords);
+          
+          // Pan map to selected location
+          if (mapInstanceRef.current) {
+            mapInstanceRef.current.panTo(place.geometry.location);
+            mapInstanceRef.current.setZoom(16);
+          }
+        }
+      });
+      
+      setAutocomplete(autocompleteInstance);
+      
+      // Apply custom styling to the autocomplete dropdown
+      const style = document.createElement('style');
+      style.textContent = `
+        .pac-container {
+          font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+          background: rgba(255, 255, 255, 0.1);
+          backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          border-radius: 1rem;
+          padding: 0.5rem;
+          margin-top: 0.5rem;
+          z-index: 9999 !important;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.25), 0 12px 40px rgba(0,0,0,0.35);
+        }
+        .pac-item {
+          padding: 0.75rem 1rem;
+          cursor: pointer;
+          border-radius: 0.75rem;
+          color: white;
+          transition: all 0.2s ease;
+        }
+        .pac-item:hover {
+          background: rgba(255, 255, 255, 0.15);
+        }
+        .pac-item-selected {
+          background: rgba(255, 255, 255, 0.15);
+        }
+        .pac-icon {
+          display: none;
+        }
+        .pac-item-query {
+          font-size: 0.875rem;
+          font-weight: 500;
+          color: white;
+        }
+        .pac-matched {
+          font-weight: 600;
+          color: #f97316;
+        }
+        .pac-item-query:after {
+          content: '';
+        }
+      `;
+      document.head.appendChild(style);
+      
+      return () => {
+        document.head.removeChild(style);
+      };
+    }
+  }, [googleMapsLoaded]);
+
+  // Initialize map when Google Maps is loaded
+  useEffect(() => {
+    if (googleMapsLoaded && mapRef.current && window.google && !mapInstanceRef.current) {
+      // Default to Athens center if no coordinates set
+      const defaultCenter = { lat: 37.9838, lng: 23.7275 };
+      const initialCenter = coords || defaultCenter;
+      
+      const map = new window.google.maps.Map(mapRef.current, {
+        center: initialCenter,
+        zoom: 14,
+        disableDefaultUI: true,
+        zoomControl: true,
+        streetViewControl: false,
+        mapTypeControl: false,
+        fullscreenControl: false,
+        styles: [
+          {
+            featureType: "all",
+            elementType: "geometry",
+            stylers: [{ color: "#242f3e" }]
+          },
+          {
+            featureType: "all",
+            elementType: "labels.text.fill",
+            stylers: [{ color: "#746855" }]
+          },
+          {
+            featureType: "all",
+            elementType: "labels.text.stroke",
+            stylers: [{ color: "#242f3e" }]
+          },
+          {
+            featureType: "water",
+            elementType: "geometry",
+            stylers: [{ color: "#17263c" }]
+          }
+        ]
+      });
+      
+      mapInstanceRef.current = map;
+      setMapCenter(initialCenter);
+      
+      // Add drag event listener for reverse geocoding
+      let geocodeTimeout: NodeJS.Timeout;
+      
+      map.addListener('dragend', () => {
+        const center = map.getCenter();
+        const newCoords = { lat: center.lat(), lng: center.lng() };
+        setMapCenter(newCoords);
+        setCoords(newCoords);
+        
+        // Debounced reverse geocoding
+        clearTimeout(geocodeTimeout);
+        geocodeTimeout = setTimeout(async () => {
+          if (window.google && window.google.maps) {
+            try {
+              const geocoder = new window.google.maps.Geocoder();
+              const response = await geocoder.geocode({ location: newCoords });
+              
+              if (response.results && response.results[0]) {
+                setAddress(response.results[0].formatted_address);
+              }
+            } catch (error) {
+              console.error('Reverse geocoding error:', error);
+            }
+          }
+        }, 300);
+      });
+    }
+  }, [googleMapsLoaded, coords]);
 
   if (items.length === 0 && step !== 3) {
     return <EmptyCart />;
@@ -65,16 +243,60 @@ function CheckoutPage() {
       return;
     }
     setLocating(true);
+    
+    // Increased timeout for mobile devices and added maximumAge for cached positions
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        const newCoords = { lat: latitude, lng: longitude };
+        setCoords(newCoords);
+        setMapCenter(newCoords);
+        
+        // Animate map to user's location
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.panTo({ lat: latitude, lng: longitude });
+          mapInstanceRef.current.setZoom(16);
+        }
+        
+        // Reverse geocoding to get address from coordinates
+        if (window.google && window.google.maps) {
+          try {
+            const geocoder = new window.google.maps.Geocoder();
+            const response = await geocoder.geocode({
+              location: newCoords
+            });
+            
+            if (response.results && response.results[0]) {
+              setAddress(response.results[0].formatted_address);
+            }
+          } catch (error) {
+            console.error('Reverse geocoding error:', error);
+            setLocError("Βρέθηκε η τοποθεσία αλλά όχι η διεύθυνση.");
+          }
+        }
+        
         setLocating(false);
       },
       (err) => {
-        setLocError(err.message || "Δεν μπορέσαμε να βρούμε την τοποθεσία σου.");
+        console.error('Geolocation error:', err);
+        let errorMessage = "Δεν μπορέσαμε να βρούμε την τοποθεσία σου.";
+        
+        if (err.code === 1) {
+          errorMessage = "Πρέπει να δώσεις άδεια για την τοποθεσία σου.";
+        } else if (err.code === 2) {
+          errorMessage = "Η τοποθεσία δεν είναι διαθέσιμη. Δοκίμασε ξανά.";
+        } else if (err.code === 3) {
+          errorMessage = "Χρονικό όριο. Δοκίμασε ξανά.";
+        }
+        
+        setLocError(errorMessage);
         setLocating(false);
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { 
+        enableHighAccuracy: true, 
+        timeout: 30000, // Increased from 10s to 30s for mobile
+        maximumAge: 0 // Don't use cached positions
+      }
     );
   }
 
@@ -176,6 +398,12 @@ function CheckoutPage() {
 
   return (
     <div className="relative min-h-screen text-foreground">
+      <Script
+        src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places,maps&callback=initGoogleMaps`}
+        strategy="afterInteractive"
+        onLoad={() => setGoogleMapsLoaded(true)}
+        onError={() => console.error('Failed to load Google Maps script')}
+      />
       <EspressoBackground />
 
       <header className="sticky top-0 z-30 border-b border-white/10 bg-black/40 backdrop-blur-md">
@@ -193,33 +421,36 @@ function CheckoutPage() {
           <section className="space-y-4 animate-fade-up">
             <h2 className="text-xl font-semibold text-white">Το καλάθι σου</h2>
             <ul className="space-y-2">
-              {items.map((it: any) => (
-                <li key={it.name} className="flex items-center gap-3 rounded-2xl glass p-3">
-                  <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-white">
-                    {it.image ? (
-                      <Image src={it.image} alt={it.name} width={56} height={56} className="h-full w-full object-contain p-1" />
-                    ) : (
-                      <ShoppingBag className="h-5 w-5 text-black/40" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-white">{it.name}</p>
-                    <p className="text-xs text-white/60">{formatEur(it.price)}</p>
-                  </div>
-                  <div className="flex items-center gap-1 rounded-full bg-white/10 p-1">
-                    <button onClick={() => setQty(it.name, it.qty - 1)} className="grid h-7 w-7 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20" aria-label="Μείωση">
-                      <Minus className="h-3 w-3" />
+              {items.map((it: any) => {
+                const productImage = productImages[it.name] || it.image;
+                return (
+                  <li key={it.name} className="flex items-center gap-3 rounded-2xl glass p-3">
+                    <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-xl bg-white/10">
+                      {productImage ? (
+                        <Image src={productImage} alt={it.name} width={128} height={128} className="h-full w-full object-cover" quality={90} />
+                      ) : (
+                        <ShoppingBag className="h-5 w-5 text-white/40" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-white">{it.name}</p>
+                      <p className="text-xs text-white/60">{formatEur(it.price)}</p>
+                    </div>
+                    <div className="flex items-center gap-1 rounded-full bg-white/10 p-1">
+                      <button onClick={() => setQty(it.name, it.qty - 1)} className="grid h-7 w-7 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20" aria-label="Μείωση">
+                        <Minus className="h-3 w-3" />
+                      </button>
+                      <span className="w-6 text-center text-sm font-semibold text-white">{it.qty}</span>
+                      <button onClick={() => add({ name: it.name, price: it.price, image: productImage, category: it.category })} className="grid h-7 w-7 place-items-center rounded-full bg-primary text-primary-foreground" aria-label="Προσθήκη">
+                        <Plus className="h-3 w-3" />
+                      </button>
+                    </div>
+                    <button onClick={() => remove(it.name)} className="grid h-8 w-8 place-items-center rounded-full text-white/50 hover:text-destructive" aria-label="Αφαίρεση">
+                      <Trash2 className="h-4 w-4" />
                     </button>
-                    <span className="w-6 text-center text-sm font-semibold text-white">{it.qty}</span>
-                    <button onClick={() => add({ name: it.name, price: it.price, image: it.image, category: it.category })} className="grid h-7 w-7 place-items-center rounded-full bg-primary text-primary-foreground" aria-label="Προσθήκη">
-                      <Plus className="h-3 w-3" />
-                    </button>
-                  </div>
-                  <button onClick={() => remove(it.name)} className="grid h-8 w-8 place-items-center rounded-full text-white/50 hover:text-destructive" aria-label="Αφαίρεση">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
 
             <Totals subtotal={subtotal} deliveryFee={deliveryFee} total={total} />
@@ -232,40 +463,31 @@ function CheckoutPage() {
 
             <Field label="Ονοματεπώνυμο" value={name} onChange={setName} placeholder="Π.χ. Γιώργος Παπαδόπουλος" />
             <Field label="Τηλέφωνο" value={phone} onChange={setPhone} placeholder="69XXXXXXXX" type="tel" />
-            <Field label="Διεύθυνση" value={address} onChange={setAddress} placeholder="Οδός, αριθμός, πόλη" />
+            <Field label="Διεύθυνση" value={address} onChange={setAddress} placeholder="Οδός, αριθμός, πόλη" ref={addressInputRef} />
             <Field label="Όροφος / Κουδούνι (προαιρετικό)" value={addressNotes} onChange={setAddressNotes} placeholder="Π.χ. 3ος όροφος, κουδούνι Παπαδόπουλος" />
 
-            <div className="rounded-2xl glass p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-white">Τοποθεσία GPS</p>
-                  <p className="text-xs text-white/60">
-                    {coords
-                      ? `Καταγράφηκε: ${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`
-                      : "Για ακριβέστερη παράδοση"}
-                  </p>
+            {/* Interactive Map */}
+            <div className="relative h-64 w-full overflow-hidden rounded-2xl glass">
+              <div ref={mapRef} className="h-full w-full" />
+              {/* Center Pin */}
+              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
+                <div className="relative">
+                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 h-8 w-8 rounded-full bg-primary shadow-[var(--shadow-glow)] animate-bounce" />
+                  <div className="absolute -top-6 left-1/2 -translate-x-1/2 h-4 w-0.5 bg-primary" />
                 </div>
-                <button
-                  onClick={getLocation}
-                  disabled={locating}
-                  className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/15 disabled:opacity-50"
-                >
-                  {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Locate className="h-4 w-4" />}
-                  {coords ? "Ξανά" : "Εντοπισμός"}
-                </button>
               </div>
-              {locError && <p className="mt-2 text-xs text-destructive">{locError}</p>}
-              {coords && (
-                <a
-                  href={`https://www.google.com/maps?q=${coords.lat},${coords.lng}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                >
-                  <MapPin className="h-3 w-3" /> Προβολή στον χάρτη
-                </a>
-              )}
+              {/* Current Location Button */}
+              <button
+                onClick={getLocation}
+                disabled={locating}
+                className="absolute bottom-4 right-4 z-20 inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow-[var(--shadow-glow)] hover:opacity-90 disabled:opacity-50"
+              >
+                {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Locate className="h-4 w-4" />}
+                {locating ? "Εντοπισμός..." : "Η τοποθεσία μου"}
+              </button>
             </div>
+
+            {locError && <p className="text-xs text-destructive">{locError}</p>}
 
             <Field label="Σχόλια παραγγελίας (προαιρετικό)" value={notes} onChange={setNotes} placeholder="Π.χ. χωρίς ζάχαρη" textarea />
           </section>
@@ -392,6 +614,7 @@ function Field({
   placeholder,
   type = "text",
   textarea = false,
+  ref,
 }: {
   label: string;
   value: string;
@@ -399,6 +622,7 @@ function Field({
   placeholder?: string;
   type?: string;
   textarea?: boolean;
+  ref?: React.RefObject<HTMLInputElement | null>;
 }) {
   return (
     <label className="block">
@@ -414,6 +638,7 @@ function Field({
         />
       ) : (
         <input
+          ref={ref}
           type={type}
           value={value}
           onChange={(e) => onChange(e.target.value)}

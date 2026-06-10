@@ -2,9 +2,10 @@
   "name": "juco-cafe",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 8080",
+    "dev": "next dev -p 3000",
+    "tunnel": "C:\\Users\\nixk\\AppData\\Local\\Microsoft\\WinGet\\Links\\ngrok.exe http --config=ngrok.yml 3000",
     "build": "next build",
-    "start": "next start -p 8080",
+    "start": "next start -p 3000",
     "lint": "next lint"
   },
   "dependencies": {
@@ -42,6 +43,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
+    "dotenv": "^17.4.2",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.40.0",
     "input-otp": "^1.4.2",

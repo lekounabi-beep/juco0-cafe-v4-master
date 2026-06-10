@@ -1,0 +1,8 @@
+version: "2"
+authtoken: 3EtUgXzQpAnQNM24CUQrAlaVycn_3w16bfjbe7jyG1Vbd58Mq
+
+tunnels:
+  web:
+    addr: 3000
+    proto: http
+    hostname: never-posture-apprehend.ngrok-free.dev
