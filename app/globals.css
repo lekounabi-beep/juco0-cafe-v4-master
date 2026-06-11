@@ -173,3 +173,33 @@ h1, h2, h3, h4 {
 .transform-gpu {
   transform: translateZ(0);
 }
+
+/* Additional Chart Colors (from v0 component) */
+:root {
+  --chart-1: oklch(0.92 0.21 102);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+}
+
+/* Sidebar Colors (from v0 component) */
+:root {
+  --sidebar: oklch(0.18 0.02 50 / 0.55);
+  --sidebar-foreground: oklch(0.99 0 0);
+  --sidebar-primary: oklch(0.92 0.21 102);
+  --sidebar-primary-foreground: oklch(0.16 0.02 50);
+  --sidebar-accent: oklch(0.25 0.02 50 / 0.5);
+  --sidebar-accent-foreground: oklch(0.99 0 0);
+  --sidebar-border: oklch(1 0 0 / 0.12);
+  --sidebar-ring: oklch(0.92 0.21 102);
+}
+
+/* Utility Classes for Shadows (from v0 component) */
+.shadow-soft {
+  box-shadow: var(--shadow-soft);
+}
+
+.shadow-glow {
+  box-shadow: var(--shadow-glow);
+}
