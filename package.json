@@ -2,10 +2,10 @@
   "name": "juco-cafe",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000",
-    "tunnel": "C:\\Users\\nixk\\AppData\\Local\\Microsoft\\WinGet\\Links\\ngrok.exe http --config=ngrok.yml 3000",
+    "dev": "next dev -p 8080",
+    "tunnel": "C:\\Users\\nixk\\AppData\\Local\\Microsoft\\WinGet\\Links\\ngrok.exe http --config=ngrok.yml 8080",
     "build": "next build",
-    "start": "next start -p 3000",
+    "start": "next start -p 8080",
     "lint": "next lint"
   },
   "dependencies": {
