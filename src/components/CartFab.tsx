@@ -1,12 +1,18 @@
 import { ShoppingBag } from "lucide-react";
 import Link from "next/link";
 import { useCart, formatEur } from "@/lib/cart-store";
+import { useEffect, useState } from "react";
 
 export function CartFab() {
-  const count = useCart((s) => s.items.reduce((sum, i) => sum + i.qty, 0));
-  const subtotal = useCart((s) => s.items.reduce((sum, i) => sum + i.qty * i.price, 0));
+  const count = useCart((s) => s.count());
+  const subtotal = useCart((s) => s.subtotal());
+  const [mounted, setMounted] = useState(false);
 
-  if (count === 0) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted || count === 0) return null;
 
   return (
     <Link

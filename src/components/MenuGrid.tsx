@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Plus, Minus, ShoppingBag } from "lucide-react";
+import { Plus, Minus, ShoppingBag, Edit2, Check, X, Save } from "lucide-react";
 import { menu, type MenuItem } from "@/data/menu";
 import { productImages } from "@/data/productImages";
 import { useCart } from "@/lib/cart-store";
@@ -57,13 +57,16 @@ function formatPrice(p: number) {
   return p > 0 ? `${p.toFixed(2).replace(".", ",")} €` : "—";
 }
 
-function Card({ item, i }: { item: MenuItem; i: number }) {
+function Card({ item, i, editable = false, onEdit }: { item: MenuItem; i: number; editable?: boolean; onEdit?: (index: number, item: MenuItem) => void }) {
   const productPhoto = productImages[item.name];
   const fallback = pickFallback(item.category, i);
   const initial = item.image || productPhoto || fallback;
   const [src, setSrc] = useState<string>(initial);
   const [triedFallback, setTriedFallback] = useState(initial !== item.image);
   const [imageError, setImageError] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editValue, setEditValue] = useState('');
+  const [editField, setEditField] = useState<'name' | 'price' | 'description' | null>(null);
 
   const qty = useCart((s) => s.items.find((it) => it.name === item.name)?.qty ?? 0);
   const add = useCart((s) => s.add);
@@ -81,6 +84,33 @@ function Card({ item, i }: { item: MenuItem; i: number }) {
     }
   };
 
+  const handleEdit = (field: 'name' | 'price' | 'description') => {
+    setEditField(field);
+    setEditValue(field === 'price' ? item.price.toString() : (item[field] || ''));
+    setEditing(true);
+  };
+
+  const handleSave = () => {
+    if (onEdit && editField) {
+      const updatedItem = { ...item };
+      if (editField === 'price') {
+        updatedItem.price = parseFloat(editValue);
+      } else {
+        updatedItem[editField] = editValue;
+      }
+      onEdit(i, updatedItem);
+    }
+    setEditing(false);
+    setEditField(null);
+    setEditValue('');
+  };
+
+  const handleCancel = () => {
+    setEditing(false);
+    setEditField(null);
+    setEditValue('');
+  };
+
   return (
     <motion.article
       initial={{ opacity: 0, y: 20 }}
@@ -89,12 +119,12 @@ function Card({ item, i }: { item: MenuItem; i: number }) {
       className="group flex flex-col overflow-hidden rounded-2xl glass shadow-[var(--shadow-soft)] will-change-transform"
       whileHover={{ y: -4, transition: { duration: 0.2 } }}
     >
-      <div className={`relative aspect-[4/3] overflow-hidden ${productPhoto ? "bg-white" : "bg-black/40"}`}>
+      <div className={`relative aspect-[4/3] overflow-hidden ${productPhoto ? "bg-transparent" : "bg-black/40"}`}>
         {!imageError ? (
           <motion.div
             whileHover={{ scale: 1.05 }}
             transition={{ duration: 0.3 }}
-            className="h-full w-full"
+            className="relative h-full w-full"
           >
             <Image
               src={src}
@@ -103,7 +133,7 @@ function Card({ item, i }: { item: MenuItem; i: number }) {
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
               loading="lazy"
               onError={handleImageError}
-              className={`will-change-transform ${productPhoto ? "object-contain p-2" : "object-cover"}`}
+              className={`will-change-transform ${productPhoto ? "object-cover" : "object-cover"}`}
             />
           </motion.div>
         ) : (
@@ -116,12 +146,101 @@ function Card({ item, i }: { item: MenuItem; i: number }) {
         </div>
       </div>
       <div className="flex flex-1 flex-col p-4">
-        <h3 className="text-base font-semibold leading-snug text-white">{item.name}</h3>
+        <div className="flex items-start justify-between gap-2">
+          {editable && editing && editField === 'name' ? (
+            <div className="flex-1 flex gap-1">
+              <input
+                type="text"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                className="flex-1 bg-white/10 border border-white/20 rounded px-2 py-1 text-white text-sm"
+                autoFocus
+              />
+              <button onClick={handleSave} className="p-1 bg-green-500/20 text-green-400 rounded">
+                <Check className="h-4 w-4" />
+              </button>
+              <button onClick={handleCancel} className="p-1 bg-red-500/20 text-red-400 rounded">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <>
+              <h3 className="text-base font-semibold leading-snug text-white">{item.name}</h3>
+              {editable && (
+                <button
+                  onClick={() => handleEdit('name')}
+                  className="p-1 hover:bg-white/10 rounded text-white/50 hover:text-white"
+                >
+                  <Edit2 className="h-3 w-3" />
+                </button>
+              )}
+            </>
+          )}
+        </div>
         {item.description && (
-          <p className="mt-1 line-clamp-2 text-sm text-white/60">{item.description}</p>
+          <div className="mt-1">
+            {editable && editing && editField === 'description' ? (
+              <div className="flex gap-1">
+                <input
+                  type="text"
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  className="flex-1 bg-white/10 border border-white/20 rounded px-2 py-1 text-white text-sm"
+                  autoFocus
+                />
+                <button onClick={handleSave} className="p-1 bg-green-500/20 text-green-400 rounded">
+                  <Check className="h-4 w-4" />
+                </button>
+                <button onClick={handleCancel} className="p-1 bg-red-500/20 text-red-400 rounded">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-start gap-2">
+                <p className="line-clamp-2 text-sm text-white/60">{item.description}</p>
+                {editable && (
+                  <button
+                    onClick={() => handleEdit('description')}
+                    className="p-1 hover:bg-white/10 rounded text-white/50 hover:text-white flex-shrink-0"
+                  >
+                    <Edit2 className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         )}
         <div className="mt-4">
-          {qty === 0 ? (
+          {editable ? (
+            editing && editField === 'price' ? (
+              <div className="flex gap-1">
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  className="flex-1 bg-white/10 border border-white/20 rounded px-2 py-1 text-white text-sm"
+                  autoFocus
+                />
+                <button onClick={handleSave} className="p-1 bg-green-500/20 text-green-400 rounded">
+                  <Check className="h-4 w-4" />
+                </button>
+                <button onClick={handleCancel} className="p-1 bg-red-500/20 text-red-400 rounded">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm text-white/70">{formatPrice(item.price)}</span>
+                <button
+                  onClick={() => handleEdit('price')}
+                  className="p-1 hover:bg-white/10 rounded text-white/50 hover:text-white"
+                >
+                  <Edit2 className="h-3 w-3" />
+                </button>
+              </div>
+            )
+          ) : qty === 0 ? (
             <motion.button
               type="button"
               disabled={disabled}
@@ -168,28 +287,70 @@ function Card({ item, i }: { item: MenuItem; i: number }) {
   );
 }
 
-export function MenuGrid() {
+export function MenuGrid({
+  editable = false,
+  onEdit,
+  menuData = menu
+}: {
+  editable?: boolean;
+  onEdit?: (index: number, item: MenuItem) => void;
+  menuData?: MenuItem[];
+}) {
   const grouped = useMemo(() => {
     const map = new Map<string, MenuItem[]>();
-    for (const m of menu) {
+    
+    for (const m of menuData) {
       if (!map.has(m.category)) map.set(m.category, []);
       map.get(m.category)!.push(m);
     }
-    return Array.from(map.entries());
-  }, []);
+    
+    // Don't sort items within categories - preserve database order (as in menu.ts)
+    
+    // Use the exact category order from the static menu
+    const categoryOrder = [
+      'ΚΑΦΕΔΕΣ',
+      'ΡΟΦΗΜΑΤΑ ΣΟΚΟΛΑΤΑΣ',
+      'ΡΟΦΗΜΑΤΑ',
+      'ΦΥΣΙΚΟΙ ΧΥΜΟΙ',
+      'ΦΥΣΙΚΟΙ ΧΥΜΟΙ ΑΝΑΜΕΙΚΤΟΙ',
+      'SMOOTHIES',
+      'MILKSHAKES',
+      'SNACKS',
+      'ΜΠΑΡΕΣ ΠΡΩΤΕΪ́ΝΗΣ',
+      'ΚΑΦΕΚΟΠΤΕΙΟ ESPRESSO',
+      'ΚΑΦΕΚΟΠΤΕΙΟ ΦΙΛΤΡΟΥ',
+      'ΚΑΦΕΚΟΠΤΕΙΟ ΕΛΛΗΝΙΚΟΣ',
+      'ΚΑΦΕΚΟΠΤΕΙΟ ΚΑΨΟΥΛΕΣ NESPRESSO',
+      'ΧΥΜΟΙ',
+      'ICED TEA',
+      'ΑΝΑΨΥΚΤΙΚΑ'
+    ];
+    
+    // Filter to only include categories that exist in the data
+    const sortedCategories = categoryOrder.filter(cat => map.has(cat));
+    
+    // Add any remaining categories that aren't in the predefined order
+    const remainingCategories = Array.from(map.keys()).filter(cat => !categoryOrder.includes(cat));
+    
+    const finalOrder = [...sortedCategories, ...remainingCategories];
+    
+    // Return categories in the sorted order
+    const sortedEntries = finalOrder.map(cat => [cat, map.get(cat)!] as [string, MenuItem[]]);
+    return sortedEntries;
+  }, [menuData]);
 
-  const [active, setActive] = useState<string>(grouped[0]?.[0] ?? "");
+  const [active, setActive] = useState<string>('');
 
   return (
     <section id="menu" className="mx-auto max-w-7xl px-4 py-16 sm:py-24">
       <div className="mb-10 text-center">
-        <p className="text-xs uppercase tracking-[0.25em] text-white/60">Our menu</p>
-        <h2 className="mt-2 text-3xl sm:text-5xl font-semibold text-white [text-shadow:0_2px_20px_rgba(0,0,0,0.5)]">Made fresh, every day</h2>
+        <p className="text-xs uppercase tracking-[0.25em] text-white/60">{editable ? 'Admin Menu Editor' : 'Our menu'}</p>
+        <h2 className="mt-2 text-3xl sm:text-5xl font-semibold text-white [text-shadow:0_2px_20px_rgba(0,0,0,0.5)]">{editable ? 'Edit Menu Items' : 'Made fresh, every day'}</h2>
       </div>
 
-      {/* Category pills - Mobile scroll isolation */}
-      <div className="sticky top-[57px] z-20 -mx-4 mb-10 overflow-x-auto bg-black/40 px-4 py-3 backdrop-blur-md border-y border-white/10 will-change-transform touch-pan-x">
-        <div className="flex gap-2 whitespace-nowrap">
+      {/* Category pills - Show in both modes */}
+      <div className="sticky top-[57px] z-20 -mx-4 mb-10 overflow-x-auto overflow-y-hidden bg-black/40 px-4 py-3 backdrop-blur-md border-y border-white/10 will-change-transform touch-pan-x custom-scrollbar">
+        <div className="flex gap-3 whitespace-nowrap">
           {grouped.map(([cat]) => (
             <motion.a
               key={cat}
@@ -197,11 +358,12 @@ export function MenuGrid() {
               onClick={() => setActive(cat)}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className={`rounded-full border px-4 py-1.5 text-xs font-medium uppercase tracking-wider transition will-change-transform ${
+              className={`px-5 py-2.5 text-sm font-medium uppercase tracking-wider transition-all will-change-transform rounded-full ${
                 active === cat
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-white/15 bg-white/5 text-white/70 hover:text-white hover:bg-white/10"
+                  ? "text-white shadow-lg"
+                  : "bg-white/10 text-white/80 hover:bg-white/20 hover:text-white"
               }`}
+              style={active === cat ? { backgroundColor: '#16a34a !important', boxShadow: '0 10px 15px -3px rgba(22, 163, 74, 0.25) !important' } as any : undefined}
             >
               {cat}
             </motion.a>
@@ -209,26 +371,30 @@ export function MenuGrid() {
         </div>
       </div>
 
-      <div className="space-y-16">
+      {/* Menu Grid - Grouped by category in both modes */}
+      <div className="space-y-20">
         {grouped.map(([cat, items]) => (
-          <motion.div 
-            key={cat} 
-            id={`cat-${encodeURIComponent(cat)}`} 
-            className="scroll-mt-24"
+          <motion.div
+            key={cat}
+            id={`cat-${encodeURIComponent(cat)}`}
+            className="scroll-mt-28"
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true, margin: "-100px" }}
             transition={{ duration: 0.4 }}
           >
-            <div className="mb-6 flex items-end justify-between gap-4">
-              <h3 className="text-xl sm:text-2xl font-semibold text-white">{cat}</h3>
+            <div className="mb-8 flex items-end justify-between gap-4">
+              <h3 className="text-2xl sm:text-3xl font-semibold text-white">{cat}</h3>
               <div className="h-px flex-1 bg-white/15" />
-              <span className="text-xs text-white/55">{items.length} items</span>
+              <span className="text-sm text-white/55">{items.length} items</span>
             </div>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-              {items.map((it, i) => (
-                <Card key={it.name + i} item={it} i={i} />
-              ))}
+              {items.map((it) => {
+                const actualIndex = menuData.findIndex(m => m.name === it.name);
+                return (
+                  <Card key={it.name + actualIndex} item={it} i={actualIndex} editable={editable} onEdit={onEdit} />
+                );
+              })}
             </div>
           </motion.div>
         ))}

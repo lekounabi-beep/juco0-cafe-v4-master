@@ -1,4 +1,4 @@
-export type MenuItem = { category: string; name: string; price: number; description: string; image: string };
+export type MenuItem = { category: string; name: string; price: number; description: string; image: string; sort_order?: number };
 export const menu: MenuItem[] = [
   {
     "category": "ΚΑΦΕΔΕΣ",

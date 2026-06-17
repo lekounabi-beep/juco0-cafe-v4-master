@@ -3,24 +3,28 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 // Type declarations for Google Maps
 declare global {
   interface Window {
-    initGoogleMaps?: () => void;
     google?: any;
   }
 }
 
-export function useGoogleMaps(addressInputRef: React.RefObject<HTMLInputElement | null>) {
+export function useGoogleMaps(addressInputRef: React.RefObject<HTMLInputElement | null>, shouldInitialize: boolean = true, setAddress?: (address: string) => void) {
   const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
-  const [autocomplete, setAutocomplete] = useState<any>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null);
 
-  // Load Google Maps script with proper async loading
+  // Load Google Maps using new bootstrap loader (no Loader class)
   useEffect(() => {
-    // Set up the callback function
-    window.initGoogleMaps = () => {
-      setGoogleMapsLoaded(true);
-    };
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+
+    console.log('Το API Key μου είναι:', apiKey);
+
+    if (!apiKey) {
+      setLoadError('Google Maps API Key is missing. Please check your environment variables.');
+      console.error('Google Maps API Key is missing');
+      return;
+    }
 
     // Check if script is already loaded
     if (window.google && window.google.maps) {
@@ -28,40 +32,76 @@ export function useGoogleMaps(addressInputRef: React.RefObject<HTMLInputElement 
       return;
     }
 
-    // Create and inject script tag with async and defer attributes
+    // Load the bootstrap script (new API approach with loading=async)
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places,maps&callback=initGoogleMaps&loading=async`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initGoogleMaps&v=weekly&loading=async`;
     script.async = true;
     script.defer = true;
-    script.onerror = () => console.error('Failed to load Google Maps script');
-    
+
+    (window as any).initGoogleMaps = async () => {
+      console.log('initGoogleMaps callback fired');
+      try {
+        // Wait for google to be available
+        if (!window.google || !window.google.maps) {
+          throw new Error('Google Maps object not available after script load');
+        }
+
+        // Wait for Google Maps core to be fully initialized
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        console.log('Loading maps library...');
+        await window.google.maps.importLibrary('maps');
+        console.log('Maps library loaded');
+
+        console.log('Loading places library...');
+        await window.google.maps.importLibrary('places');
+        console.log('Places library loaded');
+
+        setGoogleMapsLoaded(true);
+        console.log('Google Maps loaded successfully');
+      } catch (error: any) {
+        console.error('Failed to load Google Maps libraries:', error);
+        console.error('Error details:', error.message, error.code);
+        setLoadError(`Failed to load Google Maps: ${error.message || 'Unknown error'}`);
+      }
+    };
+
+    script.onerror = () => {
+      console.error('Failed to load Google Maps script');
+      setLoadError('Failed to load Google Maps. Please check your internet connection and try again.');
+    };
+
+    script.onload = () => {
+      console.log('Google Maps script loaded');
+    };
+
     document.head.appendChild(script);
 
-    // Cleanup function
     return () => {
-      // Remove script if component unmounts (optional, usually not needed)
       if (document.head.contains(script)) {
         document.head.removeChild(script);
       }
     };
   }, []);
 
-  // Initialize Places Autocomplete with modern API when Google Maps is loaded
+  // Initialize Places Autocomplete with modern API when Google Maps is loaded and on delivery step
   useEffect(() => {
-    if (googleMapsLoaded && addressInputRef?.current && window.google) {
+    if (googleMapsLoaded && shouldInitialize && addressInputRef?.current && window.google) {
       const input = addressInputRef.current;
+
+      // Safety check: ensure input element exists in DOM
+      if (!input) {
+        console.error('Address input element not found in DOM');
+        return;
+      }
       
       // Create custom dropdown container
       const dropdown = document.createElement('div');
       dropdown.id = 'custom-autocomplete-dropdown';
-      dropdown.className = 'custom-autocomplete-dropdown';
+      dropdown.className = 'custom-autocomplete-dropdown glass-strong';
       dropdown.style.cssText = `
         position: absolute;
         z-index: 9999 !important;
-        background: rgba(30, 22, 17, 0.75);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 8px;
         max-height: 250px;
         overflow-y: auto;
@@ -114,17 +154,25 @@ export function useGoogleMaps(addressInputRef: React.RefObject<HTMLInputElement 
             }
             
             if (AutocompleteSuggestion && sessionToken) {
-              // Use the modern Places API (New)
+              // Use the modern Places API (New) with FieldMask header
               const { suggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions({
                 input: query,
                 includedRegionCodes: ['GR'],
                 language: 'el',
                 sessionToken: sessionToken
+              }, {
+                headers: {
+                  'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location'
+                }
               });
-              
+
+              console.log("Places Response:", suggestions);
+
               if (suggestions && suggestions.length > 0) {
                 dropdown.innerHTML = '';
                 suggestions.forEach((suggestion: any) => {
+                  console.log("Processing suggestion:", suggestion);
+
                   const item = document.createElement('div');
                   item.className = 'autocomplete-item';
                   item.style.cssText = `
@@ -136,9 +184,15 @@ export function useGoogleMaps(addressInputRef: React.RefObject<HTMLInputElement 
                     font-size: 0.875rem;
                     font-weight: 500;
                   `;
-                  
-                  // Access text using new API property structure
-                  const addressText = suggestion.placePrediction?.text?.text || suggestion.description || '';
+
+                  // Access text - handle both minified and standard property names
+                  const addressText = suggestion.placePrediction?.text?.text ||
+                                     suggestion.placePrediction?.text ||
+                                     suggestion.text?.text ||
+                                     suggestion.text ||
+                                     suggestion.description ||
+                                     suggestion.gD ||
+                                     '';
                   item.textContent = addressText;
                   
                   item.addEventListener('mouseenter', () => {
@@ -148,21 +202,55 @@ export function useGoogleMaps(addressInputRef: React.RefObject<HTMLInputElement 
                   item.addEventListener('mouseleave', () => {
                     item.style.background = 'transparent';
                   });
-                  
-                  item.addEventListener('click', async () => {
+
+                  item.addEventListener('mousedown', async (e) => {
+                    e.preventDefault(); // Prevent blur from closing dropdown
+
+                    console.log("Επιλέχθηκε η διεύθυνση:", addressText);
+
                     // Get place details using the suggestion's placeId
-                    const placesLibrary = await window.google.maps.importLibrary("places");
-                    const Place = placesLibrary.Place;
-                    
                     try {
-                      const place = await Place.fetchFields({
-                        id: suggestion.placePrediction.placeId,
+                      const placesLibrary = await window.google.maps.importLibrary("places");
+                      const Place = placesLibrary.Place;
+
+                      // Handle both minified and standard property names for placeId
+                      const placeId = suggestion.placePrediction?.placeId ||
+                                      suggestion.oh ||
+                                      suggestion.id;
+
+                      console.log("Using placeId:", placeId);
+
+                      const place = await new Place({
+                        id: placeId
+                      }).fetchFields({
                         fields: ['displayName', 'formattedAddress', 'location', 'addressComponents']
                       });
-                      
-                      const event = new CustomEvent('addressSelected', { 
-                        detail: { 
-                          address: place.formattedAddress || place.displayName,
+
+                      console.log("Place details fetched:", place);
+
+                      const address = place.formattedAddress || place.displayName || '';
+
+                      console.log("Setting address in input:", address);
+
+                      // Call setAddress directly if provided (React state update)
+                      if (setAddress && address) {
+                        setAddress(address);
+                      }
+
+                      // Directly set input value as fallback
+                      if (input && address) {
+                        input.value = address;
+                        // Trigger React change event
+                        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+                        nativeInputValueSetter?.call(input, address);
+                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                        input.dispatchEvent(new Event('change', { bubbles: true }));
+                        input.dispatchEvent(new Event('blur', { bubbles: true }));
+                      }
+
+                      const event = new CustomEvent('addressSelected', {
+                        detail: {
+                          address: address,
                           coords: place.location ? {
                             lat: place.location.lat(),
                             lng: place.location.lng(),
@@ -170,14 +258,14 @@ export function useGoogleMaps(addressInputRef: React.RefObject<HTMLInputElement 
                         }
                       });
                       window.dispatchEvent(event);
-                      
+
                       if (place.location) {
                         const newCoords = {
                           lat: place.location.lat(),
                           lng: place.location.lng(),
                         };
                         setMapCenter(newCoords);
-                        
+
                         if (mapInstanceRef.current) {
                           mapInstanceRef.current.panTo(place.location);
                           mapInstanceRef.current.setZoom(16);
@@ -186,7 +274,7 @@ export function useGoogleMaps(addressInputRef: React.RefObject<HTMLInputElement 
                     } catch (error) {
                       console.error("Error fetching place details:", error);
                     }
-                    
+
                     dropdown.style.display = 'none';
                   });
                   
@@ -235,215 +323,37 @@ export function useGoogleMaps(addressInputRef: React.RefObject<HTMLInputElement 
         clearTimeout(debounceTimer);
       };
     }
-  }, [googleMapsLoaded, addressInputRef]);
+  }, [googleMapsLoaded, shouldInitialize, addressInputRef]);
 
-  // Initialize map when Google Maps is loaded
+  // Initialize map when Google Maps is loaded and shouldInitialize is true
   useEffect(() => {
-    if (googleMapsLoaded && !mapInstanceRef.current) {
+    if (googleMapsLoaded && !mapInstanceRef.current && shouldInitialize && mapRef.current) {
+      console.log('Initializing map...');
+      console.log('mapRef.current:', mapRef.current);
+      console.log('document.getElementById("map"):', document.getElementById('map'));
+
       // Try to find the map div by id first (for CheckoutUI component)
       const mapElement = document.getElementById('map') || mapRef.current;
-      
-      if (!mapElement) return;
+
+      if (!mapElement) {
+        console.error('Map element not found!');
+        return;
+      }
 
       // Default to Nafpaktos center for windsurf area
       const defaultCenter = { lat: 38.3930, lng: 21.8280 };
       const initialCenter = mapCenter || defaultCenter;
-      
+
       const map = new window.google.maps.Map(mapElement, {
-        center: initialCenter,
-        zoom: 13,
-        gestureHandling: 'cooperative',
-        disableDefaultUI: true,
-        zoomControl: true,
-        streetViewControl: false,
-        mapTypeControl: false,
-        fullscreenControl: false,
-        styles: [
-          {
-            featureType: 'all',
-            elementType: 'geometry',
-            stylers: [{ color: '#1E1611' }]
-          },
-          {
-            featureType: 'all',
-            elementType: 'labels.text.fill',
-            stylers: [{ color: '#e5e5e5' }]
-          },
-          {
-            featureType: 'all',
-            elementType: 'labels.text.stroke',
-            stylers: [{ color: '#1E1611' }]
-          },
-          {
-            featureType: 'administrative',
-            elementType: 'geometry',
-            stylers: [{ color: '#2d1f14' }]
-          },
-          {
-            featureType: 'administrative.country',
-            elementType: 'labels.text.fill',
-            stylers: [{ color: '#f97316' }]
-          },
-          {
-            featureType: 'administrative.land_parcel',
-            stylers: [{ visibility: 'off' }]
-          },
-          {
-            featureType: 'administrative.locality',
-            elementType: 'labels.text.fill',
-            stylers: [{ color: '#f97316' }]
-          },
-          {
-            featureType: 'administrative.neighborhood',
-            stylers: [{ visibility: 'off' }]
-          },
-          {
-            featureType: 'landscape',
-            elementType: 'geometry',
-            stylers: [{ color: '#1E1611' }]
-          },
-          {
-            featureType: 'landscape.man_made',
-            elementType: 'geometry',
-            stylers: [{ color: '#2d1f14' }]
-          },
-          {
-            featureType: 'landscape.man_made.building',
-            stylers: [{ visibility: 'off' }]
-          },
-          {
-            featureType: 'landscape.natural',
-            elementType: 'geometry',
-            stylers: [{ color: '#1E1611' }]
-          },
-          {
-            featureType: 'poi',
-            elementType: 'geometry',
-            stylers: [{ color: '#2d1f14' }]
-          },
-          {
-            featureType: 'poi',
-            elementType: 'labels.text.fill',
-            stylers: [{ color: '#d4d4d4' }]
-          },
-          {
-            featureType: 'poi',
-            elementType: 'labels.text.stroke',
-            stylers: [{ color: '#1E1611' }]
-          },
-          {
-            featureType: 'poi.business',
-            stylers: [{ visibility: 'off' }]
-          },
-          {
-            featureType: 'poi.medical',
-            stylers: [{ visibility: 'off' }]
-          },
-          {
-            featureType: 'poi.government',
-            stylers: [{ visibility: 'off' }]
-          },
-          {
-            featureType: 'poi.park',
-            elementType: 'geometry',
-            stylers: [{ color: '#1E1611' }]
-          },
-          {
-            featureType: 'poi.park',
-            elementType: 'labels.text.fill',
-            stylers: [{ color: '#6b7280' }]
-          },
-          {
-            featureType: 'road',
-            elementType: 'geometry',
-            stylers: [{ color: '#2d1f14' }]
-          },
-          {
-            featureType: 'road',
-            elementType: 'geometry.stroke',
-            stylers: [{ color: '#1E1611' }]
-          },
-          {
-            featureType: 'road',
-            elementType: 'labels.text.fill',
-            stylers: [{ color: '#f97316' }]
-          },
-          {
-            featureType: 'road',
-            elementType: 'labels.text.stroke',
-            stylers: [{ color: '#1E1611' }]
-          },
-          {
-            featureType: 'road.highway',
-            elementType: 'geometry',
-            stylers: [{ color: '#3d2a1a' }]
-          },
-          {
-            featureType: 'road.highway',
-            elementType: 'geometry.stroke',
-            stylers: [{ color: '#1E1611' }]
-          },
-          {
-            featureType: 'road.highway',
-            elementType: 'labels.text.fill',
-            stylers: [{ color: '#f97316' }]
-          },
-          {
-            featureType: 'road.highway',
-            elementType: 'labels.text.stroke',
-            stylers: [{ color: '#1E1611' }]
-          },
-          {
-            featureType: 'road.arterial',
-            elementType: 'geometry',
-            stylers: [{ color: '#2d1f14' }]
-          },
-          {
-            featureType: 'road.arterial',
-            elementType: 'labels.text.fill',
-            stylers: [{ color: '#f97316' }]
-          },
-          {
-            featureType: 'road.local',
-            elementType: 'labels.text.fill',
-            stylers: [{ color: '#d4d4d4' }]
-          },
-          {
-            featureType: 'transit',
-            elementType: 'geometry',
-            stylers: [{ color: '#2d1f14' }]
-          },
-          {
-            featureType: 'transit',
-            elementType: 'labels.text.fill',
-            stylers: [{ color: '#d4d4d4' }]
-          },
-          {
-            featureType: 'transit',
-            elementType: 'labels.text.stroke',
-            stylers: [{ color: '#1E1611' }]
-          },
-          {
-            featureType: 'transit.line',
-            elementType: 'geometry',
-            stylers: [{ color: '#f97316' }]
-          },
-          {
-            featureType: 'transit.station',
-            stylers: [{ visibility: 'off' }]
-          },
-          {
-            featureType: 'water',
-            elementType: 'geometry',
-            stylers: [{ color: '#0a4d68' }]
-          },
-          {
-            featureType: 'water',
-            elementType: 'labels.text.fill',
-            stylers: [{ color: '#6b7280' }]
-          }
-        ]
-      });
+          center: initialCenter,
+          zoom: 13,
+          gestureHandling: 'cooperative',
+          disableDefaultUI: true,
+          zoomControl: true,
+          streetViewControl: false,
+          mapTypeControl: false,
+          fullscreenControl: false
+        });
       
       mapInstanceRef.current = map;
       setMapCenter(initialCenter);
@@ -481,7 +391,7 @@ export function useGoogleMaps(addressInputRef: React.RefObject<HTMLInputElement 
         }, 300);
       });
     }
-  }, [googleMapsLoaded, mapCenter]);
+  }, [googleMapsLoaded, mapCenter, shouldInitialize, mapRef]);
 
   const panToLocation = useCallback((lat: number, lng: number) => {
     if (mapInstanceRef.current) {
@@ -492,6 +402,7 @@ export function useGoogleMaps(addressInputRef: React.RefObject<HTMLInputElement 
 
   return {
     googleMapsLoaded,
+    loadError,
     mapRef,
     mapCenter,
     setMapCenter,

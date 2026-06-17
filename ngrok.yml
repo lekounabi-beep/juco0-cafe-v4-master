@@ -1,8 +1,8 @@
 version: "2"
-authtoken: 3EtUgXzQpAnQNM24CUQrAlaVycn_3w16bfjbe7jyG1Vbd58Mq
+authtoken: 3FFqfdwW8uDENDff5LJXNhldwY4_2oHW5ji3bekrcZSrPQMJs
 
 tunnels:
   web:
-    addr: 3000
+    addr: 8080
     proto: http
-    hostname: never-posture-apprehend.ngrok-free.dev
+    hostname: scoring-pond-disburse.ngrok-free.dev

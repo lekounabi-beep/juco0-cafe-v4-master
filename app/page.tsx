@@ -1,20 +1,90 @@
 "use client";
 
-import { MapPin, Clock, Phone, Instagram, ShoppingBag, ArrowUp } from "lucide-react";
+import { MapPin, Clock, Phone, Instagram, ShoppingBag, ArrowUp, User, LogOut } from "lucide-react";
 import { ReviewGate } from "@/components/ReviewGate";
 import { MenuGrid } from "@/components/MenuGrid";
 import { EspressoBackground } from "@/components/EspressoBackground";
 import { CartFab } from "@/components/CartFab";
+import { FavoriteSection } from "@/features/account/components/FavoriteSection";
+import { useAuth } from "@/features/auth/hooks/useAuth";
+import { useAuthStore } from "@/features/auth/store/auth-store";
 import { useCart, formatEur } from "@/lib/cart-store";
+import { getProfile } from "@/integrations/supabase/services/profile.service";
+import { getProducts } from "@/integrations/supabase/services/product.service";
+import { getStoreSettings } from "@/integrations/supabase/services/store-settings.service";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
+import { menu, type MenuItem } from "@/data/menu";
 
 export default function Index() {
+  const { user, isAuthenticated } = useAuth();
+  const { logout } = useAuthStore();
   const count = useCart((s) => s.items.reduce((sum, i) => sum + i.qty, 0));
   const subtotal = useCart((s) => s.items.reduce((sum, i) => sum + i.qty * i.price, 0));
   const [showMobileCart, setShowMobileCart] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
+  const [userInitials, setUserInitials] = useState('');
+  const [menuData, setMenuData] = useState<MenuItem[]>(menu);
+  const [storeSettings, setStoreSettings] = useState<any>({
+    business_hours: {
+      monday: { open: "07:00", close: "21:00" },
+      tuesday: { open: "07:00", close: "21:00" },
+      wednesday: { open: "07:00", close: "21:00" },
+      thursday: { open: "07:00", close: "21:00" },
+      friday: { open: "07:00", close: "21:00" },
+      saturday: { open: "07:00", close: "21:00" },
+      sunday: { open: "07:00", close: "21:00" },
+    },
+    store_info: {
+      name: "Juco",
+      address: "Nafpaktos, Greece",
+      phone: "+30 26340 00000",
+      instagram: "@juco.nafpaktos",
+    }
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [productsData, settingsData] = await Promise.all([
+          getProducts(),
+          getStoreSettings(),
+        ]);
+        
+        if (productsData && productsData.length > 0) {
+          // Convert database products to MenuItem format
+          const convertedMenu: MenuItem[] = productsData.map((p: any) => ({
+            name: p.name,
+            price: p.price,
+            description: p.description,
+            category: p.category,
+            image: p.image,
+            sort_order: p.sort_order,
+          }));
+          
+          // Sort products to match the exact order in menu.ts
+          const sortedMenu = convertedMenu.sort((a, b) => {
+            const indexA = menu.findIndex(m => m.name === a.name);
+            const indexB = menu.findIndex(m => m.name === b.name);
+            return indexA - indexB;
+          });
+          
+          setMenuData(sortedMenu);
+        }
+        
+        setStoreSettings(settingsData);
+      } catch (error) {
+        console.error('Failed to load data from database:', error);
+        // Fall back to static menu data
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -30,6 +100,37 @@ export default function Index() {
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, [lastScrollY]);
+
+  useEffect(() => {
+    if (user) {
+      const fetchProfile = async () => {
+        try {
+          const profile = await getProfile(user.id);
+          if (profile && profile.full_name) {
+            const names = profile.full_name.split(' ');
+            const initials = names
+              .map(name => name.charAt(0).toUpperCase())
+              .join('')
+              .slice(0, 2);
+            setUserInitials(initials);
+          } else if (user.email) {
+            // Fallback to email initials if no full name
+            const emailInitial = user.email.charAt(0).toUpperCase();
+            setUserInitials(emailInitial);
+          }
+        } catch (error) {
+          console.error('Failed to fetch profile:', error);
+          if (user.email) {
+            const emailInitial = user.email.charAt(0).toUpperCase();
+            setUserInitials(emailInitial);
+          }
+        }
+      };
+      fetchProfile();
+    } else {
+      setUserInitials('');
+    }
+  }, [user]);
 
   return (
     <div className="relative min-h-screen text-foreground overflow-x-hidden">
@@ -66,14 +167,52 @@ export default function Index() {
               className="hover:text-white transition-colors"
             >Visit</motion.a>
           </nav>
-          <motion.a 
-            href="tel:+302634000000" 
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground transition hover:opacity-90"
-          >
-            Call us
-          </motion.a>
+          <div className="flex items-center gap-3">
+            {isAuthenticated ? (
+              <>
+                <motion.a 
+                  href="/account" 
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/15"
+                >
+                  {userInitials ? (
+                    <div className="grid h-7 w-7 place-items-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                      {userInitials}
+                    </div>
+                  ) : (
+                    <User className="h-4 w-4" />
+                  )}
+                </motion.a>
+                <motion.button
+                  onClick={logout}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="flex items-center gap-2 rounded-full bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-400 transition hover:bg-red-500/20"
+                >
+                  <LogOut className="h-4 w-4" />
+                </motion.button>
+              </>
+            ) : (
+              <motion.a 
+                href="/login" 
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="flex items-center gap-2 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground transition hover:opacity-90"
+              >
+                <User className="h-4 w-4" />
+                Σύνδεση
+              </motion.a>
+            )}
+            <motion.a 
+              href="#visit" 
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground transition hover:opacity-90"
+            >
+              Call us
+            </motion.a>
+          </div>
         </div>
       </motion.header>
 
@@ -86,7 +225,7 @@ export default function Index() {
             transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}
             className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/40 px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-white/80 backdrop-blur"
           >
-            <span className="h-1.5 w-1.5 rounded-full bg-primary" /> Open today · Nafpaktos
+            <span className="h-1.5 w-1.5 rounded-full bg-green-500" /> Open today · Nafpaktos
           </motion.span>
           <motion.h1 
             initial={{ opacity: 0, y: 30 }}
@@ -119,7 +258,7 @@ export default function Index() {
               Browse the menu
             </motion.a>
             <motion.a 
-              href="tel:+302634000000" 
+              href="#visit" 
               whileHover={{ scale: 1.05, y: -2 }}
               whileTap={{ scale: 0.95 }}
               className="rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] transition-colors"
@@ -135,8 +274,15 @@ export default function Index() {
         <ReviewGate />
       </div>
 
+      {/* Favorite Order - only for authenticated users */}
+      {isAuthenticated && (
+        <div className="mx-auto max-w-3xl px-4 pb-16">
+          <FavoriteSection />
+        </div>
+      )}
+
       {/* Menu */}
-      <MenuGrid />
+      {!loading && <MenuGrid menuData={menuData} />}
 
       {/* Footer */}
       <footer id="visit" className="border-t border-white/10 bg-black/50 backdrop-blur-md">
@@ -152,17 +298,26 @@ export default function Index() {
           </div>
           <div className="space-y-3 text-sm text-white/85">
             <h4 className="text-xs uppercase tracking-[0.2em] text-white/60">Visit us</h4>
-            <p className="flex items-start gap-2"><MapPin className="mt-0.5 h-4 w-4 text-primary" /> Nafpaktos, Greece</p>
-            <p className="flex items-start gap-2"><Clock className="mt-0.5 h-4 w-4 text-primary" /> Mon–Sun · 07:00 – 23:00</p>
+            <p className="flex items-start gap-2"><MapPin className="mt-0.5 h-4 w-4 text-primary" /> {storeSettings.store_info.address}</p>
+            <div className="flex items-start gap-2">
+              <Clock className="mt-0.5 h-4 w-4 text-primary" />
+              <div className="space-y-1">
+                {storeSettings.business_hours && Object.entries(storeSettings.business_hours).map(([day, hours]: [string, any]) => (
+                  <p key={day}>{day.charAt(0).toUpperCase() + day.slice(1)}: {hours.open} - {hours.close}</p>
+                ))}
+              </div>
+            </div>
           </div>
           <div className="space-y-3 text-sm text-white/85">
             <h4 className="text-xs uppercase tracking-[0.2em] text-white/60">Contact</h4>
-            <a href="tel:+302634000000" className="flex items-start gap-2 hover:text-white">
-              <Phone className="mt-0.5 h-4 w-4 text-primary" /> +30 26340 00000
+            <a href={`tel:${storeSettings.store_info.phone}`} className="flex items-start gap-2 hover:text-white">
+              <Phone className="mt-0.5 h-4 w-4 text-primary" /> {storeSettings.store_info.phone}
             </a>
-            <a href="https://instagram.com" target="_blank" rel="noreferrer" className="flex items-start gap-2 hover:text-white">
-              <Instagram className="mt-0.5 h-4 w-4 text-primary" /> @juco.nafpaktos
-            </a>
+            {storeSettings.store_info.instagram && (
+              <a href={`https://instagram.com/${storeSettings.store_info.instagram}`} target="_blank" rel="noreferrer" className="flex items-start gap-2 hover:text-white">
+                <Instagram className="mt-0.5 h-4 w-4 text-primary" /> @{storeSettings.store_info.instagram}
+              </a>
+            )}
           </div>
         </div>
         <div className="border-t border-white/10 py-6 text-center text-xs text-white/50">

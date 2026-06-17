@@ -3,13 +3,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 8080",
-    "tunnel": "C:\\Users\\nixk\\AppData\\Local\\Microsoft\\WinGet\\Links\\ngrok.exe http --config=ngrok.yml 8080",
+    "tunnel": "concurrently \"npm run dev\" \"C:/Users/nixk/AppData/Local/Microsoft/WinGet/Links/ngrok.exe http --config=ngrok.yml 8080\"",
+    "ngrok": "C:/Users/nixk/AppData/Local/Microsoft/WinGet/Links/ngrok.exe http --config=ngrok.yml 8080",
     "build": "next build",
     "start": "next start -p 8080",
     "lint": "next lint"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
+    "@googlemaps/js-api-loader": "^2.1.1",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -44,6 +46,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "concurrently": "^10.0.3",
     "date-fns": "^4.1.0",
     "dotenv": "^17.4.2",
     "embla-carousel-react": "^8.6.0",

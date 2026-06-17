@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useState, Suspense } from "react";
-import { CheckCircle2, Clock, Home, MapPin, Phone } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { CheckCircle2, Clock, Home, MapPin, Phone, Heart } from "lucide-react";
 import { EspressoBackground } from "@/components/EspressoBackground";
-import { formatEur } from "@/lib/cart-store";
-import { verifyVivaTransaction } from "@/services/paymentService";
+import { formatEur } from "@/shared/utils/currency";
+import { verifyVivaTransaction } from "@/integrations/viva/services/payment.service";
+import { createOrder, getOrderById } from "@/integrations/supabase/services/order.service";
+import { useAuth } from "@/features/auth/hooks/useAuth";
+import { GoogleButton } from "@/features/auth/components/GoogleButton";
 import { z } from "zod";
 import { useSearchParams } from "next/navigation";
 
@@ -35,6 +37,7 @@ function OrderSuccessContent() {
   const searchParams = useSearchParams();
   const id = searchParams.get("id") || undefined;
   const t = searchParams.get("t") || undefined;
+  const { isAuthenticated, user } = useAuth();
   
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -77,19 +80,7 @@ function OrderSuccessContent() {
 
             console.log('Attempting to insert order to Supabase:', orderPayload);
 
-            const { data, error: insertError } = await supabase
-              .from("orders")
-              .insert(orderPayload)
-              .select("id, order_number")
-              .single();
-
-            if (insertError) {
-              console.error('Supabase insert error:', insertError);
-              console.error('Error details:', JSON.stringify(insertError, null, 2));
-              setError(`Σφάλμα βάσης δεδομένων: ${insertError.message}`);
-              setLoading(false);
-              return;
-            }
+            const data = await createOrder(orderPayload);
 
             console.log('Order successfully inserted to Supabase:', data);
 
@@ -117,11 +108,11 @@ function OrderSuccessContent() {
 
         console.log('Fetching order by ID:', id);
         try {
-          const { data } = await supabase.from("orders").select("*").eq("id", id).single();
+          const data = await getOrderById(id);
           console.log('Order fetched:', data);
           setOrder((data as unknown as Order) ?? null);
-        } catch (supabaseError) {
-          console.error('Supabase fetch error:', supabaseError);
+        } catch (error) {
+          console.error('Order fetch error:', error);
           setError('Δεν ήταν δυνατή η ανάκτηση της παραγγελίας.');
         }
         setLoading(false);
@@ -187,6 +178,36 @@ function OrderSuccessContent() {
             </>
           ) : (
             <p className="mt-6 text-sm text-destructive">Δεν βρέθηκε η παραγγελία.</p>
+          )}
+
+          {/* Registration prompt for guest users */}
+          {!isAuthenticated && order && (
+            <div className="mt-8 rounded-2xl bg-white/5 p-6 text-left">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="grid h-10 w-10 place-items-center rounded-full bg-primary/20 text-primary">
+                  <Heart className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-white">Δημιουργήστε λογαριασμό</h3>
+                  <p className="text-xs text-white/60">Αποθηκεύστε τις παραγγελίες σας και παραγγείνετε γρηγορότερα</p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <GoogleButton />
+                <Link
+                  href="/register"
+                  className="block w-full text-center rounded-full border border-white/20 bg-white/5 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10 transition-colors"
+                >
+                  Δημιουργία λογαριασμού με email
+                </Link>
+                <Link
+                  href="/"
+                  className="block text-center text-xs text-white/50 hover:text-white/70 transition-colors"
+                >
+                  Συνέχεια χωρίς λογαριασμό
+                </Link>
+              </div>
+            </div>
           )}
 
           <div className="mt-8 flex flex-col gap-2 sm:flex-row sm:justify-center">

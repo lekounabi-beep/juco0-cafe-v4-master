@@ -7,7 +7,7 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
-  allowedDevOrigins: ['192.168.31.224', '*.trycloudflare.com'],
+  allowedDevOrigins: ['192.168.31.224', '*.trycloudflare.com', '*.ngrok-free.dev'],
   images: {
     remotePatterns: [
       {

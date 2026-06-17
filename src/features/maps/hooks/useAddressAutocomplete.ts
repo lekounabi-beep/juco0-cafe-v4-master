@@ -60,12 +60,18 @@ export function useAddressAutocomplete(
 
       // Initialize session token immediately if not already done
       if (!sessionTokenRef.current) {
-        window.google.maps.importLibrary('places').then((placesLibrary: any) => {
-          const AutocompleteSessionToken = placesLibrary.AutocompleteSessionToken;
-          sessionTokenRef.current = new AutocompleteSessionToken();
-        }).catch((error: Error) => {
-          console.error('Failed to initialize session token:', error);
-        });
+        try {
+          if (window.google && window.google.maps && window.google.maps.importLibrary) {
+            window.google.maps.importLibrary('places').then((placesLibrary: any) => {
+              const AutocompleteSessionToken = placesLibrary.AutocompleteSessionToken;
+              sessionTokenRef.current = new AutocompleteSessionToken();
+            }).catch((error: Error) => {
+              console.error('Failed to initialize session token:', error);
+            });
+          }
+        } catch (error) {
+          console.error('Error accessing Google Maps:', error);
+        }
       }
 
       const input = inputRef.current!;

@@ -2,6 +2,16 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
+// Suppress AuthSessionMissingError from console
+const originalConsoleError = console.error;
+console.error = (...args) => {
+  const errorString = args.map(arg => String(arg)).join(' ');
+  if (errorString.includes('Auth session missing') || errorString.includes('AuthSessionMissingError')) {
+    return; // Suppress this specific error
+  }
+  originalConsoleError.apply(console, args);
+};
+
 function createSupabaseClient() {
   // Next.js uses NEXT_PUBLIC_ prefix for client-side env vars
   const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -29,6 +39,7 @@ function createSupabaseClient() {
       storage: typeof window !== 'undefined' ? localStorage : undefined,
       persistSession: true,
       autoRefreshToken: true,
+      detectSessionInUrl: true,
     }
   });
 }
