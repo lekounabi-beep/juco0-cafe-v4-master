@@ -117,6 +117,13 @@ export interface Database {
           status: string
           viva_transaction_id: string | null
           user_id: string | null
+          delivery_status: string
+          driver_id: string | null
+          estimated_delivery_eta: string | null
+          pickup_time: string | null
+          delivery_time: string | null
+          delivery_distance_km: number | null
+          delivery_notes: string | null
           created_at: string
           updated_at: string
         }
@@ -140,6 +147,13 @@ export interface Database {
           status?: string
           viva_transaction_id?: string | null
           user_id?: string | null
+          delivery_status?: string
+          driver_id?: string | null
+          estimated_delivery_eta?: string | null
+          pickup_time?: string | null
+          delivery_time?: string | null
+          delivery_distance_km?: number | null
+          delivery_notes?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -163,8 +177,147 @@ export interface Database {
           status?: string
           viva_transaction_id?: string | null
           user_id?: string | null
+          delivery_status?: string
+          driver_id?: string | null
+          estimated_delivery_eta?: string | null
+          pickup_time?: string | null
+          delivery_time?: string | null
+          delivery_distance_km?: number | null
+          delivery_notes?: string | null
           created_at?: string
           updated_at?: string
+        }
+      }
+      drivers: {
+        Row: {
+          id: string
+          user_id: string
+          full_name: string
+          phone: string
+          email: string | null
+          vehicle_type: string
+          vehicle_plate: string | null
+          availability_status: string
+          current_location_lat: number | null
+          current_location_lng: number | null
+          last_location_update: string | null
+          total_deliveries: number
+          rating: number | null
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          full_name: string
+          phone: string
+          email?: string | null
+          vehicle_type?: string
+          vehicle_plate?: string | null
+          availability_status?: string
+          current_location_lat?: number | null
+          current_location_lng?: number | null
+          last_location_update?: string | null
+          total_deliveries?: number
+          rating?: number | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          full_name?: string
+          phone?: string
+          email?: string | null
+          vehicle_type?: string
+          vehicle_plate?: string | null
+          availability_status?: string
+          current_location_lat?: number | null
+          current_location_lng?: number | null
+          last_location_update?: string | null
+          total_deliveries?: number
+          rating?: number | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      delivery_assignments: {
+        Row: {
+          id: string
+          order_id: string
+          driver_id: string
+          assigned_at: string
+          accepted_at: string | null
+          picked_up_at: string | null
+          started_delivery_at: string | null
+          arrived_at: string | null
+          delivered_at: string | null
+          cancelled_at: string | null
+          cancellation_reason: string | null
+        }
+        Insert: {
+          id?: string
+          order_id: string
+          driver_id: string
+          assigned_at?: string
+          accepted_at?: string | null
+          picked_up_at?: string | null
+          started_delivery_at?: string | null
+          arrived_at?: string | null
+          delivered_at?: string | null
+          cancelled_at?: string | null
+          cancellation_reason?: string | null
+        }
+        Update: {
+          id?: string
+          order_id?: string
+          driver_id?: string
+          assigned_at?: string
+          accepted_at?: string | null
+          picked_up_at?: string | null
+          started_delivery_at?: string | null
+          arrived_at?: string | null
+          delivered_at?: string | null
+          cancelled_at?: string | null
+          cancellation_reason?: string | null
+        }
+      }
+      delivery_locations: {
+        Row: {
+          id: string
+          delivery_assignment_id: string
+          driver_id: string
+          lat: number
+          lng: number
+          accuracy: number | null
+          speed: number | null
+          heading: number | null
+          recorded_at: string
+        }
+        Insert: {
+          id?: string
+          delivery_assignment_id: string
+          driver_id: string
+          lat: number
+          lng: number
+          accuracy?: number | null
+          speed?: number | null
+          heading?: number | null
+          recorded_at?: string
+        }
+        Update: {
+          id?: string
+          delivery_assignment_id?: string
+          driver_id?: string
+          lat?: number
+          lng?: number
+          accuracy?: number | null
+          speed?: number | null
+          heading?: number | null
+          recorded_at?: string
         }
       }
       feedback: {

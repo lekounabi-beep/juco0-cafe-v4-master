@@ -13,7 +13,6 @@ interface MapsState {
   selectedCoords: Coordinates | null;
   isMapLoaded: boolean;
   loadError: string | null;
-  panToLocation: ((lat: number, lng: number) => void) | null;
   
   // Actions
   setMapCenter: (center: Coordinates) => void;
@@ -21,7 +20,6 @@ interface MapsState {
   setSelectedCoords: (coords: Coordinates) => void;
   setMapLoaded: (loaded: boolean) => void;
   setLoadError: (error: string | null) => void;
-  setPanToLocation: (fn: ((lat: number, lng: number) => void) | null) => void;
   reset: () => void;
 }
 
@@ -31,7 +29,6 @@ const initialState = {
   selectedCoords: null,
   isMapLoaded: false,
   loadError: null,
-  panToLocation: null,
 };
 
 export const useMapsStore = create<MapsState>((set) => ({
@@ -42,7 +39,6 @@ export const useMapsStore = create<MapsState>((set) => ({
   setSelectedCoords: (coords) => set({ selectedCoords: coords }),
   setMapLoaded: (loaded) => set({ isMapLoaded: loaded }),
   setLoadError: (error) => set({ loadError: error }),
-  setPanToLocation: (fn) => set({ panToLocation: fn }),
   
   reset: () => set(initialState),
 }));

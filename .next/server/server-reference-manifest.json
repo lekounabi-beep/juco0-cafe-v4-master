@@ -1,1 +1,5 @@
-{"node":{"004c9bd2fe5e296c11bac65acecbeaa649e812c3b7":{"workers":{"app/admin/menu/page":{"moduleId":"5240","async":false}},"layer":{"app/admin/menu/page":"action-browser"},"filename":"../C:\\Users\\nixk\\Downloads\\juco0-cafe-v4-master\\app\\actions\\revalidate.ts","exportedName":"revalidateMenu"}},"edge":{},"encryptionKey":"h27Ik03KckpN+IX5Ichm33uKlDhh77T3AkX9fFm8Sv4="}
+{
+  "node": {},
+  "edge": {},
+  "encryptionKey": "AXzf4DyIHfB+ORUMIHmpb2w5ryaUviQftWlO+TgPfH4="
+}

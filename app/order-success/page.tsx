@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, Suspense } from "react";
+import { useRouter } from "next/navigation";
 import { CheckCircle2, Clock, Home, MapPin, Phone, Heart } from "lucide-react";
 import { EspressoBackground } from "@/components/EspressoBackground";
 import { formatEur } from "@/shared/utils/currency";
@@ -35,6 +36,7 @@ type Order = {
 
 function OrderSuccessContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const id = searchParams.get("id") || undefined;
   const t = searchParams.get("t") || undefined;
   const { isAuthenticated, user } = useAuth();
@@ -90,6 +92,11 @@ function OrderSuccessContent() {
             // Use the pending order data for display (includes items, etc.)
             setOrder({ ...pendingOrder, id: data.id, order_number: data.order_number } as Order);
             setLoading(false);
+
+            // Redirect to tracking page after successful order creation
+            setTimeout(() => {
+              router.push(`/track/${data.id}`);
+            }, 3000);
             return;
           } catch (dbError) {
             console.error('Database error:', dbError);
@@ -217,9 +224,17 @@ function OrderSuccessContent() {
             >
               <Home className="h-4 w-4" /> Αρχική
             </Link>
+            {order && (
+              <Link
+                href={`/track/${order.id}`}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)]"
+              >
+                <MapPin className="h-4 w-4" /> Παρακολούθηση Παράδοσης
+              </Link>
+            )}
             <Link
               href="/review"
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)]"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-white/10 px-5 py-3 text-sm font-semibold text-white hover:bg-white/15"
             >
               Άσε αξιολόγηση
             </Link>

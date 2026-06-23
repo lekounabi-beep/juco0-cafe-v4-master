@@ -5,6 +5,7 @@
 
 import { create } from 'zustand';
 import type { User, Session } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AuthState {
   user: User | null;
@@ -16,6 +17,7 @@ interface AuthState {
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   logout: () => Promise<void>;
+  initializeAuth: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -25,9 +27,33 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   error: null,
 
   setUser: (user) => set({ user }),
-  setSession: (session) => set({ session }),
+  setSession: (session) => set({ session, user: session?.user || null }),
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
+
+  initializeAuth: async () => {
+    try {
+      set({ loading: true });
+      
+      // Check current session
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.error('Failed to get session:', error);
+        set({ user: null, session: null, loading: false });
+        return;
+      }
+      
+      if (session) {
+        set({ user: session.user, session, loading: false });
+      } else {
+        set({ user: null, session: null, loading: false });
+      }
+    } catch (error) {
+      console.error('Auth initialization error:', error);
+      set({ user: null, session: null, loading: false, error: 'Failed to initialize auth' });
+    }
+  },
 
   logout: async () => {
     const { signOut } = await import('@/integrations/supabase/services/auth.service');
