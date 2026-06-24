@@ -1,0 +1,10 @@
+Notification sound: Google Material Design Sound Resources
+Source file: md-notif-simple-1.wav (mirrored from Material Design sound library)
+License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+https://creativecommons.org/licenses/by/4.0/
+
+Attribution: Sound by Google, from Material Design Sound Resources
+https://m2.material.io/design/sound/sound-resources.html
+
+Processed for this app: trimmed to ~360ms, mono, 48 kHz, MP3.
+Commercial use permitted under CC BY 4.0 (attribution above).

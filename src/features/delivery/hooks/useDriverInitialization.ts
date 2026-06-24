@@ -1,23 +1,19 @@
 /**
  * Driver initialization hook
- * Handles authentication, driver verification, profile loading, and initial data fetching
+ * Loads driver profile from localStorage session (UUID) + Supabase.
+ * Active delivery always fetched via server action (RLS-safe).
  */
 
 import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useDriverStore } from '@/features/delivery/store/driver-store';
+import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { getAvailableOrdersForDrivers } from '@/integrations/supabase/services/delivery.service';
-import { supabase } from '@/integrations/supabase/client';
-
-type DriverProfile = {
-  id: string;
-  name: string;
-  vehicle_type: string;
-  phone: string;
-  availability: string;
-  total_deliveries: number;
-};
+import { getDriverProfileById } from '../../../../app/actions/driver-login';
+import { fetchDriverActiveDelivery } from '../../../../app/actions/driver-delivery-sync';
+import { clearDriverSession, getDriverSession } from '@/lib/auth/driver-session';
+import { isUUID } from '@/shared/utils/uuid';
+import type { DriverProfile } from '../types/delivery.types';
+import { getOptimisticDelivery } from '../services/driver-offline-state';
 
 type Order = {
   id: string;
@@ -26,14 +22,23 @@ type Order = {
   items: { name: string; qty: number }[];
   total: number;
   address: string;
-  coords?: any;
+  lat?: number | null;
+  lng?: number | null;
   created_at: string;
 };
 
 type DeliveryAssignment = {
   id: string;
   order_id: string;
+  driver_id: string;
   status: string;
+  assigned_at?: string;
+  accepted_at?: string | null;
+  picked_up_at?: string | null;
+  started_delivery_at?: string | null;
+  arrived_at?: string | null;
+  delivered_at?: string | null;
+  cancelled_at?: string | null;
   order?: Order;
 };
 
@@ -43,124 +48,146 @@ interface UseDriverInitializationReturn {
   driverProfile: DriverProfile | null;
   availableOrders: Order[];
   activeDelivery: DeliveryAssignment | null;
+  serverConfirmedNoActive: boolean;
   refreshOrders: () => Promise<void>;
-  refreshActiveDelivery: () => Promise<void>;
+  refreshActiveDelivery: () => Promise<boolean>;
 }
 
 export function useDriverInitialization(): UseDriverInitializationReturn {
-  const router = useRouter();
-  const { user } = useAuthStore();
-  
+  const { replaceWhenReady } = useSafeRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [driverProfile, setDriverProfile] = useState<DriverProfile | null>(null);
   const [availableOrders, setAvailableOrders] = useState<Order[]>([]);
   const [activeDelivery, setActiveDelivery] = useState<DeliveryAssignment | null>(null);
+  const [serverConfirmedNoActive, setServerConfirmedNoActive] = useState(false);
 
   const fetchAvailableOrders = useCallback(async () => {
-    const currentUser = useAuthStore.getState().user;
-    if (!currentUser) return;
     try {
-      console.log('[Driver] Fetching available orders...');
-      console.log('[Driver] Current user:', currentUser.id);
       const orders = await getAvailableOrdersForDrivers();
-      console.log('[Driver] Available orders fetched:', orders.length, 'orders');
-      console.log('[Driver] Orders:', orders);
       setAvailableOrders(orders as Order[]);
     } catch (err) {
       console.error('[Driver] Failed to fetch available orders:', err);
     }
   }, []);
 
-  const fetchActiveDelivery = useCallback(async () => {
-    const currentUser = useAuthStore.getState().user;
-    if (!currentUser) return;
+  const fetchActiveDeliveryFromDB = useCallback(async (driverId: string): Promise<boolean> => {
+    if (!isUUID(driverId)) {
+      console.error('Invalid driver_id detected', driverId);
+      setServerConfirmedNoActive(false);
+      return false;
+    }
+
     try {
-      console.log('[Driver] Fetching active delivery...');
-      const { getDriverActiveAssignments } = await import('@/integrations/supabase/services/delivery.service');
-      const assignments = await getDriverActiveAssignments(currentUser.id);
-      console.log('[Driver] Active assignments:', assignments.length);
-      
-      if (assignments.length > 0) {
-        const active = assignments[0];
-        // Fetch order details
-        const { data: orderData } = await supabase
-          .from('orders' as any)
-          .select('*')
-          .eq('id', active.order_id)
-          .single();
-        setActiveDelivery({ 
-          ...active, 
-          order: orderData ? orderData as Order : undefined,
-          status: (active as any).status || 'assigned'
-        } as any);
-      } else {
-        setActiveDelivery(null);
+      const result = await fetchDriverActiveDelivery(driverId);
+
+      if (!result.success) {
+        console.error('[Driver] Server active delivery fetch failed:', result.error);
+        setServerConfirmedNoActive(false);
+        return false;
       }
+
+      if (result.assignment) {
+        const assignment = result.assignment as DeliveryAssignment;
+        setActiveDelivery((prev) => {
+          return assignment;
+        });
+        setServerConfirmedNoActive(false);
+        return true;
+      }
+
+      const optimistic = getOptimisticDelivery(driverId);
+      if (optimistic) {
+        setActiveDelivery({
+          ...optimistic,
+          status: optimistic.status,
+        });
+        setServerConfirmedNoActive(false);
+        return true;
+      }
+
+      setActiveDelivery(null);
+      setServerConfirmedNoActive(true);
+      return false;
     } catch (err) {
       console.error('Failed to fetch active delivery:', err);
+      setServerConfirmedNoActive(false);
+
+      const optimistic = getOptimisticDelivery(driverId);
+      if (optimistic) {
+        setActiveDelivery({
+          ...optimistic,
+          status: optimistic.status,
+        });
+        return true;
+      }
+      return false;
     }
   }, []);
 
+  const refreshActiveDelivery = useCallback(async (): Promise<boolean> => {
+    const driverId = useDriverStore.getState().driver?.id;
+    if (!driverId || !isUUID(driverId)) return false;
+    return fetchActiveDeliveryFromDB(driverId);
+  }, [fetchActiveDeliveryFromDB]);
+
   useEffect(() => {
-    const initializeAndCheck = async () => {
-      console.log('[Driver] Initializing driver page...');
-      
-      // Initialize auth state from session
-      await useAuthStore.getState().initializeAuth();
-      
-      const { user } = useAuthStore.getState();
-      console.log('[Driver] User:', user?.id, user?.email);
-      
-      if (!user) {
-        console.log('[Driver] No user found, redirecting to login');
-        router.push('/login');
+    let cancelled = false;
+
+    const initialize = async () => {
+      const session = getDriverSession();
+      if (!session) {
+        setLoading(false);
         return;
       }
 
-      // Check if user is a driver
-      const checkDriverStatus = async () => {
-        try {
-          console.log('[Driver] Checking driver status for user:', user.id);
-          const { data, error } = await supabase
-            .from('drivers' as any)
-            .select('*')
-            .eq('user_id', user.id)
-            .single();
-
-          console.log('[Driver] Driver data:', data, 'Error:', error);
-
-          if (error || !data) {
-            console.error('[Driver] Not registered as a driver:', error);
-            setError('You are not registered as a driver');
-            setLoading(false);
-            return;
-          }
-
-          setDriverProfile(data as DriverProfile);
-          
-          // Set driver in global store
-          useDriverStore.getState().setDriver(data as any);
-          
-          setLoading(false);
-
-          // Fetch available orders and active delivery
-          console.log('[Driver] Calling fetchAvailableOrders...');
-          await fetchAvailableOrders();
-          console.log('[Driver] Calling fetchActiveDelivery...');
-          await fetchActiveDelivery();
-        } catch (err) {
-          console.error('[Driver] Failed to verify driver status:', err);
-          setError('Failed to verify driver status');
-          setLoading(false);
+      if (!isUUID(session.driver_id)) {
+        console.error('Invalid driver_id detected', session.driver_id);
+        clearDriverSession();
+        if (!cancelled) {
+          replaceWhenReady('/driver/login');
         }
-      };
+        return;
+      }
 
-      checkDriverStatus();
+      try {
+        const profile = await getDriverProfileById(session.driver_id);
+        if (cancelled) return;
+
+        if (!profile) {
+          clearDriverSession();
+          replaceWhenReady('/driver/login');
+          return;
+        }
+
+        setDriverProfile(profile);
+        useDriverStore.getState().setDriver(profile);
+
+        await fetchAvailableOrders();
+        if (cancelled) return;
+
+        const hasActiveDelivery = await fetchActiveDeliveryFromDB(profile.id);
+        if (cancelled) return;
+
+        if (!hasActiveDelivery) {
+          useDriverStore.getState().setAvailabilityStatus(profile.availability_status);
+        }
+
+        setLoading(false);
+      } catch (err) {
+        if (cancelled) return;
+        console.error('[Driver] Failed to initialize:', err);
+        setError('Failed to load driver');
+        setLoading(false);
+      }
     };
 
-    initializeAndCheck();
-  }, [router, fetchAvailableOrders, fetchActiveDelivery]);
+    void initialize();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchAvailableOrders, fetchActiveDeliveryFromDB, replaceWhenReady]);
 
   return {
     loading,
@@ -168,7 +195,8 @@ export function useDriverInitialization(): UseDriverInitializationReturn {
     driverProfile,
     availableOrders,
     activeDelivery,
+    serverConfirmedNoActive,
     refreshOrders: fetchAvailableOrders,
-    refreshActiveDelivery: fetchActiveDelivery,
+    refreshActiveDelivery,
   };
 }

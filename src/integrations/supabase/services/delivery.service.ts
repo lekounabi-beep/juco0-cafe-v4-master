@@ -5,67 +5,50 @@
 // @ts-nocheck - Supabase types don't include new tables yet
 
 import { supabase } from '@/integrations/supabase/client';
+import { driverCreateDeliveryAssignment } from '../../../../app/actions/create-delivery-assignment';
+import { fetchDriverActiveDelivery } from '../../../../app/actions/driver-delivery-sync';
+import { isUUID } from '@/shared/utils/uuid';
+import { devLog } from '@/shared/utils/dev-log';
 import type { DeliveryAssignment, DeliveryLocation, OrderWithDelivery, DeliveryStatus, GPSLocationUpdate } from '@/features/delivery/types/delivery.types';
+import {
+  recordDriverLocationSafe,
+  type RecordDriverLocationResult,
+} from '@/features/delivery/services/record-driver-location';
 
 export interface CreateDeliveryAssignmentInput {
   order_id: string;
   driver_id: string;
 }
 
+function formatSupabaseError(
+  error: { message?: string; details?: string; hint?: string; code?: string },
+  payload?: Record<string, unknown>
+): string {
+  devLog.warn('[Delivery Service] Supabase error:', { error, payload });
+  const parts = [error.message, error.details, error.hint, error.code ? `(${error.code})` : null].filter(Boolean);
+  return parts.join(' — ') || 'Database error';
+}
+
 export async function createDeliveryAssignment(
   input: CreateDeliveryAssignmentInput
 ): Promise<DeliveryAssignment> {
-  console.log('[DELIVERY SERVICE] createDeliveryAssignment called with:', input);
-  const payload = {
-    order_id: input.order_id,
-    driver_id: input.driver_id,
-    assigned_at: new Date().toISOString(),
-  };
-  console.log('[DELIVERY SERVICE] Payload:', payload);
-
-  // First, update the orders table to set driver_id and change status
-  console.log('[DELIVERY SERVICE] Updating orders table...');
-  const { error: orderUpdateError } = await supabase
-    .from('orders' as any)
-    .update({
-      driver_id: input.driver_id,
-      status: 'assigned',
-      delivery_status: 'assigned',
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', input.order_id);
-
-  if (orderUpdateError) {
-    console.error('[DELIVERY SERVICE] Failed to update orders table:', orderUpdateError);
-    throw new Error(`Failed to update order: ${orderUpdateError.message}`);
+  if (!isUUID(input.order_id)) {
+    throw new Error('Invalid order_id: UUID required');
   }
-  console.log('[DELIVERY SERVICE] Orders table updated successfully');
-
-  // Then, create the delivery assignment
-  const { data, error } = await supabase
-    .from('delivery_assignments' as any)
-    .insert(payload)
-    .select('*')
-    .single();
-
-  console.log('[DELIVERY SERVICE] Insert result - data:', data, 'error:', error);
-
-  if (error) {
-    console.error(
-      '[DELIVERY SERVICE] Supabase insert error:',
-      {
-        message: error?.message,
-        details: error?.details,
-        hint: error?.hint,
-        code: error?.code,
-        error
-      }
-    );
-    throw new Error(`Failed to create delivery assignment: ${error.message}`);
+  if (!isUUID(input.driver_id)) {
+    throw new Error('Invalid driver_id: UUID required (drivers.id from profile)');
   }
 
-  console.log('[DELIVERY SERVICE] Returning assignment:', data);
-  return data as DeliveryAssignment;
+  const result = await driverCreateDeliveryAssignment(input.order_id, input.driver_id);
+
+  if (!result.success || !result.assignment) {
+    throw new Error(result.error || 'Failed to create delivery assignment');
+  }
+
+  return {
+    ...result.assignment,
+    status: 'assigned',
+  } as DeliveryAssignment;
 }
 
 export async function getDeliveryAssignmentByOrderId(orderId: string): Promise<DeliveryAssignment | null> {
@@ -123,40 +106,27 @@ export async function getDeliveryAssignmentById(assignmentId: string): Promise<D
 }
 
 export async function acceptDeliveryAssignment(assignmentId: string): Promise<void> {
-  console.log('[DELIVERY SERVICE] acceptDeliveryAssignment called with assignmentId:', assignmentId);
+  if (!isUUID(assignmentId)) {
+    throw new Error('Invalid assignment id: UUID required');
+  }
+
   const { error } = await supabase
     .from('delivery_assignments' as any)
     .update({
-      accepted_at: new Date().toISOString()
+      accepted_at: new Date().toISOString(),
     })
     .eq('id', assignmentId);
 
-  console.log('[DELIVERY SERVICE] Accept result - error:', error);
-
   if (error) {
-    console.error(
-      '[DELIVERY SERVICE] Supabase update error:',
-      {
-        message: error?.message,
-        details: error?.details,
-        hint: error?.hint,
-        code: error?.code,
-        error
-      }
-    );
-    throw new Error(`Failed to accept delivery assignment: ${error.message}`);
+    throw new Error(formatSupabaseError(error, { assignmentId }));
   }
-
-  console.log('[DELIVERY SERVICE] Assignment accepted successfully');
 }
 
 export async function updateDeliveryStatus(
   assignmentId: string,
   status: DeliveryStatus
 ): Promise<void> {
-  const updateData: any = {
-    updated_at: new Date().toISOString(),
-  };
+  const updateData: Record<string, string> = {};
 
   switch (status) {
     case 'picked_up':
@@ -224,39 +194,24 @@ export async function cancelDeliveryAssignment(
 }
 
 export async function getDriverActiveAssignments(driverId: string): Promise<DeliveryAssignment[]> {
-  const { data, error } = await supabase
-    .from('delivery_assignments' as any)
-    .select('*')
-    .eq('driver_id', driverId)
-    .is('delivered_at', null)
-    .is('cancelled_at', null)
-    .order('assigned_at', { ascending: false });
-
-  if (error) {
-    console.error(
-      'Supabase fetch error:',
-      {
-        message: error?.message,
-        details: error?.details,
-        hint: error?.hint,
-        code: error?.code,
-        error
-      }
-    );
-    throw new Error(`Failed to fetch driver assignments: ${error.message}`);
+  if (!isUUID(driverId)) {
+    throw new Error('Invalid driver_id: UUID required');
   }
 
-  return data as DeliveryAssignment[];
+  const result = await fetchDriverActiveDelivery(driverId);
+
+  if (!result.success) {
+    throw new Error(result.error || 'Failed to fetch driver assignments');
+  }
+
+  if (!result.assignment) {
+    return [];
+  }
+
+  return [result.assignment as unknown as DeliveryAssignment];
 }
 
 export async function getAvailableOrdersForDrivers(): Promise<OrderWithDelivery[]> {
-  console.log('[Delivery Service] Fetching available orders for drivers...');
-  
-  // Check auth session
-  const { data: { session } } = await supabase.auth.getSession();
-  console.log('[Delivery Service] Auth session:', session ? 'exists' : 'null');
-  console.log('[Delivery Service] User ID:', session?.user?.id);
-  
   const { data, error } = await supabase
     .from('orders' as any)
     .select('*')
@@ -276,11 +231,9 @@ export async function getAvailableOrdersForDrivers(): Promise<OrderWithDelivery[
         error
       }
     );
-    throw new Error(`Failed to fetch available orders: ${error.message}`);
+    throw new Error(formatSupabaseError(error));
   }
 
-  console.log('[Delivery Service] Available orders fetched:', data.length, 'orders');
-  console.log('[Delivery Service] Orders:', data);
   return data as OrderWithDelivery[];
 }
 
@@ -288,35 +241,8 @@ export async function recordDriverLocation(
   assignmentId: string,
   driverId: string,
   location: GPSLocationUpdate
-): Promise<void> {
-  const payload = {
-    delivery_assignment_id: assignmentId,
-    driver_id: driverId,
-    lat: location.lat,
-    lng: location.lng,
-    accuracy: location.accuracy || null,
-    speed: location.speed || null,
-    heading: location.heading || null,
-    recorded_at: location.timestamp || new Date().toISOString(),
-  };
-
-  const { error } = await supabase
-    .from('delivery_locations' as any)
-    .insert(payload);
-
-  if (error) {
-    console.error(
-      'Supabase insert error:',
-      {
-        message: error?.message,
-        details: error?.details,
-        hint: error?.hint,
-        code: error?.code,
-        error
-      }
-    );
-    throw new Error(`Failed to record driver location: ${error.message}`);
-  }
+): Promise<RecordDriverLocationResult> {
+  return recordDriverLocationSafe(assignmentId, driverId, location);
 }
 
 export async function getDriverLocationHistory(

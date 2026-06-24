@@ -1,7 +1,6 @@
 // @ts-nocheck - Supabase types don't include new tables yet
 
 import { useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { useCart, calcDeliveryFee, formatEur, FREE_DELIVERY_THRESHOLD } from '@/lib/cart-store';
 import { supabase } from '@/integrations/supabase/client';
 import { createVivaOrderCode, redirectToVivaPayment } from '@/services/paymentService';
@@ -10,7 +9,6 @@ type Step = 1 | 2 | 3;
 type PaymentMethod = 'cod' | 'card' | 'pickup';
 
 export function useCheckoutLogic() {
-  const router = useRouter();
   const items = useCart((s: any) => s.items);
   const add = useCart((s: any) => s.add);
   const setQty = useCart((s: any) => s.setQty);
@@ -121,15 +119,20 @@ export function useCheckoutLogic() {
         throw new Error(`Database error: ${insErr.message || 'Failed to save order'}`);
       }
 
+      if (!data?.id) {
+        throw new Error('Failed to create order - no data returned');
+      }
+
       clear();
-      router.push(`/order-success?id=${(data as { id: string }).id}`);
+      window.location.href = `/order-success?id=${data.id}`;
     } catch (e) {
       console.error('Order submission error:', e);
       const msg = e instanceof Error ? e.message : 'Κάτι πήγε στραβά. Δοκίμασε ξανά.';
       setError(msg);
+    } finally {
       setSubmitting(false);
     }
-  }, [items, total, name, phone, address, addressNotes, notes, coords, payment, clear, router]);
+  }, [items, total, name, phone, address, addressNotes, notes, coords, payment, clear]);
 
   return {
     // Cart

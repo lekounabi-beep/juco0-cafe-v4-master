@@ -1,78 +1,53 @@
 /**
- * Driver assignment hook
- * Manages driver self-assignment logic for available orders
+ * Driver assignment hook (legacy — prefer acceptOrderWithOffline + useDriverPage)
  */
 
 import { useCallback } from 'react';
 import { useDriverStore } from '../store/driver-store';
-import { 
-  createDeliveryAssignment, 
-  acceptDeliveryAssignment,
+import {
   updateDeliveryStatus,
   getAvailableOrdersForDrivers,
   getDriverActiveAssignments,
-  getDeliveryAssignmentByOrderId
+  getDeliveryAssignmentByOrderId,
 } from '@/integrations/supabase/services/delivery.service';
+import { driverAcceptOrder } from '../../../../app/actions/create-delivery-assignment';
+import { isUUID } from '@/shared/utils/uuid';
 import type { OrderWithDelivery, DeliveryAssignment } from '../types/delivery.types';
 
 export function useDriverAssignment() {
   const { driver } = useDriverStore();
 
-  // Accept an available order (self-assign)
   const acceptOrder = useCallback(async (orderId: string): Promise<DeliveryAssignment> => {
-    console.log('[ACCEPT ORDER FLOW] Starting acceptOrder for orderId:', orderId);
-    console.log('[ACCEPT ORDER FLOW] Driver:', driver);
-
     if (!driver) {
-      console.error('[ACCEPT ORDER FLOW] ERROR: Driver not authenticated');
       throw new Error('Driver not authenticated');
     }
-
-    try {
-      console.log('[ACCEPT ORDER FLOW] Checking if assignment already exists...');
-      // Check if assignment already exists
-      const existingAssignment = await getDeliveryAssignmentByOrderId(orderId);
-      console.log('[ACCEPT ORDER FLOW] Existing assignment:', existingAssignment);
-      if (existingAssignment) {
-        console.log('[ACCEPT ORDER FLOW] Assignment already exists for order:', orderId);
-        return existingAssignment;
-      }
-
-      console.log('[ACCEPT ORDER FLOW] Creating delivery assignment...');
-      // Create delivery assignment
-      const assignment = await createDeliveryAssignment({
-        order_id: orderId,
-        driver_id: driver.id,
-      });
-      console.log('[ACCEPT ORDER FLOW] Delivery assignment created:', assignment);
-
-      console.log('[ACCEPT ORDER FLOW] Accepting the assignment...');
-      // Accept the assignment
-      await acceptDeliveryAssignment(assignment.id);
-      console.log('[ACCEPT ORDER FLOW] Assignment accepted');
-
-      console.log('[ACCEPT ORDER FLOW] Returning assignment:', assignment);
-      return assignment;
-    } catch (error) {
-      console.error('[ACCEPT ORDER FLOW] Failed to accept order:', error);
-      throw error;
+    if (!isUUID(driver.id)) {
+      throw new Error('Invalid driver_id: UUID required');
     }
+    if (!isUUID(orderId)) {
+      throw new Error('Invalid order_id: UUID required');
+    }
+
+    const result = await driverAcceptOrder(orderId, driver.id);
+    if (!result.success || !result.assignment) {
+      throw new Error(result.error || 'Failed to accept order');
+    }
+
+    return {
+      ...result.assignment,
+      status: 'assigned',
+    } as unknown as DeliveryAssignment;
   }, [driver]);
 
-  // Get available orders for drivers (READY orders without driver)
   const getAvailableOrders = useCallback(async (): Promise<OrderWithDelivery[]> => {
     try {
-      console.log('[useDriverAssignment] Calling getAvailableOrdersForDrivers...');
-      const orders = await getAvailableOrdersForDrivers();
-      console.log('[useDriverAssignment] Orders fetched:', orders.length, 'orders');
-      return orders;
+      return await getAvailableOrdersForDrivers();
     } catch (error) {
-      console.error('[useDriverAssignment] Failed to fetch available orders:', error);
+      console.error('Failed to fetch available orders:', error);
       throw error;
     }
   }, []);
 
-  // Get driver's active assignments
   const getActiveAssignments = useCallback(async (): Promise<DeliveryAssignment[]> => {
     if (!driver) {
       throw new Error('Driver not authenticated');
@@ -86,7 +61,6 @@ export function useDriverAssignment() {
     }
   }, [driver]);
 
-  // Update delivery status (pick up, start delivery, arrive, deliver)
   const updateStatus = useCallback(async (assignmentId: string, status: 'picked_up' | 'in_transit' | 'arrived' | 'delivered'): Promise<void> => {
     try {
       await updateDeliveryStatus(assignmentId, status);
@@ -96,27 +70,22 @@ export function useDriverAssignment() {
     }
   }, []);
 
-  // Pick up order
   const pickUpOrder = useCallback(async (assignmentId: string): Promise<void> => {
     await updateStatus(assignmentId, 'picked_up');
   }, [updateStatus]);
 
-  // Start delivery
   const startDelivery = useCallback(async (assignmentId: string): Promise<void> => {
     await updateStatus(assignmentId, 'in_transit');
   }, [updateStatus]);
 
-  // Arrive at customer location
   const arriveAtCustomer = useCallback(async (assignmentId: string): Promise<void> => {
     await updateStatus(assignmentId, 'arrived');
   }, [updateStatus]);
 
-  // Complete delivery
   const completeDelivery = useCallback(async (assignmentId: string): Promise<void> => {
     await updateStatus(assignmentId, 'delivered');
   }, [updateStatus]);
 
-  // Get assignment for a specific order
   const getOrderAssignment = useCallback(async (orderId: string): Promise<DeliveryAssignment | null> => {
     try {
       return await getDeliveryAssignmentByOrderId(orderId);

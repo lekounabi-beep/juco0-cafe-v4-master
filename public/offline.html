@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#E8F529" />
+  <title>Juco — Offline</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #1a1612;
+      color: #f5f5f5;
+      padding: 24px;
+      text-align: center;
+    }
+    .card {
+      max-width: 360px;
+      padding: 32px 24px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    h1 { font-size: 1.25rem; margin-bottom: 8px; }
+    p { color: rgba(255,255,255,0.65); font-size: 0.95rem; line-height: 1.5; }
+    .badge {
+      display: inline-block;
+      margin-top: 16px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: rgba(232, 245, 41, 0.15);
+      color: #E8F529;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Δεν υπάρχει σύνδεση</h1>
+    <p>No internet connection</p>
+    <p style="margin-top:12px">Driver mode active — actions saved locally</p>
+    <p style="margin-top:8px;font-size:0.85rem">Οι ενέργειες αποθηκεύονται τοπικά και θα συγχρονιστούν αυτόματα.</p>
+    <span class="badge">Juco Driver</span>
+  </div>
+</body>
+</html>

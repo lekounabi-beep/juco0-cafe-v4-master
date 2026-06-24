@@ -23,6 +23,7 @@ export interface CreateOrderInput {
   notes?: string | null;
   status?: string;
   viva_transaction_id?: string | null;
+  user_id?: string | null;
 }
 
 export interface OrderResult {
@@ -50,6 +51,7 @@ export async function createOrder(
     notes: input.notes || null,
     status: input.status || 'pending',
     viva_transaction_id: input.viva_transaction_id || null,
+    user_id: input.user_id || null,
   };
 
   const { data, error } = await supabase
@@ -68,18 +70,21 @@ export async function createOrder(
 }
 
 export async function getOrderById(id: string) {
-  const { data, error } = await supabase
-    .from('orders')
-    .select('*')
-    .eq('id', id)
-    .single();
+  const { data, error } = await (supabase.rpc as any)('get_order_for_tracking', {
+    order_uuid: id,
+  });
 
   if (error) {
     console.error('Supabase fetch error:', error);
     throw new Error(`Failed to fetch order: ${error.message}`);
   }
 
-  return data;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) {
+    throw new Error('Order not found');
+  }
+
+  return row;
 }
 
 export async function updateOrderStatus(

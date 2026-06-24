@@ -1,8 +1,8 @@
 version: "2"
-authtoken: 39TUhL7Y6Ydt03aiHOosxwRxozY_7QAiFgaRcLZgAqpzwvpku
+authtoken: 3FZQtSxdJjORBDrfq7YKCSpgnv6_7yf9FsA1AkWTccqE9oc1A
 
 tunnels:
   web:
     addr: 8080
     proto: http
-    hostname: season-cardiologic-moly.ngrok-free.dev
+    hostname: glorify-nearness-petition.ngrok-free.dev

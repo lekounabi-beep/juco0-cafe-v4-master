@@ -30,7 +30,6 @@ export class GeocodingService {
 
     this.geocoder = new window.google.maps.Geocoder();
     this.isInitialized = true;
-    console.log('[GeocodingService] Initialized');
   }
 
   /**
@@ -45,8 +44,6 @@ export class GeocodingService {
       throw new Error('Geocoder not initialized');
     }
 
-    console.log('[GeocodingService] Reverse geocoding:', { lat, lng });
-
     const response = await this.geocoder.geocode({ location: { lat, lng } });
 
     if (!response.results || response.results.length === 0) {
@@ -55,8 +52,6 @@ export class GeocodingService {
 
     const result = response.results[0];
     const address = this.parseAddress(result);
-
-    console.log('[GeocodingService] Geocoded address:', address);
     return address;
   }
 
@@ -72,15 +67,12 @@ export class GeocodingService {
       throw new Error('Geocoder not initialized');
     }
 
-    console.log('[GeocodingService] Forward geocoding:', address);
-
     const response = await this.geocoder.geocode({ address });
 
     if (!response.results || response.results.length === 0) {
       throw new Error('No results found for address');
     }
 
-    console.log('[GeocodingService] Forward geocoded results:', response.results.length);
     return response.results;
   }
 

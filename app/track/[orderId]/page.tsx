@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { EspressoBackground } from '@/components/EspressoBackground';
 import { useRealtimeOrder } from '@/integrations/supabase/hooks/useRealtimeOrders';
@@ -13,13 +13,20 @@ import { useRealtimeDeliveryAssignment } from '@/integrations/supabase/hooks/use
 import { useRealtimeDriver } from '@/integrations/supabase/hooks/useRealtimeDrivers';
 import { useETA } from '@/features/delivery/hooks/useETA';
 import { formatETA, formatDistance } from '@/features/delivery/services/eta.service';
-import { ORDER_STATUS, DELIVERY_STATUS } from '@/features/delivery/types/delivery.types';
 import { supabase } from '@/integrations/supabase/client';
-import { TrackingMap } from '@/features/maps/components/TrackingMap';
-import { DeliveryProgressCircle } from '@/features/delivery/components/DeliveryProgressCircle';
-import { DeliveryStatusText } from '@/features/delivery/components/DeliveryStatusText';
+import { CustomerDeliveryTimeline } from '@/features/tracking/components/CustomerDeliveryTimeline';
 import type { Coordinates } from '@/shared/types/common.types';
-import { MapPin, Navigation, Clock, Package, CheckCircle2, AlertCircle, Phone, MessageCircle } from 'lucide-react';
+import { orderCoordinates } from '@/shared/utils/order-fields';
+import {
+  resolveTrackingDeliveryStatus,
+  getCustomerOrderStep,
+} from '@/shared/utils/customer-status';
+import { speedFromKmh } from '@/features/delivery/services/speed.service';
+import { useCustomerMapSnapshot } from '@/features/delivery/hooks/useCustomerMapSnapshot';
+import { playNotificationSound } from '@/features/notifications/services/notification-sound.service';
+import { MapPin, Package, AlertCircle } from 'lucide-react';
+
+const FALLBACK_ETA_SPEED_MS = speedFromKmh(25);
 
 type Order = {
   id: string;
@@ -37,37 +44,30 @@ type Order = {
   payment_method: string;
   payment_status: string;
   created_at: string;
+  lat?: number | null;
+  lng?: number | null;
   coords?: Coordinates;
 };
 
 type Driver = {
   id: string;
-  name: string;
+  full_name: string;
   vehicle_type: string;
   phone: string;
-  availability: string;
+  availability_status: string;
 };
 
 type DeliveryAssignment = {
   id: string;
   order_id: string;
   driver_id: string;
-  status: string;
   assigned_at: string;
-  picked_up_at?: string;
-  started_delivery_at?: string;
-  arrived_at?: string;
-  delivered_at?: string;
-  cancelled_at?: string;
-};
-
-type DriverLocation = {
-  lat: number;
-  lng: number;
-  accuracy: number | null;
-  speed: number | null;
-  heading: number | null;
-  timestamp: string;
+  accepted_at?: string | null;
+  picked_up_at?: string | null;
+  started_delivery_at?: string | null;
+  arrived_at?: string | null;
+  delivered_at?: string | null;
+  cancelled_at?: string | null;
 };
 
 export default function TrackOrderPage() {
@@ -75,191 +75,103 @@ export default function TrackOrderPage() {
   const router = useRouter();
   const orderId = params.orderId as string;
 
-  console.log('[TRACKING PAGE] Render called with orderId:', orderId);
-
   const [order, setOrder] = useState<Order | null>(null);
   const [driver, setDriver] = useState<Driver | null>(null);
   const [delivery, setDelivery] = useState<DeliveryAssignment | null>(null);
-  const [driverLocation, setDriverLocation] = useState<DriverLocation | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const mapRef = useRef<HTMLDivElement>(null);
-
-  console.log('[TRACKING PAGE] State:', { order, driver, delivery, driverLocation, loading, error });
-
-  // Subscribe to order updates
   useRealtimeOrder(orderId, (payload) => {
-    console.log('[TRACKING PAGE] Order realtime update received:', payload);
     if (payload.eventType === 'UPDATE') {
-      console.log('[TRACKING PAGE] Updating order state with:', payload.new);
       setOrder(payload.new as Order);
     }
   });
 
-  // Subscribe to delivery assignment updates (moved to top level)
   useRealtimeDeliveryAssignment(delivery?.id || '', (payload) => {
     if (payload.eventType === 'UPDATE') {
-      setDelivery(payload.new as DeliveryAssignment);
+      const prev = delivery;
+      const next = payload.new as DeliveryAssignment;
+      setDelivery(next);
+
+      const milestoneReached =
+        (!prev?.picked_up_at && next.picked_up_at) ||
+        (!prev?.started_delivery_at && next.started_delivery_at) ||
+        (!prev?.arrived_at && next.arrived_at) ||
+        (!prev?.delivered_at && next.delivered_at);
+
+      if (milestoneReached) {
+        void playNotificationSound('delivery', {
+          eventId: `${next.id}-${next.picked_up_at ?? ''}-${next.started_delivery_at ?? ''}-${next.arrived_at ?? ''}-${next.delivered_at ?? ''}`,
+          orderId: orderId,
+        });
+      }
     }
   });
 
-  // Subscribe to driver updates (moved to top level)
   useRealtimeDriver(order?.driver_id || '', (payload) => {
     if (payload.eventType === 'UPDATE') {
       setDriver(payload.new as Driver);
     }
   });
 
-  // Fetch delivery assignment
   useEffect(() => {
-    console.log('[TRACKING PAGE] Fetch delivery assignment effect triggered');
-    console.log('[TRACKING PAGE] order?.driver_id:', order?.driver_id);
-    console.log('[TRACKING PAGE] orderId:', orderId);
-
-    if (!order?.driver_id) {
-      console.log('[TRACKING PAGE] Skipping delivery fetch - no driver_id');
-      return;
-    }
+    if (!order?.driver_id) return;
 
     const fetchDelivery = async () => {
-      console.log('[TRACKING PAGE] Fetching delivery assignment for order:', orderId);
-      const { data, error } = await supabase
-        .from('delivery_assignments' as any)
-        .select('*')
-        .eq('order_id', orderId)
-        .single();
+      const { data, error: fetchError } = await (supabase.rpc as any)(
+        'get_delivery_assignment_for_order',
+        { p_order_id: orderId }
+      );
 
-      console.log('[TRACKING PAGE] Delivery fetch result - data:', data, 'error:', error);
-
-      if (error) {
-        console.error(
-          '[TRACKING PAGE] Error fetching delivery:',
-          {
-            message: error?.message,
-            details: error?.details,
-            hint: error?.hint,
-            code: error?.code,
-            error
-          }
-        );
-        return;
-      }
-
-      console.log('[TRACKING PAGE] Setting delivery state:', data);
-      setDelivery(data as DeliveryAssignment);
+      if (fetchError || !data) return;
+      const row = Array.isArray(data) ? data[0] : data;
+      if (row) setDelivery(row as DeliveryAssignment);
     };
 
     fetchDelivery();
   }, [order?.driver_id, orderId]);
 
-  // Fetch driver
   useEffect(() => {
     const driverId = order?.driver_id;
     if (!driverId) return;
 
     const fetchDriver = async () => {
-      const { data, error } = await supabase
+      const { data, error: fetchError } = await supabase
         .from('drivers' as any)
         .select('*')
         .eq('id', driverId)
         .single();
 
-      if (error) {
-        console.error(
-          'Error fetching driver:',
-          {
-            message: error?.message,
-            details: error?.details,
-            hint: error?.hint,
-            code: error?.code,
-            error
-          }
-        );
-        return;
-      }
-
+      if (fetchError || !data) return;
       setDriver(data as Driver);
     };
 
     fetchDriver();
   }, [order?.driver_id]);
 
-  // Subscribe to driver location updates
-  useEffect(() => {
-    if (!delivery?.id) return;
-
-    const fetchDriverLocation = async () => {
-      const { data, error } = await supabase
-        .from('delivery_locations' as any)
-        .select('*')
-        .eq('delivery_assignment_id', delivery.id)
-        .order('recorded_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (error) {
-        console.error(
-          'Error fetching driver location:',
-          {
-            message: error?.message,
-            details: error?.details,
-            hint: error?.hint,
-            code: error?.code,
-            error
-          }
-        );
-        return;
-      }
-
-      if (data) {
-        setDriverLocation(data as DriverLocation);
-      }
-    };
-
-    fetchDriverLocation();
-
-    // Subscribe to location updates
-    const channel = supabase
-      .channel(`location-${delivery.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'delivery_locations',
-          filter: `assignment_id=eq.${delivery.id}`,
-        },
-        (payload) => {
-          setDriverLocation(payload.new as DriverLocation);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [delivery?.id]);
-
-  // Fetch initial order
   useEffect(() => {
     const fetchOrder = async () => {
       try {
-        const { data, error } = await supabase
-          .from('orders' as any)
-          .select('*')
-          .eq('id', orderId)
-          .single();
+        const { data, error: fetchError } = await (supabase.rpc as any)('get_order_for_tracking', {
+          order_uuid: orderId,
+        });
 
-        if (error) {
+        if (fetchError) {
           setError('Order not found');
           setLoading(false);
           return;
         }
 
-        setOrder(data as Order);
+        const row = Array.isArray(data) ? data[0] : data;
+        if (!row) {
+          setError('Order not found');
+          setLoading(false);
+          return;
+        }
+
+        setOrder(row as Order);
         setLoading(false);
-      } catch (err) {
+      } catch {
         setError('Failed to load order');
         setLoading(false);
       }
@@ -268,39 +180,79 @@ export default function TrackOrderPage() {
     fetchOrder();
   }, [orderId]);
 
-  // Calculate ETA
+  const deliveryStatus = useMemo(
+    () => resolveTrackingDeliveryStatus(order, delivery),
+    [order, delivery]
+  );
+
+  const customerStep = useMemo(
+    () => getCustomerOrderStep(order?.status, deliveryStatus),
+    [order?.status, deliveryStatus]
+  );
+
+  const destination = useMemo(() => orderCoordinates(order), [order]);
+
+  const { snapshotInput: customerSnapshotInput, debug: customerMapDebug } = useCustomerMapSnapshot(
+    delivery?.id,
+    destination,
+    deliveryStatus
+  );
+
+  const driverLocation = useMemo(
+    () =>
+      customerSnapshotInput.driverLat != null
+        ? {
+            lat: customerSnapshotInput.driverLat,
+            lng: customerSnapshotInput.driverLng!,
+            heading: customerSnapshotInput.driverHeading ?? 0,
+          }
+        : null,
+    [
+      customerSnapshotInput.driverLat,
+      customerSnapshotInput.driverLng,
+      customerSnapshotInput.driverHeading,
+    ]
+  );
+
+  const showDriverOnMap = customerStep === 'on_the_way';
+
   const etaResult = useETA({
-    currentLocation: driverLocation ? { lat: driverLocation.lat, lng: driverLocation.lng } : null,
-    destination: order?.coords || null,
-    averageSpeedMs: driverLocation?.speed || 0,
+    currentLocation:
+      showDriverOnMap && driverLocation
+        ? { lat: driverLocation.lat, lng: driverLocation.lng }
+        : null,
+    destination,
+    averageSpeedMs:
+      showDriverOnMap && driverLocation ? FALLBACK_ETA_SPEED_MS : 0,
   });
 
-  console.log('[TRACKING PAGE] Rendering tracking page with data');
+  const showError = !loading && (error || !order);
+  const showContent = !loading && order && !error;
 
   return (
     <div className="relative min-h-screen text-foreground">
       <EspressoBackground />
-      
-      {/* Loading Overlay */}
+
       {loading && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
           <div className="text-center">
-            <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4" />
+            <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
             <p className="text-white/80">Φόρτωση παραγγελίας...</p>
           </div>
         </div>
       )}
 
-      {/* Error Overlay */}
-      {(error || !order) && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center px-4 bg-black/80 backdrop-blur-sm">
+      {showError && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 px-4 backdrop-blur-sm">
           <div className="max-w-md text-center">
-            <AlertCircle className="h-16 w-16 text-red-400 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold text-white mb-2">Παραγγελία δεν βρέθηκε</h1>
-            <p className="text-white/70 mb-6">{error || 'Η παραγγελία δεν υπάρχει ή έχει διαγραφεί.'}</p>
+            <AlertCircle className="mx-auto mb-4 h-16 w-16 text-red-400" />
+            <h1 className="mb-2 text-2xl font-bold text-white">Παραγγελία δεν βρέθηκε</h1>
+            <p className="mb-6 text-white/70">
+              {error || 'Η παραγγελία δεν υπάρχει ή έχει διαγραφεί.'}
+            </p>
             <button
               onClick={() => router.push('/')}
-              className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] hover:bg-primary/90 transition"
+              className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] transition hover:bg-primary/90"
             >
               Επιστροφή στην αρχική
             </button>
@@ -308,76 +260,47 @@ export default function TrackOrderPage() {
         </div>
       )}
 
-      <div className="relative z-10 min-h-screen pb-20">
-        {/* Header */}
-        <header className="sticky top-0 z-30 border-b border-white/10 bg-black/40 backdrop-blur-md">
-          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
-            <div className="flex items-center gap-3">
-              <span className="grid h-8 w-8 place-items-center rounded-full bg-primary font-display text-sm font-bold text-primary-foreground">J</span>
-              <span className="font-display text-lg font-semibold text-white">Παρακολούθηση Παραγγελίας</span>
-            </div>
-            <span className="font-display text-lg font-bold text-white">#{order?.order_number || ''}</span>
-          </div>
-        </header>
-
-        {/* Circular Progress */}
-        <div className="mx-auto max-w-7xl px-4 py-6">
-          <div className="rounded-2xl bg-black/40 border border-white/10 p-6 backdrop-blur-sm">
-            <DeliveryProgressCircle
-              orderStatus={order?.status}
-              deliveryStatus={delivery?.status}
-              eta={etaResult.etaResult?.eta ? etaResult.etaResult.eta.getTime() / 1000 : null}
-            />
-          </div>
-        </div>
-
-        {/* Map Section - ALWAYS MOUNTED */}
-        <div className="mx-auto max-w-7xl px-4 py-4">
-          <div className="relative h-[400px] rounded-2xl overflow-hidden border border-white/10 bg-black/40 backdrop-blur-sm">
-            <TrackingMap
-              driverPosition={driverLocation ? { lat: driverLocation.lat, lng: driverLocation.lng } : null}
-              driverHeading={driverLocation?.heading || 0}
-              destination={order?.coords || null}
-              storeLocation={{ lat: 38.3930, lng: 21.8280 }}
-              deliveryStatus={delivery?.status || 'pending'}
-              deliveryStarted={!!delivery?.picked_up_at}
-            />
-          </div>
-        </div>
-
-        {/* Driver Card */}
-        {driver && order && (
-          <div className="mx-auto max-w-7xl px-4 py-4">
-            <div className="rounded-2xl bg-white/5 border border-white/10 p-4 backdrop-blur-sm">
-              <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center">
-                  <Navigation className="h-6 w-6 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-white">{driver.name}</h3>
-                  <p className="text-sm text-white/60">{driver.vehicle_type}</p>
-                </div>
-                {etaResult.etaResult && (
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-white">
-                      {formatETA(etaResult.etaResult.eta)}
-                    </p>
-                    <p className="text-xs text-white/60">
-                      {formatDistance(etaResult.etaResult.remainingDistance)}
-                    </p>
-                  </div>
-                )}
+      {showContent && (
+        <div className="relative z-10 min-h-screen pb-20">
+          <header className="sticky top-0 z-30 border-b border-white/10 bg-black/40 backdrop-blur-md">
+            <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
+              <div className="flex items-center gap-3">
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-primary font-display text-sm font-bold text-primary-foreground">
+                  J
+                </span>
+                <span className="font-display text-lg font-semibold text-white">
+                  Παρακολούθηση Παραγγελίας
+                </span>
               </div>
+              <span className="font-display text-lg font-bold text-white">
+                #{order.order_number}
+              </span>
             </div>
+          </header>
+
+          <div className="mx-auto max-w-7xl px-4 py-6">
+            <CustomerDeliveryTimeline
+              orderStatus={order.status}
+              deliveryStatus={deliveryStatus}
+              driverName={driver?.full_name}
+              eta={
+                showDriverOnMap && etaResult.etaResult?.eta
+                  ? formatETA(etaResult.etaResult.eta)
+                  : null
+              }
+              distance={
+                showDriverOnMap && etaResult.etaResult
+                  ? formatDistance(etaResult.etaResult.remainingDistance)
+                  : null
+              }
+              snapshotInput={customerSnapshotInput}
+              mapDebug={customerMapDebug}
+            />
           </div>
-        )}
 
-
-        {/* Order Details */}
-        {order && (
           <div className="mx-auto max-w-7xl px-4 py-4">
-            <div className="rounded-2xl bg-white/5 border border-white/10 p-6 backdrop-blur-sm">
-              <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm">
+              <h3 className="mb-4 flex items-center gap-2 font-semibold text-white">
                 <Package className="h-5 w-5 text-primary" />
                 Λεπτομέρειες Παραγγελίας
               </h3>
@@ -390,7 +313,7 @@ export default function TrackOrderPage() {
                     <span className="text-white/60">{(item.price * item.qty).toFixed(2)}€</span>
                   </div>
                 ))}
-                <div className="border-t border-white/10 pt-3 mt-3">
+                <div className="mt-3 border-t border-white/10 pt-3">
                   <div className="flex justify-between text-sm">
                     <span className="text-white/80">Υποσύνολο</span>
                     <span className="text-white/60">{order.subtotal.toFixed(2)}€</span>
@@ -399,7 +322,7 @@ export default function TrackOrderPage() {
                     <span className="text-white/80">Κόστος παράδοσης</span>
                     <span className="text-white/60">{order.delivery_fee.toFixed(2)}€</span>
                   </div>
-                  <div className="flex justify-between text-base font-semibold text-white mt-2">
+                  <div className="mt-2 flex justify-between text-base font-semibold text-white">
                     <span>Σύνολο</span>
                     <span>{order.total.toFixed(2)}€</span>
                   </div>
@@ -407,25 +330,21 @@ export default function TrackOrderPage() {
               </div>
             </div>
           </div>
-        )}
 
-        {/* Delivery Address */}
-        {order && (
           <div className="mx-auto max-w-7xl px-4 py-4">
-            <div className="rounded-2xl bg-white/5 border border-white/10 p-6 backdrop-blur-sm">
-              <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm">
+              <h3 className="mb-4 flex items-center gap-2 font-semibold text-white">
                 <MapPin className="h-5 w-5 text-primary" />
                 Διεύθυνση Παράδοσης
               </h3>
               <p className="text-white/80">{order.address}</p>
               {order.address_notes && (
-                <p className="text-sm text-white/60 mt-2">{order.address_notes}</p>
+                <p className="mt-2 text-sm text-white/60">{order.address_notes}</p>
               )}
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
-

@@ -3,48 +3,54 @@
  * Manages screen wake lock for active deliveries
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 interface UseWakeLockReturn {
   isWakeLockActive: boolean;
 }
 
-export function useWakeLock(activeDelivery: any): UseWakeLockReturn {
+export function useWakeLock(isOnDelivery: boolean): UseWakeLockReturn {
   const [isWakeLockActive, setIsWakeLockActive] = useState(false);
-  const [wakeLock, setWakeLock] = useState<any>(null);
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
 
   useEffect(() => {
-    if (!activeDelivery) {
-      // Release wake lock when no active delivery
-      if (wakeLock) {
-        wakeLock.release();
-        setWakeLock(null);
+    if (!isOnDelivery) {
+      if (wakeLockRef.current) {
+        void wakeLockRef.current.release();
+        wakeLockRef.current = null;
         setIsWakeLockActive(false);
       }
       return;
     }
 
-    // Request wake lock when active delivery exists
+    let cancelled = false;
+
     const requestWakeLock = async () => {
       try {
         if ('wakeLock' in navigator) {
-          const lock = await (navigator as any).wakeLock.request('screen');
-          setWakeLock(lock);
+          const lock = await navigator.wakeLock.request('screen');
+          if (cancelled) {
+            void lock.release();
+            return;
+          }
+          wakeLockRef.current = lock;
           setIsWakeLockActive(true);
         }
-      } catch (err) {
-        console.warn('Wake Lock not supported or denied:', err);
+      } catch {
+        // Wake lock not supported or denied — non-critical
       }
     };
 
-    requestWakeLock();
+    void requestWakeLock();
 
     return () => {
-      if (wakeLock) {
-        wakeLock.release();
+      cancelled = true;
+      if (wakeLockRef.current) {
+        void wakeLockRef.current.release();
+        wakeLockRef.current = null;
       }
     };
-  }, [activeDelivery, wakeLock]);
+  }, [isOnDelivery]);
 
   return { isWakeLockActive };
 }

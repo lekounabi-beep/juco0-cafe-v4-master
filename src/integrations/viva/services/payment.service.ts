@@ -4,7 +4,6 @@
  */
 
 import type { VivaOrderRequest, VivaOrderResponse } from '../types';
-import { env } from '@/config/env';
 
 /**
  * Creates a Viva Wallet order code for Native Smart Checkout
@@ -55,45 +54,8 @@ export async function createVivaOrderCode(
  * Redirects to Viva Wallet payment page
  */
 export function redirectToVivaPayment(orderCode: string): void {
-  const vivaWebBaseUrl = env.VIVA_WEB_BASE_URL;
+  const vivaWebBaseUrl =
+    process.env.NEXT_PUBLIC_VIVA_WEB_BASE_URL || 'https://demo.vivapayments.com';
   const paymentUrl = `${vivaWebBaseUrl}/web/checkout?ref=${orderCode}`;
-  console.log('Redirecting to Viva Wallet:', paymentUrl);
   window.location.href = paymentUrl;
-}
-
-/**
- * Verifies a Viva Wallet transaction
- * This should be called on the server-side for security
- */
-export async function verifyVivaTransaction(transactionId: string): Promise<boolean> {
-  const VIVA_API_KEY = env.VIVA_CLIENT_SECRET;
-  const VIVA_MERCHANT_ID = env.VIVA_CLIENT_ID;
-  const VIVA_API_BASE_URL = env.VIVA_API_BASE_URL;
-
-  if (!VIVA_API_KEY || !VIVA_MERCHANT_ID) {
-    console.warn('Viva Wallet credentials not configured. Skipping verification.');
-    return true; // For demo mode, always return true
-  }
-
-  try {
-    const apiUrl = `${VIVA_API_BASE_URL}/api/transactions/${transactionId}`;
-    
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Basic ${btoa(`${VIVA_MERCHANT_ID}:${VIVA_API_KEY}`)}`,
-      },
-    });
-
-    if (!response.ok) {
-      console.error('Viva Wallet Verification Error:', response.status);
-      return false;
-    }
-
-    const data = await response.json();
-    return data.status === 'Completed' || data.Status === 'Completed';
-  } catch (error) {
-    console.error('Viva Wallet Verification Error:', error);
-    return false;
-  }
 }

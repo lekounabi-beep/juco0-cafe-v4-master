@@ -6,6 +6,7 @@
 // @ts-nocheck - Supabase types don't include new tables yet
 
 import { supabase } from '@/integrations/supabase/client';
+import { devLog } from '@/shared/utils/dev-log';
 import type { OrderStatus, DeliveryStatus } from '../types/delivery.types';
 
 // Order status workflow states
@@ -185,7 +186,7 @@ export async function transitionOrderStatus(
   newStatus: OrderStatus
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    console.log('[Workflow] Transitioning order:', orderId, 'to status:', newStatus);
+    devLog.log('[Workflow] Transitioning order:', orderId, 'to status:', newStatus);
     
     // Get current order status
     const { data: order, error: fetchError } = await supabase
@@ -199,7 +200,7 @@ export async function transitionOrderStatus(
       return { success: false, error: `Failed to fetch order: ${fetchError.message}` };
     }
     
-    console.log('[Workflow] Current order status:', order.status, 'delivery_status:', order.delivery_status, 'driver_id:', order.driver_id);
+    devLog.log('[Workflow] Current order status:', order.status, 'delivery_status:', order.delivery_status, 'driver_id:', order.driver_id);
     
     // Validate transition
     const validation = validateOrderStatusTransition(order.status, newStatus);
@@ -209,7 +210,7 @@ export async function transitionOrderStatus(
     }
     
     // Update order status
-    console.log('[Workflow] Updating order status to:', newStatus);
+    devLog.log('[Workflow] Updating order status to:', newStatus);
     const { error: updateError, count } = await supabase
       .from('orders' as any)
       .update({ 
@@ -223,7 +224,7 @@ export async function transitionOrderStatus(
       return { success: false, error: `Failed to update order status: ${updateError.message}` };
     }
     
-    console.log('[Workflow] Order status updated successfully. Rows affected:', count);
+    devLog.log('[Workflow] Order status updated successfully. Rows affected:', count);
     return { success: true };
   } catch (error) {
     console.error('[Workflow] Unexpected error:', error);
@@ -268,11 +269,8 @@ export async function transitionDeliveryStatus(
       return { success: false, error: validation.reason };
     }
     
-    // Update delivery status
-    const updateData: any = {
-      updated_at: new Date().toISOString(),
-    };
-    
+    const updateData: Record<string, string> = {};
+
     switch (newStatus) {
       case 'picked_up':
         updateData.picked_up_at = new Date().toISOString();

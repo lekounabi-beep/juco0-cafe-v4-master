@@ -5,7 +5,7 @@
   "start_url": "/driver",
   "display": "standalone",
   "background_color": "#000000",
-  "theme_color": "#3b82f6",
+  "theme_color": "#E8F529",
   "orientation": "portrait",
   "scope": "/",
   "categories": ["delivery", "food", "transportation"],

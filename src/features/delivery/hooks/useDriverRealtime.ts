@@ -1,26 +1,41 @@
 /**
  * Driver Realtime hook
- * Handles realtime subscriptions for order updates
+ * Debounced updates — refreshes data only; UI derives from activeDeliveryView.
  */
 
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import { useRealtimeOrders } from '@/integrations/supabase/hooks/useRealtimeOrders';
+import { playNotificationSound } from '@/features/notifications/services/notification-sound.service';
+import { realtimeNotificationKeys } from '@/features/notifications/utils/realtime-notification-keys';
+
+const REALTIME_DEBOUNCE_MS = 300;
 
 interface UseDriverRealtimeProps {
-  onOrderUpdate: (payload: any) => void;
+  onOrderUpdate: () => void;
 }
 
 export function useDriverRealtime({ onOrderUpdate }: UseDriverRealtimeProps) {
-  useEffect(() => {
-    const handleOrderUpdate = (payload: any) => {
-      if (payload && (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE')) {
-        // Refresh available orders
-        console.log('Order update:', payload);
-        onOrderUpdate(payload);
-      }
-    };
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onOrderUpdateRef = useRef(onOrderUpdate);
+  onOrderUpdateRef.current = onOrderUpdate;
 
-    // Note: useRealtimeOrders requires specific order ID, using general subscription
-    // This will be refined in production
-    // For now, this is a placeholder for future realtime implementation
-  }, [onOrderUpdate]);
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  const handleUpdate = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      onOrderUpdateRef.current();
+    }, REALTIME_DEBOUNCE_MS);
+  }, []);
+
+  useRealtimeOrders((payload) => {
+    if (payload.eventType === 'INSERT') {
+      void playNotificationSound('order', realtimeNotificationKeys(payload));
+    }
+    handleUpdate();
+  });
 }

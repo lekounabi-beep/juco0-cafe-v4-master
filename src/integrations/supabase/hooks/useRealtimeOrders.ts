@@ -10,16 +10,23 @@ export function useRealtimeOrders(
   filter?: { event?: 'INSERT' | 'UPDATE' | 'DELETE'; filter?: string }
 ) {
   const subscriptionIdRef = useRef<string | null>(null);
+  const callbackRef = useRef(callback);
+  callbackRef.current = callback;
+
+  const filterKey = filter ? `${filter.event ?? '*'}:${filter.filter ?? ''}` : '*';
 
   useEffect(() => {
-    subscriptionIdRef.current = realtimeService.subscribeToOrders(callback, filter);
+    subscriptionIdRef.current = realtimeService.subscribeToOrders(
+      (payload) => callbackRef.current(payload),
+      filter
+    );
 
     return () => {
       if (subscriptionIdRef.current) {
         realtimeService.unsubscribe(subscriptionIdRef.current);
       }
     };
-  }, [callback, filter]);
+  }, [filterKey]);
 
   const getConnectionState = useCallback(() => {
     return realtimeService.getConnectionState();
@@ -38,18 +45,22 @@ export function useRealtimeOrder(
   callback: (payload: any) => void
 ) {
   const subscriptionIdRef = useRef<string | null>(null);
+  const callbackRef = useRef(callback);
+  callbackRef.current = callback;
 
   useEffect(() => {
     if (!orderId) return;
-    
-    subscriptionIdRef.current = realtimeService.subscribeToOrder(orderId, callback);
+
+    subscriptionIdRef.current = realtimeService.subscribeToOrder(orderId, (payload) =>
+      callbackRef.current(payload)
+    );
 
     return () => {
       if (subscriptionIdRef.current) {
         realtimeService.unsubscribe(subscriptionIdRef.current);
       }
     };
-  }, [orderId, callback]);
+  }, [orderId]);
 
   const getConnectionState = useCallback(() => {
     return realtimeService.getConnectionState();

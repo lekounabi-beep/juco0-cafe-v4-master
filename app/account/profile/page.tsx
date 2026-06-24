@@ -3,6 +3,7 @@
  */
 
 import { ProfileSection } from '@/features/account/components/ProfileSection';
+import { NotificationSettingsSection } from '@/features/notifications/components/NotificationSettingsSection';
 import { EspressoBackground } from '@/components/EspressoBackground';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
@@ -21,8 +22,9 @@ export default function ProfilePage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl px-4 py-8">
+      <main className="mx-auto max-w-3xl px-4 py-8 space-y-6">
         <ProfileSection />
+        <NotificationSettingsSection />
       </main>
     </div>
   );

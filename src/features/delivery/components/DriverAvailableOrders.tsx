@@ -21,14 +21,15 @@ interface DriverAvailableOrdersProps {
   availableOrders: Order[];
   onAcceptOrder: (orderId: string) => void;
   assignmentLoading: boolean;
+  acceptingOrderId: string | null;
 }
 
-export function DriverAvailableOrders({ availableOrders, onAcceptOrder, assignmentLoading }: DriverAvailableOrdersProps) {
-  console.log('[DriverAvailableOrders] Render called');
-  console.log('[DriverAvailableOrders] availableOrders:', availableOrders);
-  console.log('[DriverAvailableOrders] availableOrders.length:', availableOrders.length);
-  console.log('[DriverAvailableOrders] assignmentLoading:', assignmentLoading);
-
+export function DriverAvailableOrders({
+  availableOrders,
+  onAcceptOrder,
+  assignmentLoading,
+  acceptingOrderId,
+}: DriverAvailableOrdersProps) {
   return (
     <div className="mx-auto max-w-7xl px-4 py-4">
       <h3 className="font-semibold text-white mb-3 flex items-center gap-2">
@@ -49,7 +50,7 @@ export function DriverAvailableOrders({ availableOrders, onAcceptOrder, assignme
               key={order.id}
               order={order}
               onAccept={() => onAcceptOrder(order.id)}
-              loading={assignmentLoading}
+              loading={assignmentLoading && acceptingOrderId === order.id}
             />
           ))}
         </div>

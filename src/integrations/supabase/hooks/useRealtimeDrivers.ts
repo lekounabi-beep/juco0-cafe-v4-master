@@ -10,16 +10,23 @@ export function useRealtimeDrivers(
   filter?: { event?: 'INSERT' | 'UPDATE' | 'DELETE'; filter?: string }
 ) {
   const subscriptionIdRef = useRef<string | null>(null);
+  const callbackRef = useRef(callback);
+  callbackRef.current = callback;
+
+  const filterKey = filter ? `${filter.event ?? '*'}:${filter.filter ?? ''}` : '*';
 
   useEffect(() => {
-    subscriptionIdRef.current = realtimeService.subscribeToDrivers(callback, filter);
+    subscriptionIdRef.current = realtimeService.subscribeToDrivers(
+      (payload) => callbackRef.current(payload),
+      filter
+    );
 
     return () => {
       if (subscriptionIdRef.current) {
         realtimeService.unsubscribe(subscriptionIdRef.current);
       }
     };
-  }, [callback, filter]);
+  }, [filterKey]);
 
   const getConnectionState = useCallback(() => {
     return realtimeService.getConnectionState();
@@ -38,18 +45,22 @@ export function useRealtimeDriver(
   callback: (payload: any) => void
 ) {
   const subscriptionIdRef = useRef<string | null>(null);
+  const callbackRef = useRef(callback);
+  callbackRef.current = callback;
 
   useEffect(() => {
     if (!driverId) return;
-    
-    subscriptionIdRef.current = realtimeService.subscribeToDriver(driverId, callback);
+
+    subscriptionIdRef.current = realtimeService.subscribeToDriver(driverId, (payload) =>
+      callbackRef.current(payload)
+    );
 
     return () => {
       if (subscriptionIdRef.current) {
         realtimeService.unsubscribe(subscriptionIdRef.current);
       }
     };
-  }, [driverId, callback]);
+  }, [driverId]);
 
   const getConnectionState = useCallback(() => {
     return realtimeService.getConnectionState();

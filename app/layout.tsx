@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import ServiceWorkerRegistrationComponent from "@/components/ServiceWorkerRegistration";
+import { NotificationSoundInit } from "@/features/notifications/components/NotificationSoundInit";
+import { Toaster } from "@/components/ui/sonner";
 import { Space_Grotesk, Inter } from "next/font/google";
 
 const spaceGrotesk = Space_Grotesk({
@@ -43,7 +45,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#3b82f6",
+  themeColor: "#E8F529",
 };
 
 export default function RootLayout({
@@ -57,6 +59,8 @@ export default function RootLayout({
         <ThemeProvider defaultTheme="dark" attribute="class">
           {children}
         </ThemeProvider>
+        <Toaster />
+        <NotificationSoundInit />
         <ServiceWorkerRegistrationComponent />
       </body>
     </html>

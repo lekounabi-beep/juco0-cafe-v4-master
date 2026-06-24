@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Clock, Home, MapPin, Phone, Heart } from "lucide-react";
 import { EspressoBackground } from "@/components/EspressoBackground";
 import { formatEur } from "@/shared/utils/currency";
-import { verifyVivaTransaction } from "@/integrations/viva/services/payment.service";
-import { createOrder, getOrderById } from "@/integrations/supabase/services/order.service";
+import { completeVivaOrder } from "../actions/complete-viva-order";
+import { getOrderById } from "@/integrations/supabase/services/order.service";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { GoogleButton } from "@/features/auth/components/GoogleButton";
 import { z } from "zod";
@@ -44,94 +44,63 @@ function OrderSuccessContent() {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const processedRef = useRef(false);
 
   useEffect(() => {
+    if (processedRef.current) return;
+    processedRef.current = true;
+
     async function processOrder() {
       try {
-        console.log('Order success page - processing order');
-        console.log('Transaction ID (t):', t);
-        console.log('Order ID (id):', id);
-
-        // Handle Viva Wallet callback
         if (t) {
-          console.log('Processing Viva Wallet callback');
-
-          // Retrieve pending order from sessionStorage
           const pendingOrderStr = sessionStorage.getItem("pendingOrder");
-          console.log('Pending order from sessionStorage:', pendingOrderStr ? 'Found' : 'Not found');
-          
+
           if (!pendingOrderStr) {
-            console.error('No pending order found in sessionStorage');
             setError("Δεν βρέθηκε η παραγγελία. Παρακαλώ ξεκινήστε ξανά.");
             setLoading(false);
             return;
           }
 
           const pendingOrder = JSON.parse(pendingOrderStr);
-          console.log('Pending order data:', pendingOrder);
-          
-          // Try to save to database
+
           try {
-            const orderPayload = {
-              ...pendingOrder,
-              payment_status: "paid",
-              payment_method: "card",
-              viva_transaction_id: t,
-              status: "pending",
-            };
-
-            console.log('Attempting to insert order to Supabase:', orderPayload);
-
-            const data = await createOrder(orderPayload);
-
-            console.log('Order successfully inserted to Supabase:', data);
-
-            // Clear sessionStorage
+            const data = await completeVivaOrder(pendingOrder, t);
             sessionStorage.removeItem("pendingOrder");
-
-            // Use the pending order data for display (includes items, etc.)
             setOrder({ ...pendingOrder, id: data.id, order_number: data.order_number } as Order);
             setLoading(false);
-
-            // Redirect to tracking page after successful order creation
             setTimeout(() => {
               router.push(`/track/${data.id}`);
             }, 3000);
             return;
           } catch (dbError) {
-            console.error('Database error:', dbError);
-            setError(`Σφάλμα βάσης δεδομένων: ${dbError instanceof Error ? dbError.message : 'Άγνωστο σφάλμα'}`);
+            setError(
+              dbError instanceof Error ? dbError.message : 'Άγνωστο σφάλμα κατά την αποθήκευση'
+            );
             setLoading(false);
             return;
           }
         }
 
-        // Handle regular order success (cash on delivery)
         if (!id) {
-          console.log('No transaction ID or order ID provided');
           setLoading(false);
           return;
         }
 
-        console.log('Fetching order by ID:', id);
         try {
           const data = await getOrderById(id);
-          console.log('Order fetched:', data);
           setOrder((data as unknown as Order) ?? null);
-        } catch (error) {
-          console.error('Order fetch error:', error);
+        } catch {
           setError('Δεν ήταν δυνατή η ανάκτηση της παραγγελίας.');
         }
         setLoading(false);
       } catch (e) {
-        console.error("Order processing error:", e);
         setError(e instanceof Error ? e.message : "Κάτι πήγε στραβά. Δοκίμασε ξανά.");
         setLoading(false);
       }
     }
 
     processOrder();
-  }, [id, t]);
+  }, [id, t, router]);
 
   return (
     <div className="relative min-h-screen text-foreground">

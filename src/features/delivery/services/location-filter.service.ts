@@ -49,13 +49,11 @@ class LocationFilter {
   shouldAcceptUpdate(update: LocationUpdate): boolean {
     // Check accuracy
     if (!this.isAccuracyAcceptable(update.accuracy)) {
-      console.log('[LocationFilter] Rejected: Poor accuracy', update.accuracy);
       return false;
     }
 
     // Check if coordinates are valid
     if (!this.areCoordinatesValid(update.coordinates)) {
-      console.log('[LocationFilter] Rejected: Invalid coordinates');
       return false;
     }
 
@@ -71,7 +69,6 @@ class LocationFilter {
       if (!this.hasMovedEnough(update.coordinates)) {
         // Check if heading has changed significantly
         if (!this.hasHeadingChangedEnough(update.heading)) {
-          console.log('[LocationFilter] Rejected: Not enough change');
           return false;
         }
       }
@@ -79,7 +76,6 @@ class LocationFilter {
 
     // Check for obvious jump
     if (isObviousJump(this.lastUpdate.coordinates, update.coordinates, this.config.maxJumpDistance)) {
-      console.log('[LocationFilter] Rejected: Obvious jump');
       return false;
     }
 
@@ -89,10 +85,14 @@ class LocationFilter {
   }
 
   /**
-   * Check if accuracy is acceptable
+   * Check if accuracy is acceptable (meters — lower is better).
+   * Reject only very poor readings; accept unknown/zero accuracy.
    */
   private isAccuracyAcceptable(accuracy: number): boolean {
-    return accuracy >= this.config.minAccuracy && accuracy <= this.config.maxAccuracy;
+    if (!Number.isFinite(accuracy) || accuracy <= 0) {
+      return true;
+    }
+    return accuracy <= this.config.maxAccuracy;
   }
 
   /**
@@ -179,9 +179,11 @@ export function validateLocationUpdate(
 ): { valid: boolean; reason?: string } {
   const filterConfig = { ...DEFAULT_FILTER_CONFIG, ...config };
 
-  // Check accuracy
-  if (update.accuracy < filterConfig.minAccuracy || update.accuracy > filterConfig.maxAccuracy) {
-    return { valid: false, reason: 'Poor accuracy' };
+  // Check accuracy (lower meters = better; reject only very poor signal)
+  if (Number.isFinite(update.accuracy) && update.accuracy > 0) {
+    if (update.accuracy > filterConfig.maxAccuracy) {
+      return { valid: false, reason: 'Poor accuracy' };
+    }
   }
 
   // Check coordinates

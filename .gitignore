@@ -36,6 +36,7 @@ dist-ssr
 .env
 .env.local
 .env.production
+.env.sw-version
 
 # Next.js build output
 .next

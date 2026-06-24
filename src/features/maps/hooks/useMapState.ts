@@ -10,52 +10,48 @@ import { mapEngine } from '../engine/MapEngine';
 import type { LatLng, Address } from '../engine/types';
 
 export function useMapState() {
-  const [isReady, setIsReady] = useState(false);
+  const [isReady, setIsReady] = useState(() => mapEngine.isReady());
   const [center, setCenter] = useState<LatLng | null>(null);
   const [zoom, setZoom] = useState<number | null>(null);
   const [address, setAddress] = useState<Address | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
-    // Subscribe to MAP_READY
+    if (mapEngine.isReady()) {
+      setIsReady(true);
+    }
+
     const unsubscribeReady = mapEngine.on('MAP_READY', () => {
-      console.log('[useMapState] Map ready');
       setIsReady(true);
     });
 
-    // Subscribe to CENTER_CHANGED
+    const unsubscribeDestroyed = mapEngine.on('MAP_DESTROYED', () => {
+      setIsReady(false);
+    });
+
     const unsubscribeCenter = mapEngine.on('CENTER_CHANGED', (coords) => {
-      console.log('[useMapState] Center changed:', coords);
       setCenter(coords);
     });
 
-    // Subscribe to ZOOM_CHANGED
     const unsubscribeZoom = mapEngine.on('ZOOM_CHANGED', (zoomLevel) => {
-      console.log('[useMapState] Zoom changed:', zoomLevel);
       setZoom(zoomLevel);
     });
 
-    // Subscribe to ADDRESS_CHANGED
     const unsubscribeAddress = mapEngine.on('ADDRESS_CHANGED', (addr) => {
-      console.log('[useMapState] Address changed:', addr);
       setAddress(addr);
     });
 
-    // Subscribe to DRAG_START
     const unsubscribeDragStart = mapEngine.on('DRAG_START', () => {
-      console.log('[useMapState] Drag started');
       setIsDragging(true);
     });
 
-    // Subscribe to DRAG_END
-    const unsubscribeDragEnd = mapEngine.on('DRAG_END', (coords) => {
-      console.log('[useMapState] Drag ended:', coords);
+    const unsubscribeDragEnd = mapEngine.on('DRAG_END', () => {
       setIsDragging(false);
     });
 
-    // Cleanup all subscriptions
     return () => {
       unsubscribeReady();
+      unsubscribeDestroyed();
       unsubscribeCenter();
       unsubscribeZoom();
       unsubscribeAddress();

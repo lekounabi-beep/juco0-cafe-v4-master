@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ArrowLeft, Loader2 } from "lucide-react";
+import { useEffect } from "react";
 import { EspressoBackground } from "@/components/EspressoBackground";
 import { CheckoutStepper } from "@/features/checkout/components/CheckoutStepper";
 import { CartStep } from "@/features/checkout/components/CartStep";
@@ -9,6 +10,9 @@ import dynamic from "next/dynamic";
 import { PaymentStep } from "@/features/checkout/components/PaymentStep";
 import { EmptyCart } from "@/features/checkout/components/EmptyCart";
 import { useCheckoutFlow } from "@/features/checkout/hooks/useCheckoutFlow";
+import { useCheckoutStore } from "@/features/checkout/store/checkout-store";
+import { useAuth } from "@/features/auth/hooks/useAuth";
+import { getProfile } from "@/integrations/supabase/services/profile.service";
 import { useCart } from "@/lib/cart-store";
 import { formatEur } from "@/shared/utils/currency";
 import { calcDeliveryFee } from "@/shared/utils/currency";
@@ -24,10 +28,28 @@ const DeliveryStep = dynamic(() => import("@/features/checkout/components/Delive
 
 function CheckoutPage() {
   const { step, nextStep, prevStep, validation } = useCheckoutFlow();
+  const { user } = useAuth();
+  const setUserId = useCheckoutStore((s) => s.setUserId);
   const items = useCart((s) => s.items);
   const subtotal = useCart((s) => s.subtotal());
   const deliveryFee = calcDeliveryFee(subtotal);
   const total = subtotal + deliveryFee;
+
+  useEffect(() => {
+    async function syncProfileId() {
+      if (!user) {
+        setUserId(null);
+        return;
+      }
+      try {
+        const profile = await getProfile(user.id);
+        setUserId(profile?.id ?? null);
+      } catch {
+        setUserId(null);
+      }
+    }
+    syncProfileId();
+  }, [user, setUserId]);
 
   if (items.length === 0 && step !== 3) {
     return <EmptyCart />;

@@ -3,7 +3,6 @@
  */
 
 import { useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { useCheckoutStore } from '../store/checkout-store';
 import { useCart } from '@/lib/cart-store';
 import { createOrder, type OrderResult } from '@/integrations/supabase/services/order.service';
@@ -12,7 +11,6 @@ import { calcDeliveryFee } from '@/shared/utils/currency';
 import type { CheckoutSubmitState } from '../types/checkout.types';
 
 export function useCheckoutSubmit() {
-  const router = useRouter();
   const items = useCart((s) => s.items);
   const clear = useCart((s) => s.clear);
   const {
@@ -69,7 +67,7 @@ export function useCheckoutSubmit() {
           lat: coords?.lat ?? null,
           lng: coords?.lng ?? null,
           payment_method: payment,
-          payment_status: 'paid',
+          payment_status: 'pending',
           notes: notes.trim() || null,
           status: 'pending',
           user_id: userId || null,
@@ -122,13 +120,13 @@ export function useCheckoutSubmit() {
 
       console.log('Order created successfully, ID:', data.id);
       clear();
-      
-      // Use window.location.href to ensure navigation happens
+
       window.location.href = `/order-success?id=${data.id}`;
     } catch (e) {
       console.error('Order submission error:', e);
       const msg = e instanceof Error ? e.message : 'Κάτι πήγε στραβά. Δοκίμασε ξανά.';
       setError(msg);
+    } finally {
       setSubmitting(false);
     }
   }, [
@@ -144,7 +142,6 @@ export function useCheckoutSubmit() {
     setSubmitting,
     setError,
     clear,
-    router,
   ]);
 
   const submitState: CheckoutSubmitState = {

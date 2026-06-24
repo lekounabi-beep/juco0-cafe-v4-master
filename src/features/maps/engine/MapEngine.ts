@@ -11,7 +11,7 @@
  * RULES:
  * - Singleton pattern enforced
  * - No React dependencies
- * - No marker logic (handled by MarkerManager)
+ * - No marker logic (handled by render-map-from-snapshot)
  * - No geocoding logic (handled by GeocodingService)
  */
 
@@ -47,12 +47,14 @@ export class MapEngine {
    * This is the ONLY entry point for map creation
    */
   async attach(container: HTMLElement): Promise<void> {
-    if (this.isInitialized && this.map) {
-      console.log('[MapEngine] Already initialized, returning existing map');
+    if (this.isInitialized && this.map && this.container === container) {
       return;
     }
 
-    console.log('[MapEngine] Initializing map...');
+    if (this.map) {
+      this.detach();
+    }
+
     this.container = container;
 
     try {
@@ -64,7 +66,6 @@ export class MapEngine {
       }
 
       await window.google.maps.importLibrary('maps');
-      console.log('[MapEngine] Google Maps API loaded');
 
       // Wait for container to have dimensions
       await this.waitForContainerReady(container);
@@ -79,8 +80,6 @@ export class MapEngine {
         clickableIcons: false,
       });
 
-      console.log('[MapEngine] Map instance created with Wolt dark theme');
-
       // Wait for map to be ready (tilesloaded + idle)
       await this.waitForMapReady();
 
@@ -89,8 +88,6 @@ export class MapEngine {
 
       // Bind Google Maps events to MapEngine events
       this.bindMapEvents();
-
-      console.log('[MapEngine] Map is ready');
     } catch (error) {
       console.error('[MapEngine] Initialization failed:', error);
       throw error;
@@ -109,7 +106,6 @@ export class MapEngine {
     this.isInitialized = false;
     this.container = null;
     this.events.emit('MAP_DESTROYED', undefined);
-    console.log('[MapEngine] Map detached and destroyed');
   }
 
   /**
@@ -144,6 +140,17 @@ export class MapEngine {
     handler: EventHandler<MapEventTypes[K]>
   ): Unsubscribe {
     return this.events.once(event, handler);
+  }
+
+  /**
+   * Fit map viewport to include all given points
+   */
+  fitToBounds(points: LatLng[], padding = 48): void {
+    if (!this.map || points.length === 0) return;
+
+    const bounds = new window.google.maps.LatLngBounds();
+    points.forEach((point) => bounds.extend(point));
+    this.map.fitBounds(bounds, padding);
   }
 
   /**
@@ -189,25 +196,26 @@ export class MapEngine {
   /**
    * Wait for container to have valid dimensions
    */
-  private async waitForContainerReady(container: HTMLElement): Promise<void> {
-    const checkDimensions = (): Promise<void> => {
-      return new Promise((resolve) => {
-        const check = () => {
-          const rect = container.getBoundingClientRect();
-          const MIN_DIMENSION = 100;
-          if (rect.width >= MIN_DIMENSION && rect.height >= MIN_DIMENSION) {
-            console.log('[MapEngine] Container ready:', { width: rect.width, height: rect.height });
-            resolve();
-          } else {
-            console.log('[MapEngine] Container not ready, retrying...', { width: rect.width, height: rect.height });
-            setTimeout(check, 100);
-          }
-        };
-        check();
-      });
-    };
+  private async waitForContainerReady(container: HTMLElement, timeoutMs = 15000): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    const MIN_DIMENSION = 1;
 
-    await checkDimensions();
+    while (Date.now() < deadline) {
+      const rect = container.getBoundingClientRect();
+      const width = rect.width || container.offsetWidth || container.clientWidth;
+      const height = rect.height || container.offsetHeight || container.clientHeight;
+
+      if (width >= MIN_DIMENSION && height >= MIN_DIMENSION) {
+        return;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+
+    const rect = container.getBoundingClientRect();
+    throw new Error(
+      `[MapEngine] Container not ready after ${timeoutMs}ms (${rect.width}x${rect.height})`
+    );
   }
 
   /**
@@ -250,7 +258,6 @@ export class MapEngine {
       }
     });
 
-    console.log('[MapEngine] Google Maps events bound');
   }
 
   /**
@@ -318,12 +325,9 @@ export class MapEngine {
     return new Promise((resolve) => {
       // Wait for tilesloaded
       window.google.maps.event.addListenerOnce(this.map!, 'tilesloaded', () => {
-        console.log('[MapEngine] Tiles loaded');
         this.events.emit('TILES_LOADED', undefined);
 
-        // Wait for idle after tilesloaded
         window.google.maps.event.addListenerOnce(this.map!, 'idle', () => {
-          console.log('[MapEngine] Map idle');
           this.events.emit('IDLE', undefined);
           resolve();
         });

@@ -123,7 +123,90 @@ export class ETACalculator {
 }
 
 /**
- * Calculate ETA without state (pure function)
+ * Pure ETA calculation — no React state, no smoothing side effects.
+ */
+export function calculateETA(
+  currentLocation: Coordinates,
+  destination: Coordinates,
+  averageSpeedMs: number,
+  config: Partial<ETAConfig> = {}
+): ETAResult {
+  const cfg = { ...DEFAULT_ETA_CONFIG, ...config };
+  const remainingDistance = calculateDistance(currentLocation, destination);
+
+  if (!Number.isFinite(remainingDistance) || remainingDistance < 0) {
+    return {
+      eta: null,
+      remainingDistance: 0,
+      remainingTime: 0,
+      averageSpeed: speedFromKmh(25),
+      isArrived: false,
+    };
+  }
+
+  if (remainingDistance <= cfg.arrivalThreshold) {
+    const speedMs = resolveSpeedMs(averageSpeedMs, cfg);
+    return {
+      eta: new Date(),
+      remainingDistance,
+      remainingTime: 0,
+      averageSpeed: speedMs,
+      isArrived: true,
+    };
+  }
+
+  const speedMs = resolveSpeedMs(averageSpeedMs, cfg);
+  const remainingTime = remainingDistance / speedMs;
+
+  if (!Number.isFinite(remainingTime) || remainingTime < 0) {
+    return {
+      eta: null,
+      remainingDistance,
+      remainingTime: 0,
+      averageSpeed: speedMs,
+      isArrived: false,
+    };
+  }
+
+  const eta = new Date(Date.now() + remainingTime * 1000);
+
+  if (Number.isNaN(eta.getTime())) {
+    return {
+      eta: null,
+      remainingDistance,
+      remainingTime: 0,
+      averageSpeed: speedMs,
+      isArrived: false,
+    };
+  }
+
+  return {
+    eta,
+    remainingDistance,
+    remainingTime,
+    averageSpeed: speedMs,
+    isArrived: false,
+  };
+}
+
+function resolveSpeedMs(averageSpeedMs: number, cfg: ETAConfig): number {
+  const fallback = speedFromKmh(25);
+  let speedMs = averageSpeedMs;
+
+  if (!Number.isFinite(speedMs) || speedMs <= 0) {
+    speedMs = fallback;
+  }
+
+  const speedKmh = speedToKmh(speedMs);
+  if (speedKmh < cfg.minSpeedForCalculation || speedKmh > cfg.maxSpeedForCalculation) {
+    speedMs = fallback;
+  }
+
+  return speedMs;
+}
+
+/**
+ * @deprecated Use calculateETA
  */
 export function calculateETAStatic(
   currentLocation: Coordinates,
@@ -131,8 +214,7 @@ export function calculateETAStatic(
   averageSpeedMs: number,
   config: Partial<ETAConfig> = {}
 ): ETAResult {
-  const calculator = new ETACalculator(config);
-  return calculator.calculateETA(currentLocation, destination, averageSpeedMs);
+  return calculateETA(currentLocation, destination, averageSpeedMs, config);
 }
 
 /**

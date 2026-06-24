@@ -10,8 +10,6 @@ export async function createDriver(formData: {
   vehicle_type: string;
 }) {
   try {
-    console.log('Creating driver with data:', formData);
-    
     // Check if service role key is configured
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       console.error('SUPABASE_SERVICE_ROLE_KEY is not configured');

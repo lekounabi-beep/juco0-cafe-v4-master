@@ -1,23 +1,26 @@
 /**
  * Driver PWA - Main Driver Application
- * Production-quality Progressive Web App for delivery drivers
  */
 
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { EspressoBackground } from '@/components/EspressoBackground';
 import { useDriverPage } from '@/features/delivery/hooks/useDriverPage';
 import { DriverHeader } from '@/features/delivery/components/DriverHeader';
+import { DriverOfflineBanner } from '@/features/delivery/components/DriverOfflineBanner';
 import { DriverAvailabilityCard } from '@/features/delivery/components/DriverAvailabilityCard';
 import { DriverActiveDeliveryCard } from '@/features/delivery/components/DriverActiveDeliveryCard';
 import { DriverAvailableOrders } from '@/features/delivery/components/DriverAvailableOrders';
 import { DriverStatsCard } from '@/features/delivery/components/DriverStatsCard';
+import { LocationPermissionModal } from '@/features/delivery/components/LocationPermissionModal';
+import { NotificationSettingsSection } from '@/features/notifications/components/NotificationSettingsSection';
 import { DRIVER_AVAILABILITY } from '@/features/delivery/types/delivery.types';
 import { AlertCircle, Loader2 } from 'lucide-react';
 
 export default function DriverPage() {
-  const router = useRouter();
+  const { push } = useSafeRouter();
+
   const {
     loading,
     error,
@@ -25,25 +28,22 @@ export default function DriverPage() {
     driverProfile,
     availabilityStatus,
     availableOrders,
-    activeDelivery,
+    activeDeliveryView,
+    deliveryUi,
+    driverDeliveryState,
     assignmentLoading,
+    acceptingOrderId,
     isWakeLockActive,
     handleAvailabilityChange,
     handleAcceptOrder,
     handleDeliveryAction,
+    locationPermissionModalOpen,
+    setLocationPermissionModalOpen,
+    handleRetryLocationPermission,
+    destinationResolving,
+    mapDestination,
+    etaResult,
   } = useDriverPage();
-
-  console.log('[DriverPage] Render called');
-  console.log('[DriverPage] loading:', loading);
-  console.log('[DriverPage] error:', error);
-  console.log('[DriverPage] availabilityLoading:', availabilityLoading);
-  console.log('[DriverPage] driverProfile:', driverProfile);
-  console.log('[DriverPage] availabilityStatus:', availabilityStatus);
-  console.log('[DriverPage] availableOrders:', availableOrders);
-  console.log('[DriverPage] availableOrders.length:', availableOrders?.length);
-  console.log('[DriverPage] activeDelivery:', activeDelivery);
-  console.log('[DriverPage] assignmentLoading:', assignmentLoading);
-  console.log('[DriverPage] isWakeLockActive:', isWakeLockActive);
 
   if (loading || availabilityLoading) {
     return (
@@ -69,7 +69,7 @@ export default function DriverPage() {
             <h1 className="text-2xl font-bold text-white mb-2">Σφάλμα</h1>
             <p className="text-white/70 mb-6">{error}</p>
             <button
-              onClick={() => router.push('/')}
+              onClick={() => push('/driver/login')}
               className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] hover:bg-primary/90 transition"
             >
               Επιστροφή στην αρχική
@@ -83,52 +83,65 @@ export default function DriverPage() {
   return (
     <div className="relative min-h-screen text-foreground">
       <EspressoBackground />
-      
+
       <div className="relative z-10 min-h-screen pb-24">
-        <DriverHeader 
-          driverProfile={driverProfile} 
-          availabilityStatus={availabilityStatus} 
+        <DriverOfflineBanner />
+        <DriverHeader
+          driverProfile={driverProfile}
+          isOnDelivery={deliveryUi.isOnDelivery}
+          availabilityStatus={availabilityStatus}
         />
 
         <DriverAvailabilityCard
+          isOnDelivery={deliveryUi.isOnDelivery}
           availabilityStatus={availabilityStatus}
           onAvailabilityChange={handleAvailabilityChange}
         />
 
-        {activeDelivery && (
+        {deliveryUi.isOnDelivery && activeDeliveryView.assignment && (
           <DriverActiveDeliveryCard
-            activeDelivery={activeDelivery}
+            activeDeliveryView={activeDeliveryView}
+            deliveryUi={deliveryUi}
+            mapDestination={mapDestination}
+            destinationResolving={destinationResolving}
             onDeliveryAction={handleDeliveryAction}
+            isPickingUp={driverDeliveryState.isPickingUp}
+            eta={etaResult}
           />
         )}
 
-        {!activeDelivery && availabilityStatus === DRIVER_AVAILABILITY.ONLINE && (
-          <>
-            {console.log('[DriverPage] Rendering DriverAvailableOrders - conditions met')}
-            {console.log('[DriverPage] !activeDelivery:', !activeDelivery)}
-            {console.log('[DriverPage] availabilityStatus === ONLINE:', availabilityStatus === DRIVER_AVAILABILITY.ONLINE)}
-            <DriverAvailableOrders
-              availableOrders={availableOrders}
-              onAcceptOrder={handleAcceptOrder}
-              assignmentLoading={assignmentLoading}
-            />
-          </>
+        {!deliveryUi.isOnDelivery && availabilityStatus === DRIVER_AVAILABILITY.ONLINE && (
+          <DriverAvailableOrders
+            availableOrders={availableOrders}
+            onAcceptOrder={handleAcceptOrder}
+            assignmentLoading={assignmentLoading}
+            acceptingOrderId={acceptingOrderId}
+          />
         )}
 
-        {activeDelivery === null && availabilityStatus !== DRIVER_AVAILABILITY.ONLINE && (
+        {!deliveryUi.isOnDelivery && availabilityStatus === DRIVER_AVAILABILITY.OFFLINE && (
           <div className="mx-auto max-w-7xl px-4 py-4">
             <div className="rounded-2xl bg-white/5 border border-white/10 p-8 text-center backdrop-blur-sm">
               <p className="text-white/60">Ο οδηγός είναι offline</p>
-              <p className="text-sm text-white/40 mt-1">Ενεργοποιήστε τη διαθεσιμότητα για να δείτε παραγγελίες</p>
+              <p className="text-sm text-white/40 mt-1">
+                Ενεργοποιήστε τη διαθεσιμότητα για να δείτε παραγγελίες
+              </p>
             </div>
           </div>
         )}
 
-        <DriverStatsCard
-          driverProfile={driverProfile}
-          isWakeLockActive={isWakeLockActive}
-        />
+        <DriverStatsCard driverProfile={driverProfile} isWakeLockActive={isWakeLockActive} />
+
+        <div className="mx-auto max-w-7xl px-4 py-4">
+          <NotificationSettingsSection compact />
+        </div>
       </div>
+
+      <LocationPermissionModal
+        open={locationPermissionModalOpen}
+        onOpenChange={setLocationPermissionModalOpen}
+        onRetry={() => void handleRetryLocationPermission()}
+      />
     </div>
   );
 }
