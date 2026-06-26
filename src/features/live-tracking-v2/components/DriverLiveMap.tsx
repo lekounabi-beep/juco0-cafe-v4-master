@@ -355,7 +355,7 @@ export function DriverLiveMap({
 
     if (!safeDriverLocation && currentDriver !== undefined) {
       if (process.env.NODE_ENV === 'development') {
-        console.warn(LOG, 'invalid driver location', currentDriver);
+        console.warn('[DriverLiveMap] invalid driver location', currentDriver);
       }
     }
 
