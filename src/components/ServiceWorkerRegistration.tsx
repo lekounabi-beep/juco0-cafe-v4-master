@@ -1,8 +1,8 @@
 'use client';
 
-import { usePWAUpdate } from '@/hooks/usePWAUpdate';
+import { usePwaInstall } from '@/hooks/usePwaInstall';
 
 export default function ServiceWorkerRegistration() {
-  usePWAUpdate();
+  usePwaInstall();
   return null;
 }

@@ -17,10 +17,12 @@ import {
   Plus,
   X,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { EspressoBackground } from "@/components/EspressoBackground";
 import { formatEur } from "@/lib/cart-store";
-import { transitionOrderStatus } from "@/features/delivery/services/workflow.service";
+import type { OrderStatus } from "@/features/delivery/types/delivery.types";
+import type { AdminOrder } from "@/features/admin/types/admin-order.types";
+import { getAllOrdersForAdmin } from "../actions/admin-orders";
+import { adminTransitionOrderStatus } from "../actions/admin-kitchen-workflow";
 import {
   ADMIN_ORDER_COLUMNS,
   groupOrdersByColumn,
@@ -34,29 +36,10 @@ import { realtimeNotificationKeys } from "@/features/notifications/utils/realtim
 import { NotificationSettingsSection } from "@/features/notifications/components/NotificationSettingsSection";
 import { createDriver } from "../actions/create-driver";
 
-type Order = {
-  id: string;
-  order_number: string;
-  status: string;
-  delivery_status: string;
-  driver_id: string | null;
-  items: { name: string; qty: number; price: number }[];
-  subtotal: number;
-  delivery_fee: number;
-  total: number;
-  customer_name: string;
-  customer_phone: string;
-  address: string;
-  address_notes?: string;
-  payment_method: string;
-  payment_status: string;
-  notes?: string;
-  created_at: string;
-  viva_transaction_id?: string;
-};
+const ADMIN_POLL_INTERVAL_MS = 30_000;
 
 function AdminDashboard() {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDriverModal, setShowDriverModal] = useState(false);
   const [driverForm, setDriverForm] = useState({
@@ -69,17 +52,21 @@ function AdminDashboard() {
 
   const loadOrders = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from("orders")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(50);
+      const result = await getAllOrdersForAdmin();
 
-      if (error) throw error;
+      if (!result.success) {
+        console.error("Error loading orders:", result.error);
+        if (result.error.includes("Unauthorized")) {
+          toast.error(result.error);
+        }
+        setOrders([]);
+        return;
+      }
 
-      setOrders((data as unknown as Order[]) || []);
+      setOrders(result.orders);
     } catch (error) {
       console.error("Error loading orders:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to load orders");
     } finally {
       setLoading(false);
     }
@@ -94,12 +81,16 @@ function AdminDashboard() {
     }, 300);
   }, [loadOrders]);
 
-  // Load orders from Supabase
+  // Initial load + polling fallback (realtime may not fire under anon RLS)
   useEffect(() => {
     loadOrders();
+    const pollId = window.setInterval(() => {
+      loadOrders();
+    }, ADMIN_POLL_INTERVAL_MS);
+    return () => window.clearInterval(pollId);
   }, [loadOrders]);
 
-  // Realtime: refresh list on any order change; sound only on new orders
+  // Realtime wake-up: always refetch from server-authoritative action
   useRealtimeOrders((payload) => {
     if (payload.eventType === 'INSERT') {
       void playNotificationSound('order', realtimeNotificationKeys(payload));
@@ -109,8 +100,8 @@ function AdminDashboard() {
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
-      // Use workflow service for all status transitions
-      const result = await transitionOrderStatus(orderId, newStatus as any);
+      // Kitchen transition via server action (service role)
+      const result = await adminTransitionOrderStatus(orderId, newStatus as OrderStatus);
       
       if (!result.success) {
         console.error("Error updating order status:", result.error);
@@ -118,7 +109,7 @@ function AdminDashboard() {
         return;
       }
       
-      loadOrders();
+      await loadOrders();
       toast.success("Order status updated successfully");
     } catch (error) {
       console.error("Error updating order status:", error);
@@ -254,7 +245,7 @@ function AdminDashboard() {
                       Καμία παραγγελία
                     </p>
                   ) : (
-                    ordersByColumn[column.id].map((order: Order) => {
+                    ordersByColumn[column.id].map((order: AdminOrder) => {
                       const nextAction = getAdminNextAction(order.status);
                       return (
                         <div

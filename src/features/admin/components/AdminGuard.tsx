@@ -1,36 +1,58 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
-import { LogOut } from 'lucide-react';
-import { isAdminSessionActive, clearAdminSession } from '@/lib/auth/admin-session';
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { LogOut } from "lucide-react";
+import { isAdminSessionActive, clearAdminSession, setAdminSession } from "@/lib/auth/admin-session";
+import { adminLogout, verifyAdminCookie } from "../../../../app/actions/admin-auth";
 
 export function AdminGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const isLoginPage = pathname === '/admin/login';
-  const [checked, setChecked] = useState(isLoginPage);
+  const isLoginPage = pathname === "/admin/login";
+  const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    if (isLoginPage) {
-      if (isAdminSessionActive()) {
-        router.replace('/admin');
+    let cancelled = false;
+
+    async function verifyAccess() {
+      const cookieOk = await verifyAdminCookie();
+
+      if (cancelled) return;
+
+      if (isLoginPage) {
+        if (cookieOk) {
+          setAdminSession();
+          router.replace("/admin");
+        }
+        setChecked(true);
+        return;
       }
+
+      if (!cookieOk) {
+        clearAdminSession();
+        router.replace("/admin/login");
+        return;
+      }
+
+      if (!isAdminSessionActive()) {
+        setAdminSession();
+      }
+
       setChecked(true);
-      return;
     }
 
-    if (!isAdminSessionActive()) {
-      router.replace('/admin/login');
-      return;
-    }
+    void verifyAccess();
 
-    setChecked(true);
+    return () => {
+      cancelled = true;
+    };
   }, [isLoginPage, router]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await adminLogout();
     clearAdminSession();
-    router.push('/admin/login');
+    window.location.assign("/admin/login");
   };
 
   if (!checked) {
@@ -50,7 +72,7 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
       <div className="fixed right-4 top-4 z-50">
         <button
           type="button"
-          onClick={handleLogout}
+          onClick={() => void handleLogout()}
           className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/60 px-4 py-2 text-sm font-semibold text-white backdrop-blur-md transition hover:bg-white/10"
         >
           <LogOut className="h-4 w-4" />

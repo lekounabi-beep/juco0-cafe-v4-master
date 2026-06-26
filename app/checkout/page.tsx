@@ -1,39 +1,55 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Loader2 } from "lucide-react";
-import { useEffect } from "react";
+import { ArrowLeft } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { EspressoBackground } from "@/components/EspressoBackground";
-import { CheckoutStepper } from "@/features/checkout/components/CheckoutStepper";
-import { CartStep } from "@/features/checkout/components/CartStep";
-import dynamic from "next/dynamic";
+import { FulfillmentStep } from "@/features/checkout/components/FulfillmentStep";
+import { ContactStep } from "@/features/checkout/components/ContactStep";
+import { AddressStep } from "@/features/checkout/components/AddressStep";
+import { DeliveryInstructionsStep } from "@/features/checkout/components/DeliveryInstructionsStep";
 import { PaymentStep } from "@/features/checkout/components/PaymentStep";
+import { ReviewStep } from "@/features/checkout/components/ReviewStep";
+import { StickyCheckoutCta } from "@/features/checkout/components/StickyCheckoutCta";
 import { EmptyCart } from "@/features/checkout/components/EmptyCart";
-import { useCheckoutFlow } from "@/features/checkout/hooks/useCheckoutFlow";
+import { CheckoutAddressPicker } from "@/features/location/components/CheckoutAddressPicker";
+import { useCheckoutForm } from "@/features/checkout/hooks/useCheckoutForm";
+import { useCheckoutValidation } from "@/features/checkout/hooks/useCheckoutValidation";
+import { useCheckoutSubmit } from "@/features/checkout/hooks/useCheckoutSubmit";
 import { useCheckoutStore } from "@/features/checkout/store/checkout-store";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { getProfile } from "@/integrations/supabase/services/profile.service";
 import { useCart } from "@/lib/cart-store";
-import { formatEur } from "@/shared/utils/currency";
 import { calcDeliveryFee } from "@/shared/utils/currency";
 
-const DeliveryStep = dynamic(() => import("@/features/checkout/components/DeliveryStep").then(mod => ({ default: mod.DeliveryStep })), {
-  loading: () => (
-    <div className="flex items-center justify-center py-12">
-      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-    </div>
-  ),
-  ssr: false,
-});
+const SECTION_FOR_FIELD: Record<string, string> = {
+  items: "review",
+  phone: "contact",
+  name: "contact",
+  address: "address",
+};
 
 function CheckoutPage() {
-  const { step, nextStep, prevStep, validation } = useCheckoutFlow();
   const { user } = useAuth();
   const setUserId = useCheckoutStore((s) => s.setUserId);
+  const deliveryAddress = useCheckoutStore((s) => s.deliveryAddress);
+  const setDeliveryAddress = useCheckoutStore((s) => s.setDeliveryAddress);
+  const { fulfillment, payment } = useCheckoutForm();
+  const validation = useCheckoutValidation();
+  const { submitOrder, submitting, error } = useCheckoutSubmit();
+  const [isAddressPickerOpen, setAddressPickerOpen] = useState(false);
+  const [showErrors, setShowErrors] = useState(false);
+  const [validationAttempt, setValidationAttempt] = useState(0);
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
+  const phoneRef = useRef<HTMLInputElement | null>(null);
+  const nameRef = useRef<HTMLInputElement | null>(null);
+  const addressActionRef = useRef<HTMLButtonElement | null>(null);
   const items = useCart((s) => s.items);
   const subtotal = useCart((s) => s.subtotal());
-  const deliveryFee = calcDeliveryFee(subtotal);
+  const isPickup = fulfillment === "pickup";
+  const deliveryFee = isPickup ? 0 : calcDeliveryFee(subtotal);
   const total = subtotal + deliveryFee;
+  const addressError = showErrors ? validation.errors.address : undefined;
 
   useEffect(() => {
     async function syncProfileId() {
@@ -51,7 +67,36 @@ function CheckoutPage() {
     syncProfileId();
   }, [user, setUserId]);
 
-  if (items.length === 0 && step !== 3) {
+  const setSectionRef = useMemo(
+    () => (id: string) => (node: HTMLElement | null) => {
+      sectionRefs.current[id] = node;
+    },
+    [],
+  );
+
+  const scrollToFirstError = () => {
+    const firstInvalidField = validation.firstInvalidField;
+    const sectionId = firstInvalidField ? SECTION_FOR_FIELD[firstInvalidField] : null;
+    if (!sectionId) return;
+    sectionRefs.current[sectionId]?.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.setTimeout(() => {
+      if (firstInvalidField === "phone") phoneRef.current?.focus();
+      if (firstInvalidField === "name") nameRef.current?.focus();
+      if (firstInvalidField === "address") addressActionRef.current?.focus();
+    }, 250);
+  };
+
+  const handleSubmit = async () => {
+    setShowErrors(true);
+    setValidationAttempt((attempt) => attempt + 1);
+    if (!validation.canSubmit) {
+      scrollToFirstError();
+      return;
+    }
+    await submitOrder();
+  };
+
+  if (items.length === 0) {
     return <EmptyCart />;
   }
 
@@ -61,55 +106,76 @@ function CheckoutPage() {
 
       <header className="sticky top-0 z-30 border-b border-white/10 bg-black/40 backdrop-blur-md">
         <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
-          {step > 1 ? (
-            <button
-              onClick={prevStep}
-              className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white hover:bg-white/15"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </button>
-          ) : (
-            <Link href="/" className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white hover:bg-white/15">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          )}
+          <Link
+            href="/"
+            className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white hover:bg-white/15"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
           <h1 className="font-display text-lg font-semibold text-white">Ολοκλήρωση Παραγγελίας</h1>
         </div>
-        <CheckoutStepper />
       </header>
 
       <main className="mx-auto max-w-3xl px-4 pb-32 pt-6">
-        {step === 1 && <CartStep />}
-        {step === 2 && <DeliveryStep />}
-        {step === 3 && <PaymentStep />}
+        <div className="space-y-4 animate-fade-up">
+          <div ref={setSectionRef("fulfillment")}>
+            <FulfillmentStep />
+          </div>
+
+          <div ref={setSectionRef("contact")}>
+            <ContactStep
+              errors={validation.errors}
+              showErrors={showErrors}
+              validationAttempt={validationAttempt}
+              phoneRef={phoneRef}
+              nameRef={nameRef}
+            />
+          </div>
+
+          {!isPickup && (
+            <>
+              <div ref={setSectionRef("address")}>
+                <AddressStep
+                  onOpenAddressPicker={() => setAddressPickerOpen(true)}
+                  error={addressError}
+                  actionRef={addressActionRef}
+                />
+              </div>
+              <div ref={setSectionRef("instructions")}>
+                <DeliveryInstructionsStep />
+              </div>
+            </>
+          )}
+
+          <div ref={setSectionRef("payment")}>
+            <PaymentStep />
+          </div>
+
+          {error && (
+            <div className="rounded-2xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive-foreground">
+              {error}
+            </div>
+          )}
+
+          <div ref={setSectionRef("review")}>
+            <ReviewStep onEditAddress={() => setAddressPickerOpen(true)} />
+          </div>
+        </div>
       </main>
 
-      {/* Bottom action bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-white/10 bg-black/70 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
-          {step > 1 && (
-            <button
-              onClick={prevStep}
-              className="rounded-full bg-white/10 px-4 py-3 text-sm font-semibold text-white hover:bg-white/15"
-            >
-              Πίσω
-            </button>
-          )}
-          <div className="flex-1 text-right text-xs text-white/60">
-            Σύνολο
-            <div className="text-base font-bold text-white">{formatEur(total)}</div>
-          </div>
-          {step < 3 ? (
-            <button
-              onClick={nextStep}
-              disabled={(step === 1 && !validation.canStep2) || (step === 2 && !validation.canStep3)}
-              className="rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Συνέχεια
-            </button>
-          ) : null}
-        </div>
-      </div>
+      <CheckoutAddressPicker
+        isOpen={isAddressPickerOpen}
+        initialAddress={deliveryAddress}
+        onClose={() => setAddressPickerOpen(false)}
+        onConfirm={setDeliveryAddress}
+      />
+
+      <StickyCheckoutCta
+        total={total}
+        submitting={submitting}
+        payment={payment}
+        onSubmit={handleSubmit}
+      />
     </div>
   );
 }

@@ -1,4 +1,14 @@
 /**
+ * @deprecated
+ *
+ * Legacy tracking pipeline.
+ *
+ * Replaced by Tracking V2.
+ *
+ * Do not add new functionality here.
+ * Scheduled for removal after V2 validation.
+ */
+/**
  * Shared types for MapEngine system
  */
 

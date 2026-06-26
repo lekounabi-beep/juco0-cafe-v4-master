@@ -3,9 +3,16 @@
  * Manages authentication state
  */
 
-import { create } from 'zustand';
-import type { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
+import { create } from "zustand";
+import type { User, Session } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
+
+function isAuthSessionMissingError(error: unknown) {
+  return (
+    error instanceof Error &&
+    (error.name === "AuthSessionMissingError" || error.message.includes("Auth session missing"))
+  );
+}
 
 interface AuthState {
   user: User | null;
@@ -34,34 +41,41 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   initializeAuth: async () => {
     try {
       set({ loading: true });
-      
+
       // Check current session
-      const { data: { session }, error } = await supabase.auth.getSession();
-      
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
+
       if (error) {
-        console.error('Failed to get session:', error);
+        if (!isAuthSessionMissingError(error)) {
+          console.error("Failed to get session:", error);
+        }
         set({ user: null, session: null, loading: false });
         return;
       }
-      
+
       if (session) {
         set({ user: session.user, session, loading: false });
       } else {
         set({ user: null, session: null, loading: false });
       }
     } catch (error) {
-      console.error('Auth initialization error:', error);
-      set({ user: null, session: null, loading: false, error: 'Failed to initialize auth' });
+      if (!isAuthSessionMissingError(error)) {
+        console.error("Auth initialization error:", error);
+      }
+      set({ user: null, session: null, loading: false, error: "Failed to initialize auth" });
     }
   },
 
   logout: async () => {
-    const { signOut } = await import('@/integrations/supabase/services/auth.service');
+    const { signOut } = await import("@/integrations/supabase/services/auth.service");
     try {
       await signOut();
       set({ user: null, session: null, error: null });
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'Logout failed' });
+      set({ error: error instanceof Error ? error.message : "Logout failed" });
     }
   },
 }));

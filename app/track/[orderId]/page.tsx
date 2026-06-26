@@ -14,17 +14,14 @@ import { useRealtimeDriver } from '@/integrations/supabase/hooks/useRealtimeDriv
 import { useETA } from '@/features/delivery/hooks/useETA';
 import { formatETA, formatDistance } from '@/features/delivery/services/eta.service';
 import { supabase } from '@/integrations/supabase/client';
-import { CustomerDeliveryTimeline } from '@/features/tracking/components/CustomerDeliveryTimeline';
+import { CustomerDeliveryTimelineUI } from '@/features/tracking/components/CustomerDeliveryTimelineUI';
 import type { Coordinates } from '@/shared/types/common.types';
 import { orderCoordinates } from '@/shared/utils/order-fields';
-import {
-  resolveTrackingDeliveryStatus,
-  getCustomerOrderStep,
-} from '@/shared/utils/customer-status';
+import { useDeliveryState } from '@/features/delivery/hooks/useDeliveryState';
 import { speedFromKmh } from '@/features/delivery/services/speed.service';
-import { useCustomerMapSnapshot } from '@/features/delivery/hooks/useCustomerMapSnapshot';
 import { playNotificationSound } from '@/features/notifications/services/notification-sound.service';
 import { MapPin, Package, AlertCircle } from 'lucide-react';
+import { V2TrackingSection } from '@/features/live-tracking-v2';
 
 const FALLBACK_ETA_SPEED_MS = speedFromKmh(25);
 
@@ -115,7 +112,12 @@ export default function TrackOrderPage() {
   });
 
   useEffect(() => {
-    if (!order?.driver_id) return;
+    if (!order?.driver_id) {
+      setDelivery(null);
+      return;
+    }
+
+    let cancelled = false;
 
     const fetchDelivery = async () => {
       const { data, error: fetchError } = await (supabase.rpc as any)(
@@ -123,13 +125,17 @@ export default function TrackOrderPage() {
         { p_order_id: orderId }
       );
 
-      if (fetchError || !data) return;
+      if (cancelled || fetchError || !data) return;
       const row = Array.isArray(data) ? data[0] : data;
       if (row) setDelivery(row as DeliveryAssignment);
     };
 
-    fetchDelivery();
-  }, [order?.driver_id, orderId]);
+    void fetchDelivery();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [order?.driver_id, order?.status, order?.delivery_status, orderId]);
 
   useEffect(() => {
     const driverId = order?.driver_id;
@@ -180,38 +186,40 @@ export default function TrackOrderPage() {
     fetchOrder();
   }, [orderId]);
 
-  const deliveryStatus = useMemo(
-    () => resolveTrackingDeliveryStatus(order, delivery),
-    [order, delivery]
-  );
+  const { deliveryState } = useDeliveryState({
+    order,
+    assignment: delivery,
+    role: 'customer',
+  });
 
-  const customerStep = useMemo(
-    () => getCustomerOrderStep(order?.status, deliveryStatus),
-    [order?.status, deliveryStatus]
-  );
+  const deliveryStatus = deliveryState.deliveryStatus;
+  const customerStep = deliveryState.customerStep;
 
   const destination = useMemo(() => orderCoordinates(order), [order]);
 
-  const { snapshotInput: customerSnapshotInput, debug: customerMapDebug } = useCustomerMapSnapshot(
-    delivery?.id,
-    destination,
-    deliveryStatus
-  );
+  const driverPosition = deliveryState.driverPosition;
+
+  const driverLat = driverPosition?.lat;
+  const driverLng = driverPosition?.lng;
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'development') return;
+    console.log('[TrackPage] driver coordinates changed', {
+      driverLat,
+      driverLng,
+    });
+  }, [driverLat, driverLng]);
 
   const driverLocation = useMemo(
     () =>
-      customerSnapshotInput.driverLat != null
+      driverPosition != null
         ? {
-            lat: customerSnapshotInput.driverLat,
-            lng: customerSnapshotInput.driverLng!,
-            heading: customerSnapshotInput.driverHeading ?? 0,
+            lat: driverPosition.lat,
+            lng: driverPosition.lng,
+            heading: driverPosition.heading ?? 0,
           }
         : null,
-    [
-      customerSnapshotInput.driverLat,
-      customerSnapshotInput.driverLng,
-      customerSnapshotInput.driverHeading,
-    ]
+    [driverPosition]
   );
 
   const showDriverOnMap = customerStep === 'on_the_way';
@@ -279,7 +287,12 @@ export default function TrackOrderPage() {
           </header>
 
           <div className="mx-auto max-w-7xl px-4 py-6">
-            <CustomerDeliveryTimeline
+            <div className="mb-6">
+              <V2TrackingSection order={order} assignment={delivery} />
+            </div>
+
+            <CustomerDeliveryTimelineUI
+              customerStep={customerStep}
               orderStatus={order.status}
               deliveryStatus={deliveryStatus}
               driverName={driver?.full_name}
@@ -293,8 +306,6 @@ export default function TrackOrderPage() {
                   ? formatDistance(etaResult.etaResult.remainingDistance)
                   : null
               }
-              snapshotInput={customerSnapshotInput}
-              mapDebug={customerMapDebug}
             />
           </div>
 

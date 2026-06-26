@@ -1,8 +1,10 @@
 /**
  * Single source of truth for driver active delivery state.
+ * Stage derivation delegates to computeDeliveryState.
  */
 
-import { assignmentStatusFromTimestamps, orderCoordinates } from '@/shared/utils/order-fields';
+import { computeDeliveryState } from '@/features/delivery/core/compute-delivery-state';
+import { orderCoordinates } from '@/shared/utils/order-fields';
 import { isValidLatLng } from '@/shared/utils/coordinates';
 import type { Coordinates } from '@/shared/types/common.types';
 
@@ -13,6 +15,7 @@ type OrderLike = {
   id?: string;
   order_number?: string;
   status?: string;
+  delivery_status?: string;
   items?: { name: string; qty: number }[];
   total?: number;
   address?: string;
@@ -48,17 +51,15 @@ export type ActiveDeliveryView = {
 
 const ACTIVE_STAGES = new Set<DeliveryStage>(['assigned', 'picked_up', 'in_transit', 'arrived']);
 
-function deriveStage(assignment: NonNullable<AssignmentLike>): DeliveryStage | null {
-  const fromTimestamps = assignmentStatusFromTimestamps(assignment);
-  if (fromTimestamps === 'delivered' || fromTimestamps === 'cancelled' || fromTimestamps === 'pending') {
-    return null;
-  }
-  if (ACTIVE_STAGES.has(fromTimestamps as DeliveryStage)) {
-    return fromTimestamps as DeliveryStage;
-  }
-  const fallback = assignment.status;
-  if (fallback && ACTIVE_STAGES.has(fallback as DeliveryStage)) {
-    return fallback as DeliveryStage;
+function deriveStage(
+  order: OrderLike,
+  assignment: NonNullable<AssignmentLike>
+): DeliveryStage | null {
+  const state = computeDeliveryState({ order, assignment, locations: [], role: 'driver' });
+  if (!state.isDeliveryActive) return null;
+  const stage = state.deliveryStatus;
+  if (ACTIVE_STAGES.has(stage as DeliveryStage)) {
+    return stage as DeliveryStage;
   }
   return 'assigned';
 }
@@ -72,7 +73,7 @@ export function getActiveDelivery(
     return { isActive: false, stage: null, order: null, assignment: null };
   }
 
-  const stage = deriveStage(assignment);
+  const stage = deriveStage(order, assignment);
   if (!stage) {
     return { isActive: false, stage: null, order: null, assignment: null };
   }

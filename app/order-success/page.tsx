@@ -3,20 +3,15 @@
 import Link from "next/link";
 import { useEffect, useState, useRef, Suspense } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Clock, Home, MapPin, Phone, Heart } from "lucide-react";
+import { CheckCircle2, Clock, Home, MapPin, Phone, Heart, XCircle } from "lucide-react";
 import { EspressoBackground } from "@/components/EspressoBackground";
 import { formatEur } from "@/shared/utils/currency";
 import { completeVivaOrder } from "../actions/complete-viva-order";
 import { getOrderById } from "@/integrations/supabase/services/order.service";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { GoogleButton } from "@/features/auth/components/GoogleButton";
-import { z } from "zod";
+import { useCart } from "@/lib/cart-store";
 import { useSearchParams } from "next/navigation";
-
-const searchSchema = z.object({ 
-  id: z.string().uuid().optional(),
-  t: z.string().optional(),
-});
 
 type Order = {
   id: string;
@@ -39,8 +34,11 @@ function OrderSuccessContent() {
   const router = useRouter();
   const id = searchParams.get("id") || undefined;
   const t = searchParams.get("t") || undefined;
-  const { isAuthenticated, user } = useAuth();
-  
+  const s = searchParams.get("s") || undefined;
+  const eventId = searchParams.get("eventId") || undefined;
+  const { isAuthenticated } = useAuth();
+  const clearCart = useCart((s) => s.clear);
+
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,22 +64,34 @@ function OrderSuccessContent() {
           try {
             const data = await completeVivaOrder(pendingOrder, t);
             sessionStorage.removeItem("pendingOrder");
-            setOrder({ ...pendingOrder, id: data.id, order_number: data.order_number } as Order);
-            setLoading(false);
-            setTimeout(() => {
-              router.push(`/track/${data.id}`);
-            }, 3000);
+            clearCart();
+            router.push(`/track/${data.id}`);
             return;
           } catch (dbError) {
-            setError(
-              dbError instanceof Error ? dbError.message : 'Άγνωστο σφάλμα κατά την αποθήκευση'
-            );
+            const message = dbError instanceof Error ? dbError.message : "";
+            const safeMessage =
+              message.includes("πληρωμή δεν επαληθεύτηκε") ||
+              message.includes("πληρωμή μπορεί να έχει ολοκληρωθεί")
+                ? message
+                : "Η πληρωμή μπορεί να έχει ολοκληρωθεί, αλλά δεν μπορέσαμε να καταχωρήσουμε την παραγγελία. Επικοινωνήστε με το κατάστημα.";
+            setError(safeMessage);
             setLoading(false);
             return;
           }
         }
 
+        if (s || eventId) {
+          setError(
+            "Η πληρωμή επέστρεψε από τη Viva, αλλά δεν λάβαμε κωδικό συναλλαγής για επιβεβαίωση. Επικοινωνήστε με το κατάστημα.",
+          );
+          setLoading(false);
+          return;
+        }
+
         if (!id) {
+          setError(
+            "Δεν ολοκληρώθηκε παραγγελία. Αν προσπάθησες να πληρώσεις με κάρτα, δεν έχει επιβεβαιωθεί πληρωμή.",
+          );
           setLoading(false);
           return;
         }
@@ -90,30 +100,57 @@ function OrderSuccessContent() {
           const data = await getOrderById(id);
           setOrder((data as unknown as Order) ?? null);
         } catch {
-          setError('Δεν ήταν δυνατή η ανάκτηση της παραγγελίας.');
+          setError("Δεν ήταν δυνατή η ανάκτηση της παραγγελίας.");
         }
         setLoading(false);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Κάτι πήγε στραβά. Δοκίμασε ξανά.");
+      } catch {
+        setError(
+          "Δεν μπορέσαμε να επιβεβαιώσουμε την παραγγελία. Δοκιμάστε ξανά ή επικοινωνήστε με το κατάστημα.",
+        );
         setLoading(false);
       }
     }
 
     processOrder();
-  }, [id, t, router]);
+  }, [clearCart, eventId, id, s, t, router]);
+
+  const isSuccess = !!order && !error;
+  const heading = loading
+    ? "Έλεγχος παραγγελίας"
+    : isSuccess
+      ? "Ευχαριστούμε!"
+      : "Δεν ολοκληρώθηκε η παραγγελία";
+  const summary = loading
+    ? "Επιβεβαιώνουμε την κατάσταση της παραγγελίας."
+    : isSuccess
+      ? "Η παραγγελία σου καταχωρήθηκε και ετοιμάζεται."
+      : "Δεν έχουμε επιβεβαιωμένη παραγγελία για αυτή την πληρωμή.";
+  const fulfillmentLabel = order?.address === "Παραλαβή από το μαγαζί" ? "Παραλαβή" : "Παράδοση";
 
   return (
     <div className="relative min-h-screen text-foreground">
       <EspressoBackground />
       <main className="relative z-10 mx-auto max-w-2xl px-4 py-12">
         <div className="rounded-3xl glass p-8 text-center animate-fade-up">
-          <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-primary shadow-[var(--shadow-glow)]">
-            <CheckCircle2 className="h-8 w-8 text-primary-foreground" />
+          <div
+            className={`mx-auto grid h-16 w-16 place-items-center rounded-full ${
+              loading
+                ? "bg-white/10"
+                : isSuccess
+                  ? "bg-primary shadow-[var(--shadow-glow)]"
+                  : "bg-destructive/20"
+            }`}
+          >
+            {loading ? (
+              <Clock className="h-8 w-8 text-white/70" />
+            ) : isSuccess ? (
+              <CheckCircle2 className="h-8 w-8 text-primary-foreground" />
+            ) : (
+              <XCircle className="h-8 w-8 text-destructive" />
+            )}
           </div>
-          <h1 className="mt-6 font-display text-3xl font-bold text-white">Ευχαριστούμε!</h1>
-          <p className="mt-2 text-white/70">
-            Η παραγγελία σου καταχωρήθηκε και ετοιμάζεται.
-          </p>
+          <h1 className="mt-6 font-display text-3xl font-bold text-white">{heading}</h1>
+          <p className="mt-2 text-white/70">{summary}</p>
 
           {loading ? (
             <p className="mt-6 text-sm text-white/50">Φόρτωση...</p>
@@ -127,9 +164,21 @@ function OrderSuccessContent() {
               </div>
 
               <div className="mt-6 grid gap-3 text-left">
-                <InfoRow icon={<Clock className="h-4 w-4" />} label="Εκτιμώμενος χρόνος" value="20–35 λεπτά" />
-                <InfoRow icon={<MapPin className="h-4 w-4" />} label="Παράδοση" value={order.address} />
-                <InfoRow icon={<Phone className="h-4 w-4" />} label="Τηλέφωνο" value={order.customer_phone} />
+                <InfoRow
+                  icon={<Clock className="h-4 w-4" />}
+                  label="Εκτιμώμενος χρόνος"
+                  value="20–35 λεπτά"
+                />
+                <InfoRow
+                  icon={<MapPin className="h-4 w-4" />}
+                  label={fulfillmentLabel}
+                  value={order.address}
+                />
+                <InfoRow
+                  icon={<Phone className="h-4 w-4" />}
+                  label="Τηλέφωνο"
+                  value={order.customer_phone}
+                />
               </div>
 
               <div className="mt-6 rounded-2xl bg-white/5 p-4 text-left">
@@ -137,18 +186,32 @@ function OrderSuccessContent() {
                 <ul className="mt-2 space-y-1.5 text-sm">
                   {order.items.map((it) => (
                     <li key={it.name} className="flex justify-between text-white/85">
-                      <span>{it.qty}× {it.name}</span>
+                      <span>
+                        {it.qty}× {it.name}
+                      </span>
                       <span>{formatEur(it.qty * it.price)}</span>
                     </li>
                   ))}
                 </ul>
                 <div className="mt-3 space-y-1 border-t border-white/10 pt-3 text-sm">
-                  <div className="flex justify-between text-white/65"><span>Υποσύνολο</span><span>{formatEur(order.subtotal)}</span></div>
-                  <div className="flex justify-between text-white/65"><span>Μεταφορικά</span><span>{order.delivery_fee === 0 ? "Δωρεάν" : formatEur(order.delivery_fee)}</span></div>
-                  <div className="flex justify-between border-t border-white/10 pt-2 text-base font-bold text-white"><span>Σύνολο</span><span>{formatEur(order.total)}</span></div>
+                  <div className="flex justify-between text-white/65">
+                    <span>Υποσύνολο</span>
+                    <span>{formatEur(order.subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-white/65">
+                    <span>Μεταφορικά</span>
+                    <span>
+                      {order.delivery_fee === 0 ? "Δωρεάν" : formatEur(order.delivery_fee)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-t border-white/10 pt-2 text-base font-bold text-white">
+                    <span>Σύνολο</span>
+                    <span>{formatEur(order.total)}</span>
+                  </div>
                 </div>
                 <p className="mt-3 text-xs text-white/55">
-                  Πληρωμή: {order.payment_method === "card" ? "Κάρτα — Πληρώθηκε" : "Μετρητά στην παράδοση"}
+                  Πληρωμή:{" "}
+                  {order.payment_method === "card" ? "Κάρτα — Πληρώθηκε" : "Μετρητά στην παράδοση"}
                 </p>
               </div>
             </>
@@ -165,7 +228,9 @@ function OrderSuccessContent() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-white">Δημιουργήστε λογαριασμό</h3>
-                  <p className="text-xs text-white/60">Αποθηκεύστε τις παραγγελίες σας και παραγγείνετε γρηγορότερα</p>
+                  <p className="text-xs text-white/60">
+                    Αποθηκεύστε τις παραγγελίες σας και παραγγείνετε γρηγορότερα
+                  </p>
                 </div>
               </div>
               <div className="space-y-3">
@@ -217,7 +282,9 @@ function OrderSuccessContent() {
 function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="flex items-start gap-3 rounded-xl bg-white/5 p-3">
-      <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary/20 text-primary">{icon}</div>
+      <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary/20 text-primary">
+        {icon}
+      </div>
       <div className="min-w-0">
         <p className="text-[11px] uppercase tracking-wider text-white/55">{label}</p>
         <p className="truncate text-sm text-white">{value}</p>
@@ -228,7 +295,18 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
 
 export default function OrderSuccessPage() {
   return (
-    <Suspense fallback={<div className="relative min-h-screen text-foreground"><EspressoBackground /><main className="relative z-10 mx-auto max-w-2xl px-4 py-12"><div className="rounded-3xl glass p-8 text-center"><p className="text-white/50">Φόρτωση...</p></div></main></div>}>
+    <Suspense
+      fallback={
+        <div className="relative min-h-screen text-foreground">
+          <EspressoBackground />
+          <main className="relative z-10 mx-auto max-w-2xl px-4 py-12">
+            <div className="rounded-3xl glass p-8 text-center">
+              <p className="text-white/50">Φόρτωση...</p>
+            </div>
+          </main>
+        </div>
+      }
+    >
       <OrderSuccessContent />
     </Suspense>
   );

@@ -4,8 +4,10 @@
 
 // @ts-nocheck - Supabase types don't include new tables yet
 
-import { supabase } from '@/integrations/supabase/client';
-import type { TablesInsert } from '@/integrations/supabase/types';
+import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
+
+const KITCHEN_ORDER_STATUSES = new Set(["pending", "accepted", "preparing", "ready"]);
 
 export interface CreateOrderInput {
   items: Array<{ name: string; price: number; qty: number; category?: string }>;
@@ -31,11 +33,14 @@ export interface OrderResult {
   order_number: string;
 }
 
-export async function createOrder(
-  input: CreateOrderInput
-): Promise<OrderResult> {
+export async function createOrder(input: CreateOrderInput): Promise<OrderResult> {
+  const status = input.status || "pending";
+  if (!KITCHEN_ORDER_STATUSES.has(status)) {
+    throw new Error(`orders.status is kitchen-only. Rejected status: ${status}`);
+  }
+
   // @ts-ignore - Supabase types don't include new tables yet
-  const payload: TablesInsert<'orders'> = {
+  const payload: TablesInsert<"orders"> = {
     items: input.items as any,
     subtotal: input.subtotal,
     delivery_fee: input.delivery_fee,
@@ -49,106 +54,54 @@ export async function createOrder(
     payment_method: input.payment_method,
     payment_status: input.payment_status,
     notes: input.notes || null,
-    status: input.status || 'pending',
+    status,
     viva_transaction_id: input.viva_transaction_id || null,
     user_id: input.user_id || null,
   };
 
   const { data, error } = await supabase
-    .from('orders')
+    .from("orders")
     // @ts-ignore - Supabase types don't include new tables yet
     .insert(payload)
-    .select('id, order_number')
+    .select("id, order_number")
     .single();
 
   if (error) {
-    console.error('Supabase insert error:', error);
-    throw new Error(`Database error: ${error.message || 'Failed to save order'}`);
+    console.error("Supabase insert error:", error);
+    throw new Error(`Database error: ${error.message || "Failed to save order"}`);
   }
 
   return data as OrderResult;
 }
 
 export async function getOrderById(id: string) {
-  const { data, error } = await (supabase.rpc as any)('get_order_for_tracking', {
+  const { data, error } = await (supabase.rpc as any)("get_order_for_tracking", {
     order_uuid: id,
   });
 
   if (error) {
-    console.error('Supabase fetch error:', error);
+    console.error("Supabase fetch error:", error);
     throw new Error(`Failed to fetch order: ${error.message}`);
   }
 
   const row = Array.isArray(data) ? data[0] : data;
   if (!row) {
-    throw new Error('Order not found');
+    throw new Error("Order not found");
   }
 
   return row;
 }
 
-export async function updateOrderStatus(
-  id: string,
-  status: string
-): Promise<void> {
-  const { error } = await supabase
-    .from('orders')
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq('id', id);
-
-  if (error) {
-    console.error('Supabase update error:', error);
-    throw new Error(`Failed to update order status: ${error.message}`);
-  }
-}
-
 export async function getUserOrders(profileId: string) {
   const { data, error } = await supabase
-    .from('orders' as any)
-    .select('*')
-    .eq('user_id', profileId)
-    .order('created_at', { ascending: false });
+    .from("orders" as any)
+    .select("*")
+    .eq("user_id", profileId)
+    .order("created_at", { ascending: false });
 
   if (error) {
-    console.error('Supabase fetch error:', error);
+    console.error("Supabase fetch error:", error);
     throw new Error(`Failed to fetch orders: ${error.message}`);
-  }
-
-  return data;
-}
-
-export async function linkOrderToUser(orderId: string, profileId: string) {
-  // @ts-expect-error - Supabase types don't include new tables yet
-  const { error } = await supabase
-    .from('orders' as any)
-    .update({ user_id: profileId } as any)
-    .eq('id', orderId);
-
-  if (error) {
-    console.error('Supabase update error:', error);
-    throw new Error(`Failed to link order to user: ${error.message}`);
-  }
-}
-
-export async function findGuestOrders(email: string, phone?: string) {
-  let query = supabase
-    .from('orders' as any)
-    .select('*')
-    .is('user_id', null);
-
-  if (email) {
-    query = query.ilike('customer_email', email);
-  }
-
-  if (phone) {
-    query = query.ilike('customer_phone', phone);
-  }
-
-  const { data, error } = await query;
-
-  if (error) {
-    console.error('Supabase fetch error:', error);
-    throw new Error(`Failed to find guest orders: ${error.message}`);
   }
 
   return data;

@@ -2,8 +2,15 @@
  * Authentication service for Supabase Auth
  */
 
-import { supabase } from '@/integrations/supabase/client';
-import type { LoginFormData, RegisterFormData } from '@/features/auth/types/auth.types';
+import { supabase } from "@/integrations/supabase/client";
+import type { LoginFormData, RegisterFormData } from "@/features/auth/types/auth.types";
+
+function isAuthSessionMissingError(error: unknown) {
+  return (
+    error instanceof Error &&
+    (error.name === "AuthSessionMissingError" || error.message.includes("Auth session missing"))
+  );
+}
 
 export async function signInWithEmail(email: string, password: string) {
   const { data, error } = await supabase.auth.signInWithPassword({
@@ -39,7 +46,7 @@ export async function signUpWithEmail(data: RegisterFormData) {
 
 export async function signInWithGoogle() {
   const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
+    provider: "google",
     options: {
       redirectTo: `${window.location.origin}/auth/callback`,
     },
@@ -62,34 +69,62 @@ export async function signOut() {
 
 export async function getCurrentUser() {
   try {
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError) {
+      if (!isAuthSessionMissingError(sessionError)) {
+        console.error("Failed to get current session:", sessionError);
+      }
+      return null;
+    }
+
+    if (!session) return null;
+
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
 
     if (error) {
-      console.error('Failed to get current user:', error);
+      if (!isAuthSessionMissingError(error)) {
+        console.error("Failed to get current user:", error);
+      }
       return null;
     }
 
     return user;
   } catch (error) {
     // Handle AuthSessionMissingError and other auth errors gracefully
-    console.error('Auth error:', error);
+    if (!isAuthSessionMissingError(error)) {
+      console.error("Auth error:", error);
+    }
     return null;
   }
 }
 
 export async function getCurrentSession() {
   try {
-    const { data: { session }, error } = await supabase.auth.getSession();
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession();
 
     if (error) {
-      console.error('Failed to get current session:', error);
+      if (!isAuthSessionMissingError(error)) {
+        console.error("Failed to get current session:", error);
+      }
       return null;
     }
 
     return session;
   } catch (error) {
     // Handle AuthSessionMissingError and other auth errors gracefully
-    console.error('Auth error:', error);
+    if (!isAuthSessionMissingError(error)) {
+      console.error("Auth error:", error);
+    }
     return null;
   }
 }

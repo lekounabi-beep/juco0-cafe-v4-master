@@ -26,6 +26,7 @@ export function useDriverRealtime({ onOrderUpdate }: UseDriverRealtimeProps) {
   }, []);
 
   const handleUpdate = useCallback(() => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       onOrderUpdateRef.current();

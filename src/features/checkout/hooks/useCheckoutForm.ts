@@ -2,45 +2,54 @@
  * Checkout Form hook - manages form state
  */
 
-import { useCheckoutStore } from '../store/checkout-store';
-import type { CheckoutFormData, PaymentMethod } from '../types/checkout.types';
+import { useCheckoutStore } from "../store/checkout-store";
+import type { CheckoutFormData } from "../types/checkout.types";
 
 export function useCheckoutForm() {
   const {
+    fulfillment,
     name,
     phone,
-    address,
-    addressNotes,
+    deliveryAddress,
+    floor,
+    bell,
+    deliveryInstructions,
     notes,
-    coords,
     payment,
+    setFulfillment,
     setName,
     setPhone,
-    setAddress,
-    setAddressNotes,
+    setDeliveryAddress,
+    setFloor,
+    setBell,
+    setDeliveryInstructions,
     setNotes,
-    setCoords,
     setPayment,
   } = useCheckoutStore();
 
   const formData: CheckoutFormData = {
+    fulfillment,
     name,
     phone,
-    address,
-    addressNotes,
+    deliveryAddress,
+    floor,
+    bell,
+    deliveryInstructions,
     notes,
-    coords,
     payment,
   };
 
   return {
     ...formData,
+    address: deliveryAddress?.formattedAddress ?? "",
+    setFulfillment,
     setName,
     setPhone,
-    setAddress,
-    setAddressNotes,
+    setDeliveryAddress,
+    setFloor,
+    setBell,
+    setDeliveryInstructions,
     setNotes,
-    setCoords,
     setPayment,
   };
 }

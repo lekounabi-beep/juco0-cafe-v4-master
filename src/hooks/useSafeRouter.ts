@@ -73,32 +73,38 @@ export function useSafeRouter() {
   const push = useCallback((url: string) => run('push', url), [run]);
   const replace = useCallback((url: string) => run('replace', url), [run]);
 
-  const pushWhenReady = useCallback(
-    (url: string) => {
-      if (isMountedRef.current && isReadyRef.current) {
-        return push(url);
-      }
-
-      requestAnimationFrame(() => {
+  const navigateWhenReady = useCallback(
+    (action: SafeRouterAction, url: string) => {
+      const attempt = (tries: number) => {
         if (!isMountedRef.current) return;
-        push(url);
-      });
+
+        if (isReadyRef.current) {
+          const ok = run(action, url);
+          if (!ok) fallbackNavigate(url);
+          return;
+        }
+
+        if (tries >= 30) {
+          fallbackNavigate(url);
+          return;
+        }
+
+        requestAnimationFrame(() => attempt(tries + 1));
+      };
+
+      attempt(0);
     },
-    [push]
+    [run]
+  );
+
+  const pushWhenReady = useCallback(
+    (url: string) => navigateWhenReady('push', url),
+    [navigateWhenReady]
   );
 
   const replaceWhenReady = useCallback(
-    (url: string) => {
-      if (isMountedRef.current && isReadyRef.current) {
-        return replace(url);
-      }
-
-      requestAnimationFrame(() => {
-        if (!isMountedRef.current) return;
-        replace(url);
-      });
-    },
-    [replace]
+    (url: string) => navigateWhenReady('replace', url),
+    [navigateWhenReady]
   );
 
   return {

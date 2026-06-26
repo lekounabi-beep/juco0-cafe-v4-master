@@ -7,8 +7,8 @@ import type { Coordinates } from '@/shared/types/common.types';
 import { createLocationFilter, type LocationUpdate, type FilterConfig } from './location-filter.service';
 import { createSpeedTracker, calculateSpeed, type SpeedTracker } from './speed.service';
 import { recordDriverLocationWithOffline } from '@/features/delivery/services/driver-offline-actions';
-import { pushDriverGpsToMapStore } from '@/features/delivery/services/driver-map-gps-bridge';
 import { isUUID } from '@/shared/utils/uuid';
+import { forensicCoord, forensicLog } from '@/features/maps/debug/map-forensic-logger';
 
 export interface GPSConfig {
   updateInterval: number; // Minimum time between updates in ms (default: 15s)
@@ -207,20 +207,22 @@ export class GPSService {
       ...update,
       speed: calculatedSpeed,
     });
+    forensicLog('driver', 'gps', 'device_accepted', {
+      coord: forensicCoord(coordinates.lat, coordinates.lng),
+      heading: heading || 0,
+      accuracy,
+      speed: calculatedSpeed,
+    });
   }
 
   private async handlePositionSuccess(position: GeolocationPosition): Promise<void> {
     const update = this.positionToUpdate(position);
     const accepted = this.locationFilter.shouldAcceptUpdate(update);
-
-    pushDriverGpsToMapStore(
-      update.coordinates,
-      update.heading ?? 0,
-      update.accuracy,
-      accepted
-    );
-
     if (!accepted) {
+      forensicLog('driver', 'gps', 'device_filtered', {
+        coord: forensicCoord(update.coordinates.lat, update.coordinates.lng),
+        accuracy: update.accuracy,
+      });
       return;
     }
 
@@ -241,12 +243,6 @@ export class GPSService {
         (position) => {
           const update = this.positionToUpdate(position);
           const accepted = this.locationFilter.shouldAcceptUpdate(update);
-          pushDriverGpsToMapStore(
-            update.coordinates,
-            update.heading ?? 0,
-            update.accuracy,
-            accepted
-          );
           if (accepted) {
             this.applyAcceptedUpdate(update);
           }
@@ -256,7 +252,7 @@ export class GPSService {
         {
           enableHighAccuracy: this.config.enableHighAccuracy,
           timeout: this.config.timeout,
-          maximumAge: 5000,
+          maximumAge: 0,
         }
       );
     });

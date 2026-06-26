@@ -1,47 +1,53 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { ArrowLeft, Loader2 } from 'lucide-react';
-import { EspressoBackground } from '@/components/EspressoBackground';
-import { ADMIN_AUTH } from '@/config/admin-auth';
-import { setAdminSession } from '@/lib/auth/admin-session';
+import { useState } from "react";
+import Link from "next/link";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import { EspressoBackground } from "@/components/EspressoBackground";
+import { setAdminSession } from "@/lib/auth/admin-session";
+import { adminLogin } from "../../../../app/actions/admin-auth";
 
 export function AdminLoginForm() {
-  const router = useRouter();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [shake, setShake] = useState(false);
   const [invalidFields, setInvalidFields] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
     setInvalidFields(false);
 
     if (!username || !password) {
-      setError('Please fill in all fields');
+      setError("Please fill in all fields");
       triggerInvalid();
       return;
     }
 
     setLoading(true);
 
-    const valid =
-      username === ADMIN_AUTH.username && password === ADMIN_AUTH.password;
+    try {
+      const result = await adminLogin(username, password);
 
-    if (valid) {
+      if (!result.ok) {
+        setError(result.error ?? "Wrong credentials");
+        triggerInvalid();
+        setLoading(false);
+        return;
+      }
+
+      // Sync client marker for legacy checks; server cookie is the source of truth.
       setAdminSession();
-      router.push('/admin');
-      return;
+      // Full navigation ensures Set-Cookie from the server action is applied before /admin loads.
+      window.location.assign("/admin");
+    } catch (loginError) {
+      console.error("[AdminLoginForm] login failed:", loginError);
+      setError("Sign in failed. Please try again.");
+      triggerInvalid();
+      setLoading(false);
     }
-
-    setError('Wrong credentials');
-    triggerInvalid();
-    setLoading(false);
   };
 
   const triggerInvalid = () => {
@@ -53,8 +59,8 @@ export function AdminLoginForm() {
   const inputClass = (invalid: boolean) =>
     `w-full rounded-xl border px-4 py-3 text-white placeholder:text-white/40 focus:outline-none focus:ring-2 transition-colors ${
       invalid
-        ? 'border-red-500/60 bg-red-500/10 focus:border-red-500/80 focus:ring-red-500/20'
-        : 'border-white/10 bg-white/5 focus:border-white/20 focus:ring-white/10'
+        ? "border-red-500/60 bg-red-500/10 focus:border-red-500/80 focus:ring-red-500/20"
+        : "border-white/10 bg-white/5 focus:border-white/20 focus:ring-white/10"
     }`;
 
   return (
@@ -74,20 +80,21 @@ export function AdminLoginForm() {
       </header>
 
       <main className="mx-auto max-w-md px-4 py-8">
-        <div className={`space-y-4 ${shake ? 'admin-login-shake' : ''}`}>
+        <div className={`space-y-4 ${shake ? "admin-login-shake" : ""}`}>
           <div className="text-center">
             <p className="text-xs font-semibold uppercase tracking-widest text-primary/90">
               Admin Access
             </p>
             <h2 className="mt-2 font-display text-2xl font-bold text-white">Admin Login</h2>
-            <p className="mt-1 text-sm text-white/60">
-              Enter credentials to access dashboard
-            </p>
+            <p className="mt-1 text-sm text-white/60">Enter credentials to access dashboard</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="admin-username" className="mb-2 block text-sm font-medium text-white/80">
+              <label
+                htmlFor="admin-username"
+                className="mb-2 block text-sm font-medium text-white/80"
+              >
                 Username
               </label>
               <input
@@ -106,7 +113,10 @@ export function AdminLoginForm() {
             </div>
 
             <div>
-              <label htmlFor="admin-password" className="mb-2 block text-sm font-medium text-white/80">
+              <label
+                htmlFor="admin-password"
+                className="mb-2 block text-sm font-medium text-white/80"
+              >
                 Password
               </label>
               <input
@@ -125,9 +135,7 @@ export function AdminLoginForm() {
             </div>
 
             {error && (
-              <div className="rounded-lg bg-red-500/20 px-4 py-3 text-sm text-red-200">
-                {error}
-              </div>
+              <div className="rounded-lg bg-red-500/20 px-4 py-3 text-sm text-red-200">{error}</div>
             )}
 
             <button
@@ -141,7 +149,7 @@ export function AdminLoginForm() {
                   Signing in...
                 </span>
               ) : (
-                'Sign in'
+                "Sign in"
               )}
             </button>
           </form>

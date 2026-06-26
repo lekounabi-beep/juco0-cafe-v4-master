@@ -206,30 +206,6 @@ function resolveSpeedMs(averageSpeedMs: number, cfg: ETAConfig): number {
 }
 
 /**
- * @deprecated Use calculateETA
- */
-export function calculateETAStatic(
-  currentLocation: Coordinates,
-  destination: Coordinates,
-  averageSpeedMs: number,
-  config: Partial<ETAConfig> = {}
-): ETAResult {
-  return calculateETA(currentLocation, destination, averageSpeedMs, config);
-}
-
-/**
- * Check if arrived without state (pure function)
- */
-export function isArrivedStatic(
-  currentLocation: Coordinates,
-  destination: Coordinates,
-  config: Partial<ETAConfig> = {}
-): boolean {
-  const calculator = new ETACalculator(config);
-  return calculator.isArrived(currentLocation, destination);
-}
-
-/**
  * Create a new ETA calculator instance
  */
 export function createETACalculator(config?: Partial<ETAConfig>): ETACalculator {
