@@ -31,6 +31,7 @@ export function OrderCard({ order }: OrderCardProps) {
     switch (status) {
       case 'pending':
         return 'bg-yellow-500/20 text-yellow-200';
+      case 'accepted':
       case 'preparing':
         return 'bg-blue-500/20 text-blue-200';
       case 'ready':
@@ -46,6 +47,7 @@ export function OrderCard({ order }: OrderCardProps) {
     switch (status) {
       case 'pending':
         return 'Εκκρεμεί';
+      case 'accepted':
       case 'preparing':
         return 'Ετοιμάζεται';
       case 'ready':

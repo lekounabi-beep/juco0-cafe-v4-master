@@ -3,18 +3,20 @@
  * Allows drivers to toggle OFFLINE / ONLINE (BUSY is automatic during delivery)
  */
 
-import { Power } from 'lucide-react';
+import { Loader2, Power } from 'lucide-react';
 import { DRIVER_AVAILABILITY } from '../types/delivery.types';
 
 interface DriverAvailabilityCardProps {
   isOnDelivery: boolean;
   availabilityStatus: string;
+  availabilityLoading?: boolean;
   onAvailabilityChange: (newAvailability: string) => void;
 }
 
 export function DriverAvailabilityCard({
   isOnDelivery,
   availabilityStatus,
+  availabilityLoading = false,
   onAvailabilityChange,
 }: DriverAvailabilityCardProps) {
   if (isOnDelivery) {
@@ -41,6 +43,7 @@ export function DriverAvailabilityCard({
             </p>
           </div>
           <button
+            disabled={availabilityLoading}
             onClick={() =>
               onAvailabilityChange(
                 availabilityStatus === DRIVER_AVAILABILITY.ONLINE
@@ -48,13 +51,17 @@ export function DriverAvailabilityCard({
                   : DRIVER_AVAILABILITY.ONLINE
               )
             }
-            className={`h-12 w-12 rounded-full flex items-center justify-center transition ${
+            className={`relative h-12 w-12 rounded-full flex items-center justify-center transition disabled:opacity-60 ${
               availabilityStatus === DRIVER_AVAILABILITY.ONLINE
                 ? 'bg-green-500/20 text-green-400'
                 : 'bg-red-500/20 text-red-400'
             }`}
           >
-            <Power className="h-6 w-6" />
+            {availabilityLoading ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <Power className="h-6 w-6" />
+            )}
           </button>
         </div>
       </div>

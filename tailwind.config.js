@@ -47,6 +47,7 @@ module.exports = {
       animation: {
         "fade-up": "fade-up 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both",
         pop: "pop 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2) both",
+        "checkout-shake": "checkout-shake 0.28s ease-in-out both",
       },
       keyframes: {
         "fade-up": {
@@ -70,6 +71,20 @@ module.exports = {
           "100%": {
             transform: "scale(1) rotate(0)",
             opacity: "1",
+          },
+        },
+        "checkout-shake": {
+          "0%, 100%": {
+            transform: "translateX(0)",
+          },
+          "25%": {
+            transform: "translateX(-4px)",
+          },
+          "50%": {
+            transform: "translateX(4px)",
+          },
+          "75%": {
+            transform: "translateX(-2px)",
           },
         },
       },

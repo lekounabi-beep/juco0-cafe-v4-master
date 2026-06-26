@@ -3,22 +3,27 @@
  * Manages checkout state across the flow
  */
 
-import { create } from 'zustand';
-import type { CheckoutStep, CheckoutFormData, CheckoutSubmitState, PaymentMethod } from '../types/checkout.types';
-import type { Coordinates } from '@/shared/types/common.types';
+import { create } from "zustand";
+import type {
+  CheckoutFormData,
+  CheckoutSubmitState,
+  FulfillmentMethod,
+  PaymentMethod,
+} from "../types/checkout.types";
+import type { CheckoutAddress } from "@/features/location/types/address";
 
 interface CheckoutState extends CheckoutFormData, CheckoutSubmitState {
-  step: CheckoutStep;
   userId: string | null;
-  
+
   // Actions
-  setStep: (step: CheckoutStep) => void;
+  setFulfillment: (fulfillment: FulfillmentMethod) => void;
   setName: (name: string) => void;
   setPhone: (phone: string) => void;
-  setAddress: (address: string) => void;
-  setAddressNotes: (notes: string) => void;
+  setDeliveryAddress: (address: CheckoutAddress | null) => void;
+  setFloor: (floor: string) => void;
+  setBell: (bell: string) => void;
+  setDeliveryInstructions: (deliveryInstructions: string) => void;
   setNotes: (notes: string) => void;
-  setCoords: (coords: Coordinates | null) => void;
   setPayment: (payment: PaymentMethod) => void;
   setSubmitting: (submitting: boolean) => void;
   setError: (error: string | null) => void;
@@ -27,13 +32,15 @@ interface CheckoutState extends CheckoutFormData, CheckoutSubmitState {
 }
 
 const initialFormData: CheckoutFormData = {
-  name: '',
-  phone: '',
-  address: '',
-  addressNotes: '',
-  notes: '',
-  coords: null,
-  payment: 'cod',
+  fulfillment: "delivery",
+  name: "",
+  phone: "",
+  deliveryAddress: null,
+  floor: "",
+  bell: "",
+  deliveryInstructions: "",
+  notes: "",
+  payment: "cod",
 };
 
 const initialSubmitState: CheckoutSubmitState = {
@@ -42,27 +49,27 @@ const initialSubmitState: CheckoutSubmitState = {
 };
 
 export const useCheckoutStore = create<CheckoutState>((set) => ({
-  step: 1,
   userId: null,
   ...initialFormData,
   ...initialSubmitState,
-  
-  setStep: (step) => set({ step }),
+
+  setFulfillment: (fulfillment) => set({ fulfillment }),
   setName: (name) => set({ name }),
   setPhone: (phone) => set({ phone }),
-  setAddress: (address) => set({ address }),
-  setAddressNotes: (addressNotes) => set({ addressNotes }),
+  setDeliveryAddress: (deliveryAddress) => set({ deliveryAddress }),
+  setFloor: (floor) => set({ floor }),
+  setBell: (bell) => set({ bell }),
+  setDeliveryInstructions: (deliveryInstructions) => set({ deliveryInstructions }),
   setNotes: (notes) => set({ notes }),
-  setCoords: (coords) => set({ coords }),
   setPayment: (payment) => set({ payment }),
   setSubmitting: (submitting) => set({ submitting }),
   setError: (error) => set({ error }),
   setUserId: (userId) => set({ userId }),
-  
-  reset: () => set({
-    step: 1,
-    userId: null,
-    ...initialFormData,
-    ...initialSubmitState,
-  }),
+
+  reset: () =>
+    set({
+      userId: null,
+      ...initialFormData,
+      ...initialSubmitState,
+    }),
 }));

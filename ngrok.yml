@@ -1,8 +1,0 @@
-version: "2"
-authtoken: 3FZQtSxdJjORBDrfq7YKCSpgnv6_7yf9FsA1AkWTccqE9oc1A
-
-tunnels:
-  web:
-    addr: 8080
-    proto: http
-    hostname: glorify-nearness-petition.ngrok-free.dev

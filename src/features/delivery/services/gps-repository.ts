@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import { estimateJsonBytes, trackMapDataBytes } from '@/features/maps/debug/map-data-usage';
 import { isUUID } from '@/shared/utils/uuid';
 import type { GPSLocationUpdate } from '../types/delivery.types';
 
@@ -70,7 +71,7 @@ export async function insertDriverLocation(
   }
 
   try {
-    const { data, error } = await (supabase.rpc as any)('insert_driver_gps_location', {
+    const rpcArgs = {
       p_assignment_id: assignmentId,
       p_driver_id: driverId,
       p_lat: payload.lat,
@@ -79,7 +80,10 @@ export async function insertDriverLocation(
       p_speed: payload.speed,
       p_heading: payload.heading,
       p_recorded_at: payload.recorded_at,
-    });
+    };
+    trackMapDataBytes('gpsUpload', estimateJsonBytes(rpcArgs));
+
+    const { data, error } = await (supabase.rpc as any)('insert_driver_gps_location', rpcArgs);
 
     if (error) {
       if (!options.suppressOfflineQueue) {

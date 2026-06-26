@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { ThemeProvider } from "@/components/theme-provider";
-import ServiceWorkerRegistrationComponent from "@/components/ServiceWorkerRegistration";
+import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
+import { PwaInstallBanner } from "@/components/PwaInstallBanner";
 import { NotificationSoundInit } from "@/features/notifications/components/NotificationSoundInit";
 import { Toaster } from "@/components/ui/sonner";
+import { ThemeProvider } from "@/components/theme-provider";
+import { PWA_LEGACY_PURGE_SCRIPT } from "@/lib/pwa-legacy-purge";
 import { Space_Grotesk, Inter } from "next/font/google";
 
 const spaceGrotesk = Space_Grotesk({
@@ -55,13 +57,17 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${spaceGrotesk.variable} ${inter.variable} min-h-screen font-sans`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: PWA_LEGACY_PURGE_SCRIPT }} />
+      </head>
       <body className="min-h-screen font-sans">
         <ThemeProvider defaultTheme="dark" attribute="class">
           {children}
         </ThemeProvider>
+        <PwaInstallBanner />
         <Toaster />
         <NotificationSoundInit />
-        <ServiceWorkerRegistrationComponent />
+        <ServiceWorkerRegistration />
       </body>
     </html>
   );

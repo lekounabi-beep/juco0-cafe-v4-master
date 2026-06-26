@@ -11,7 +11,7 @@ export function DriverOfflineBanner() {
       <div className="sticky top-0 z-40 border-b border-red-500/30 bg-red-500/15 px-4 py-2 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-center gap-2 text-sm font-medium text-red-200">
           <WifiOff className="h-4 w-4" />
-          <span>Offline mode — syncing later</span>
+          <span>Λειτουργία offline — οι ενέργειες αποθηκεύονται τοπικά</span>
           {deliveryPendingCount > 0 && (
             <span className="rounded-full bg-red-500/30 px-2 py-0.5 text-xs">
               {deliveryPendingCount}

@@ -2,7 +2,8 @@
   "name": "Juco Cafe Driver",
   "short_name": "Juco Driver",
   "description": "Professional delivery driver application for Juco Cafe",
-  "start_url": "/driver",
+  "id": "/driver",
+  "start_url": "/driver/login",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#E8F529",
@@ -34,7 +35,7 @@
       "name": "Go Online",
       "short_name": "Online",
       "description": "Go online to receive orders",
-      "url": "/driver"
+      "url": "/driver/login"
     }
   ]
 }

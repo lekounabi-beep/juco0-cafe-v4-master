@@ -3,20 +3,16 @@
  * All delivery UI state derives from activeDeliveryView → deliveryUi.
  */
 
-import { useEffect, useState, useCallback, useMemo, useRef, useSyncExternalStore } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
+import { storeLocation } from '@/config/map-defaults';
+import { useDeliveryState } from '@/features/delivery/hooks/useDeliveryState';
 import { useDriverInitialization } from './useDriverInitialization';
 import { useWakeLock } from './useWakeLock';
 import { useDriverRealtime } from './useDriverRealtime';
 import { useDriverAvailability } from './useDriverAvailability';
 import { useGPS } from './useGPS';
 import { requestGeolocationPermission } from '../services/gps.service';
-import {
-  getDriverGpsState,
-  resetDriverGpsState,
-  subscribeDriverGps,
-} from '@/features/maps/core/driver-gps-feed';
-import { useDriverMapBridge } from './useDriverMapBridge';
 import {
   type DriverDeliveryState,
   INITIAL_DRIVER_DELIVERY_STATE,
@@ -30,7 +26,6 @@ import {
 } from '../services/driver-offline-actions';
 import { safeAcceptOrder, withAcceptTimeout, type AcceptResult } from '../services/safe-accept-order';
 import { isNetworkOnline } from '../services/offline-queue.service';
-import { getOptimisticDelivery } from '../services/driver-offline-state';
 import {
   getActiveDelivery,
   reconcileDriverStoreAvailability,
@@ -42,6 +37,9 @@ import {
 } from '../utils/delivery-ui-selector';
 import type { DriverProfile } from '../types/delivery.types';
 import { speedFromKmh } from '../services/speed.service';
+import { orderCoordinates } from '@/shared/utils/order-fields';
+import { isUUID } from '@/shared/utils/uuid';
+import { attachForensicToWindow, forensicCoord, forensicLog } from '@/features/maps/debug/map-forensic-logger';
 
 const MIN_ETA_SPEED_MS = speedFromKmh(5);
 const FALLBACK_ETA_SPEED_MS = speedFromKmh(25);
@@ -74,12 +72,14 @@ interface UseDriverPageReturn {
   etaResult: ReturnType<typeof useETA>;
   mapDestination: { lat: number; lng: number } | null;
   destinationResolving: boolean;
+  hasMapDestination: boolean;
   driverPosition: { lat: number; lng: number } | null;
   driverHeading: number;
   isWakeLockActive: boolean;
   handleAvailabilityChange: (newAvailability: string) => Promise<void>;
   handleAcceptOrder: (orderId: string) => Promise<void>;
   handleDeliveryAction: (action: string) => Promise<void>;
+  deliveryActionLoading: boolean;
   locationPermissionModalOpen: boolean;
   setLocationPermissionModalOpen: (open: boolean) => void;
   handleRetryLocationPermission: () => Promise<void>;
@@ -99,12 +99,14 @@ export function useDriverPage(): UseDriverPageReturn {
     serverConfirmedNoActive,
     refreshOrders,
     refreshActiveDelivery,
+    removeAvailableOrder,
   } = useDriverInitialization();
 
   const { availabilityStatus: storeAvailability, setAvailability, loading: availabilityLoading } =
     useDriverAvailability();
 
   const [assignmentLoading, setAssignmentLoading] = useState(false);
+  const [deliveryActionLoading, setDeliveryActionLoading] = useState(false);
   const [acceptingOrderId, setAcceptingOrderId] = useState<string | null>(null);
   const [driverDeliveryState, setDriverDeliveryState] = useState<DriverDeliveryState>(
     INITIAL_DRIVER_DELIVERY_STATE
@@ -134,24 +136,39 @@ export function useDriverPage(): UseDriverPageReturn {
   const { isWakeLockActive } = useWakeLock(deliveryUi.isOnDelivery);
 
   const handleRealtimeDataRefresh = useCallback(() => {
+    if (!isNetworkOnline()) return;
     if (deliveryUi.isOnDelivery) {
       void refreshActiveDelivery();
-    } else {
-      void refreshOrders();
+      return;
     }
+    void refreshActiveDelivery().then((hasActive) => {
+      if (!hasActive) {
+        void refreshOrders();
+      }
+    });
   }, [deliveryUi.isOnDelivery, refreshActiveDelivery, refreshOrders]);
 
   useDriverRealtime({ onOrderUpdate: handleRealtimeDataRefresh });
 
-  const driverGps = useSyncExternalStore(subscribeDriverGps, getDriverGpsState, getDriverGpsState);
-  const driverPosition = driverGps.driverPosition;
-  const driverHeading = driverGps.driverHeading;
-  const gpsDestination = mapDestination;
+  const { deliveryState, locationDebug } = useDeliveryState({
+    order: deliveryUi.isOnDelivery ? activeDeliveryView.order : null,
+    assignment: deliveryUi.isOnDelivery ? activeDeliveryView.assignment : null,
+    role: 'driver',
+    storeLocation,
+  });
+
+  const hasMapDestination =
+    orderCoordinates(activeDeliveryView.order) != null || mapDestination != null;
 
   const handleGpsPermissionDenied = useCallback(() => {
     setDriverDeliveryState((s) => ({ ...s, permission: 'denied', gpsReady: false }));
     setLocationPermissionModalOpen(true);
   }, []);
+
+  const persistedAssignmentId =
+    activeDeliveryView.assignment?.id && isUUID(activeDeliveryView.assignment.id)
+      ? activeDeliveryView.assignment.id
+      : null;
 
   const {
     isTracking: isGPSTracking,
@@ -163,10 +180,7 @@ export function useDriverPage(): UseDriverPageReturn {
     fetchCurrentPosition,
     getSpeedStats,
   } = useGPS({
-    deliveryId:
-      gpsTrackingAllowed && activeDeliveryView.assignment?.id
-        ? activeDeliveryView.assignment.id
-        : null,
+    deliveryId: gpsTrackingAllowed && persistedAssignmentId ? persistedAssignmentId : null,
     driverId: gpsTrackingAllowed && driver?.id ? driver.id : null,
     onPermissionDenied: handleGpsPermissionDenied,
     onError: (err) => {
@@ -194,21 +208,46 @@ export function useDriverPage(): UseDriverPageReturn {
     return result;
   }, [requestGpsPermission]);
 
-  useDriverMapBridge({
-    destination: mapDestination ?? deliveryUi.destination,
-    activeDeliveryId: deliveryUi.isOnDelivery
-      ? activeDeliveryView.assignment?.id ?? null
-      : null,
-    stage: deliveryUi.isOnDelivery ? deliveryUi.stage : null,
-  });
-
   const averageSpeedMs = useMemo(() => {
+    const rowSpeed = deliveryState.driverPosition?.speed;
+    if (rowSpeed != null && rowSpeed >= MIN_ETA_SPEED_MS) return rowSpeed;
     const rawSpeed = lastLocation?.speed ?? 0;
     if (rawSpeed >= MIN_ETA_SPEED_MS) return rawSpeed;
     const stats = getSpeedStats();
     if (stats && stats.averageSpeed >= MIN_ETA_SPEED_MS) return stats.averageSpeed;
     return FALLBACK_ETA_SPEED_MS;
-  }, [lastLocation, getSpeedStats]);
+  }, [deliveryState.driverPosition?.speed, lastLocation, getSpeedStats]);
+
+  useEffect(() => {
+    attachForensicToWindow();
+    const live = lastLocation?.coordinates;
+    const source =
+      isGPSTracking && live ? 'device' : deliveryState.driverPosition ? 'db' : 'none';
+    forensicLog('driver', 'delivery_state', 'driver_position_resolved', {
+      source,
+      customerStep: deliveryState.customerStep,
+      deliveryStatus: deliveryState.deliveryStatus,
+      device: forensicCoord(live?.lat, live?.lng),
+      db: forensicCoord(deliveryState.driverPosition?.lat, deliveryState.driverPosition?.lng),
+      isGPSTracking,
+    });
+  }, [deliveryState.customerStep, deliveryState.deliveryStatus, deliveryState.driverPosition, isGPSTracking, lastLocation]);
+
+  const driverPosition = useMemo(() => {
+    const live = lastLocation?.coordinates;
+    if (isGPSTracking && live) return { lat: live.lat, lng: live.lng };
+    if (deliveryState.driverPosition) {
+      return { lat: deliveryState.driverPosition.lat, lng: deliveryState.driverPosition.lng };
+    }
+    return null;
+  }, [isGPSTracking, lastLocation, deliveryState.driverPosition]);
+
+  const driverHeading =
+    isGPSTracking && lastLocation
+      ? lastLocation.heading
+      : (deliveryState.driverPosition?.heading ?? 0);
+
+  const gpsDestination = mapDestination;
 
   const eta = useETA({
     currentLocation: driverPosition,
@@ -221,18 +260,16 @@ export function useDriverPage(): UseDriverPageReturn {
       setDriverDeliveryState(resetDriverDeliveryState());
       restoredAssignmentRef.current = null;
       stopGPSTracking();
-      resetDriverGpsState();
     }
   }, [deliveryUi.isOnDelivery, stopGPSTracking]);
 
   useEffect(() => {
     if (loading) return;
 
-    const hasOptimistic = !!(driver?.id && getOptimisticDelivery(driver.id));
     const storePatch = reconcileDriverStoreAvailability(storeAvailability, deliveryUi, {
       loading,
       assignmentLoading,
-      hasOptimistic,
+      hasOptimistic: false,
       serverConfirmedNoActive,
     });
     if (storePatch) {
@@ -248,14 +285,14 @@ export function useDriverPage(): UseDriverPageReturn {
   ]);
 
   useEffect(() => {
-    if (loading || !driver?.id) return;
+    if (loading || !driver?.id || !isNetworkOnline()) return;
     if (storeAvailability === 'busy' && !deliveryUi.isOnDelivery) {
       void refreshActiveDelivery();
     }
   }, [loading, driver?.id, storeAvailability, deliveryUi.isOnDelivery, refreshActiveDelivery]);
 
   useEffect(() => {
-    const assignmentId = activeDeliveryView.assignment?.id;
+    const assignmentId = persistedAssignmentId;
     if (!assignmentId || !driver?.id || !deliveryUi.isOnDelivery || driverDeliveryState.isPickingUp) {
       return;
     }
@@ -296,7 +333,7 @@ export function useDriverPage(): UseDriverPageReturn {
       cancelled = true;
     };
   }, [
-    activeDeliveryView.assignment?.id,
+    persistedAssignmentId,
     driver?.id,
     deliveryUi.isOnDelivery,
     driverDeliveryState.permission,
@@ -322,17 +359,16 @@ export function useDriverPage(): UseDriverPageReturn {
     setDriverDeliveryState((s) => ({ ...s, gpsReady: true }));
     setLocationPermissionModalOpen(false);
 
-    const assignmentId = activeDeliveryView.assignment?.id;
-    if (assignmentId && driver?.id && deliveryUi.gpsActive) {
+    if (persistedAssignmentId && driver?.id && deliveryUi.gpsActive) {
       await startGPSTracking({
         skipPermissionRequest: true,
-        deliveryId: assignmentId,
+        deliveryId: persistedAssignmentId,
         driverId: driver.id,
       });
     }
   }, [
     ensureGeolocationPermission,
-    activeDeliveryView.assignment?.id,
+    persistedAssignmentId,
     driver?.id,
     deliveryUi.gpsActive,
     startGPSTracking,
@@ -378,13 +414,8 @@ export function useDriverPage(): UseDriverPageReturn {
     }
 
     if (result.ok) {
-      if (result.state === 'queued') {
-        toast.message('Παραγγελία αποθηκεύτηκε — θα συγχρονιστεί όταν επανέλθει η σύνδεση');
-      } else if (result.state === 'synced_existing') {
-        toast.message('Έχετε ήδη ενεργή παράδοση');
-      } else {
-        toast.success('Η παραγγελία αποδέχθηκε');
-      }
+      removeAvailableOrder(orderId);
+      toast.success('Η παραγγελία αποδέχθηκε');
 
       void refreshAfterAccept();
       void requestGeolocationPermission().then((permissionResult) => {
@@ -404,6 +435,30 @@ export function useDriverPage(): UseDriverPageReturn {
 
     const assignmentId = activeDeliveryView.assignment.id!;
     const orderId = activeDeliveryView.assignment.order_id!;
+    const stage = activeDeliveryView.stage;
+
+    const runStep = async (step: string): Promise<boolean> => {
+      const result = await runDeliveryTransitionWithOffline(
+        step,
+        assignmentId,
+        orderId,
+        driver.id
+      );
+      if (!result.ok) {
+        if (result.error === 'offline_queued') {
+          toast.message('Η ενέργεια αποθηκεύτηκε — θα συγχρονιστεί όταν επανέλθει η σύνδεση');
+          return false;
+        }
+        toast.error(
+          result.error === 'transition_timeout'
+            ? 'Η σύνδεση καθυστέρησε — δοκίμασε ξανά'
+            : 'Αποτυχία ενημέρωσης κατάστασης'
+        );
+        return false;
+      }
+      await refreshActiveDelivery().catch(() => undefined);
+      return true;
+    };
 
     if (action === 'picked_up') {
       if (driverDeliveryState.isPickingUp || permissionPromiseRef.current) return;
@@ -420,14 +475,8 @@ export function useDriverPage(): UseDriverPageReturn {
 
         setDriverDeliveryState((s) => ({ ...s, permission: 'granted', gpsReady: true }));
 
-        const ok = await runDeliveryTransitionWithOffline(
-          action,
-          assignmentId,
-          orderId,
-          driver.id
-        );
+        const ok = await runStep('picked_up');
         if (!ok) {
-          toast.error('Failed to update delivery status');
           setDriverDeliveryState((s) => ({
             ...s,
             isPickingUp: false,
@@ -437,7 +486,12 @@ export function useDriverPage(): UseDriverPageReturn {
           return;
         }
 
-        await refreshActiveDelivery();
+        const enRoute = await runStep('start_delivery');
+        if (!enRoute) {
+          toast.message('Η παραγγελία παραλήφθηκε επιτυχώς');
+        }
+
+        await refreshActiveDelivery().catch(() => undefined);
         restoredAssignmentRef.current = assignmentId;
 
         await startGPSTracking({
@@ -455,34 +509,43 @@ export function useDriverPage(): UseDriverPageReturn {
       return;
     }
 
+    setDeliveryActionLoading(true);
     try {
-      const ok = await runDeliveryTransitionWithOffline(
-        action,
-        assignmentId,
-        orderId,
-        driver.id
-      );
-      if (!ok) {
-        toast.error('Failed to update delivery status');
-        return;
+      if ((action === 'arrived' || action === 'delivered') && stage === 'picked_up') {
+        const enRoute = await runStep('start_delivery');
+        if (!enRoute) return;
       }
 
       if (action === 'delivered') {
+        const atDoor = await runStep('arrived');
+        if (!atDoor) return;
+      }
+
+      const ok = await runStep(action);
+      if (!ok) return;
+
+      if (action === 'arrived') {
+        toast.success('Έφτασες στον πελάτη');
+      }
+
+      if (action === 'delivered') {
+        toast.success('Η παράδοση ολοκληρώθηκε');
         if (isNetworkOnline()) {
           await setAvailability('online');
         } else {
           useDriverStore.getState().setAvailabilityStatus('online');
         }
         setDriverDeliveryState(resetDriverDeliveryState());
-        resetDriverGpsState();
         restoredAssignmentRef.current = null;
         stopGPSTracking();
       }
 
-      await refreshActiveDelivery();
+      void refreshActiveDelivery();
     } catch (err) {
       console.error('Failed to update delivery status:', err);
-      toast.error(err instanceof Error ? err.message : 'Failed to update delivery status');
+      toast.error(err instanceof Error ? err.message : 'Αποτυχία ενημέρωσης');
+    } finally {
+      setDeliveryActionLoading(false);
     }
   };
 
@@ -502,12 +565,14 @@ export function useDriverPage(): UseDriverPageReturn {
     etaResult: eta,
     mapDestination,
     destinationResolving,
+    hasMapDestination,
     driverPosition,
     driverHeading,
     isWakeLockActive,
     handleAvailabilityChange,
     handleAcceptOrder,
     handleDeliveryAction,
+    deliveryActionLoading,
     locationPermissionModalOpen,
     setLocationPermissionModalOpen,
     handleRetryLocationPermission,

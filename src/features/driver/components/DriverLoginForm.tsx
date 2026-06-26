@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { EspressoBackground } from '@/components/EspressoBackground';
 import { authenticateDriver, listDriverLoginUsernames } from '../../../../app/actions/driver-login';
-import { setDriverSession } from '@/lib/auth/driver-session';
+import { ensureDriverSessionCookie, setDriverSession } from '@/lib/auth/driver-session';
 
 export function DriverLoginForm() {
   const { replaceWhenReady } = useSafeRouter();
@@ -21,6 +21,10 @@ export function DriverLoginForm() {
   );
 
   useEffect(() => {
+    if (ensureDriverSessionCookie()) {
+      window.location.replace('/driver');
+      return;
+    }
     listDriverLoginUsernames().then(setQuickOptions).catch(() => {});
   }, []);
 

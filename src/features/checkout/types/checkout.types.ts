@@ -2,25 +2,27 @@
  * Checkout feature type definitions
  */
 
-import type { Coordinates } from '@/shared/types/common.types';
+import type { CheckoutAddress } from "@/features/location/types/address";
 
-export type CheckoutStep = 1 | 2 | 3;
-export type PaymentMethod = 'cod' | 'card' | 'pickup';
+export type FulfillmentMethod = "delivery" | "pickup";
+export type PaymentMethod = "cod" | "card";
 
 export interface CheckoutFormData {
+  fulfillment: FulfillmentMethod;
   name: string;
   phone: string;
-  address: string;
-  addressNotes: string;
+  deliveryAddress: CheckoutAddress | null;
+  floor: string;
+  bell: string;
+  deliveryInstructions: string;
   notes: string;
-  coords: Coordinates | null;
   payment: PaymentMethod;
 }
 
 export interface CheckoutValidation {
-  canStep2: boolean;
-  canStep3: boolean;
+  canSubmit: boolean;
   errors: Record<string, string>;
+  firstInvalidField: string | null;
 }
 
 export interface CheckoutSubmitState {

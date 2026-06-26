@@ -3,7 +3,6 @@
  * Server actions are loaded dynamically so GPS-only flows never import app/actions.
  */
 
-import { updateDriverAvailability } from '@/integrations/supabase/services/driver.service';
 import { isUUID } from '@/shared/utils/uuid';
 import { withAcceptTimeout } from './safe-accept-order';
 import type { DeliveryStatus, OrderStatus } from '../types/delivery.types';
@@ -22,10 +21,6 @@ async function loadWorkflowActions() {
   return import('../../../../app/actions/driver-workflow');
 }
 
-async function loadDeliverySync() {
-  return import('../../../../app/actions/driver-delivery-sync');
-}
-
 export async function syncAcceptOrder(payload: Record<string, unknown>): Promise<boolean> {
   const orderId = payload.orderId as string;
   const driverId = payload.driverId as string;
@@ -40,18 +35,7 @@ export async function syncAcceptOrder(payload: Record<string, unknown>): Promise
     driverAcceptOrder(orderId, driverId)
   );
 
-  if (result.success) return true;
-  if (result.syncAssignment) return true;
-
-  const error = result.error?.toLowerCase() ?? '';
-  if (error.includes('already has an active delivery') || error.includes('already assigned')) {
-    const { fetchDriverActiveDelivery } = await loadDeliverySync();
-    const sync = await withAcceptTimeout(
-      'syncAcceptOrder.fetchActive',
-      fetchDriverActiveDelivery(driverId)
-    );
-    return sync.success;
-  }
+  if (result.success && result.assignment) return true;
 
   return false;
 }
@@ -65,20 +49,16 @@ export async function syncDeliveryTransition(
   const orderId = payload.orderId as string;
   const driverId = payload.driverId as string;
 
-  const { driverTransitionDelivery, driverTransitionOrder } = await loadWorkflowActions();
+  const { driverTransitionAtomic } = await loadWorkflowActions();
 
-  const deliveryResult = await driverTransitionDelivery(assignmentId, driverId, deliveryStatus);
-  if (!deliveryResult.success && !isAlreadyAtStatus(deliveryResult.error, deliveryStatus)) {
+  const result = await driverTransitionAtomic(
+    assignmentId,
+    orderId,
+    driverId,
+    deliveryStatus as 'picked_up' | 'in_transit' | 'arrived' | 'delivered'
+  );
+  if (!result.success && !isAlreadyAtStatus(result.error, deliveryStatus)) {
     return false;
-  }
-
-  const orderResult = await driverTransitionOrder(orderId, driverId, orderStatus);
-  if (!orderResult.success && !isAlreadyAtStatus(orderResult.error, orderStatus)) {
-    return false;
-  }
-
-  if (deliveryStatus === 'delivered') {
-    await updateDriverAvailability(driverId, 'online');
   }
 
   return true;

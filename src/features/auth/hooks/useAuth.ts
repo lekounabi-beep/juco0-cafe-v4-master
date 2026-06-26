@@ -2,9 +2,9 @@
  * Auth hook - manages authentication state
  */
 
-import { useEffect } from 'react';
-import { useAuthStore } from '../store/auth-store';
-import { getCurrentUser, getCurrentSession } from '@/integrations/supabase/services/auth.service';
+import { useEffect } from "react";
+import { useAuthStore } from "../store/auth-store";
+import { getCurrentSession, getCurrentUser } from "@/integrations/supabase/services/auth.service";
 
 export function useAuth() {
   const { user, session, loading, setUser, setSession, setLoading } = useAuthStore();
@@ -18,14 +18,19 @@ export function useAuth() {
     async function loadAuth() {
       try {
         setLoading(true);
-        const [currentUser, currentSession] = await Promise.all([
-          getCurrentUser(),
-          getCurrentSession(),
-        ]);
-        setUser(currentUser);
+        const currentSession = await getCurrentSession();
+
+        if (!currentSession) {
+          setSession(null);
+          setUser(null);
+          return;
+        }
+
+        const currentUser = await getCurrentUser();
         setSession(currentSession);
+        setUser(currentUser ?? currentSession.user);
       } catch (error) {
-        console.error('Failed to load auth state:', error);
+        console.error("Failed to load auth state:", error);
       } finally {
         setLoading(false);
       }

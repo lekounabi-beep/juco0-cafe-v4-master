@@ -1,8 +1,9 @@
 /**
- * Optimistic driver delivery state persisted locally for offline mode.
+ * Offline queue payload types + legacy optimistic key cleanup.
+ * Dispatch UI is server-derived only — no optimistic delivery state is written here.
  */
 
-const OPTIMISTIC_KEY = 'driver_optimistic_delivery';
+const OPTIMISTIC_KEY = "driver_optimistic_delivery";
 
 export type OptimisticOrder = {
   id: string;
@@ -30,55 +31,16 @@ export type OptimisticDelivery = {
   order?: OptimisticOrder;
 };
 
-function readAll(): Record<string, OptimisticDelivery> {
-  if (typeof window === 'undefined') return {};
+/** Clears stale optimistic entries from older builds — does not affect dispatch UI. */
+export function clearOptimisticDelivery(driverId: string) {
+  if (typeof window === "undefined") return;
   try {
     const raw = localStorage.getItem(OPTIMISTIC_KEY);
-    return raw ? (JSON.parse(raw) as Record<string, OptimisticDelivery>) : {};
+    if (!raw) return;
+    const all = JSON.parse(raw) as Record<string, OptimisticDelivery>;
+    delete all[driverId];
+    localStorage.setItem(OPTIMISTIC_KEY, JSON.stringify(all));
   } catch {
-    return {};
+    localStorage.removeItem(OPTIMISTIC_KEY);
   }
-}
-
-function writeAll(data: Record<string, OptimisticDelivery>) {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(OPTIMISTIC_KEY, JSON.stringify(data));
-}
-
-export function getOptimisticDelivery(driverId: string): OptimisticDelivery | null {
-  const all = readAll();
-  const entry = all[driverId];
-  if (!entry || entry.delivered_at) return null;
-  return entry;
-}
-
-export function setOptimisticDelivery(driverId: string, delivery: OptimisticDelivery) {
-  const all = readAll();
-  all[driverId] = delivery;
-  writeAll(all);
-}
-
-export function updateOptimisticDeliveryStatus(
-  driverId: string,
-  status: string,
-  timestampField?: keyof OptimisticDelivery
-) {
-  const current = getOptimisticDelivery(driverId);
-  if (!current) return;
-  const now = new Date().toISOString();
-  const updated: OptimisticDelivery = {
-    ...current,
-    status,
-    ...(timestampField ? { [timestampField]: now } : {}),
-    order: current.order
-      ? { ...current.order, status: status === 'delivered' ? 'delivered' : current.order.status }
-      : undefined,
-  };
-  setOptimisticDelivery(driverId, updated);
-}
-
-export function clearOptimisticDelivery(driverId: string) {
-  const all = readAll();
-  delete all[driverId];
-  writeAll(all);
 }

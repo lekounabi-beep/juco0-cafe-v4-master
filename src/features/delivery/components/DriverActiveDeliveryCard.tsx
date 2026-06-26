@@ -2,14 +2,11 @@
  * Driver Active Delivery Card — map always mounts with fixed height (no conditional container).
  */
 
+import { useState, useEffect } from 'react';
 import { Navigation, Package, MapPin, Loader2 } from 'lucide-react';
-import { TrackingMap } from '@/features/maps/components/TrackingMap';
-import {
-  useDriverMapSnapshot,
-  useDriverTrackingDebug,
-} from '@/features/maps/hooks/useDriverMapSnapshot';
+import { DriverLiveMap } from '@/features/live-tracking-v2/components/DriverLiveMap';
+import { TrackingV2DebugPanel } from '@/features/live-tracking-v2/components/TrackingV2DebugPanel';
 import { formatDistance, formatETA } from '@/features/delivery/services/eta.service';
-import { googleMapsConfig } from '@/integrations/google-maps/config';
 import { DeliveryActions } from './DeliveryActions';
 import type { useETA } from '../hooks/useETA';
 import type { DeliveryUiState } from '../utils/delivery-ui-selector';
@@ -20,8 +17,11 @@ interface DriverActiveDeliveryCardProps {
   deliveryUi: DeliveryUiState;
   mapDestination: { lat: number; lng: number } | null;
   destinationResolving?: boolean;
+  driverLocation?: { lat: number; lng: number } | null;
+  hasDestination: boolean;
   onDeliveryAction: (action: string) => void;
   isPickingUp?: boolean;
+  deliveryActionLoading?: boolean;
   eta?: ReturnType<typeof useETA>;
 }
 
@@ -30,25 +30,36 @@ export function DriverActiveDeliveryCard({
   deliveryUi,
   mapDestination,
   destinationResolving = false,
+  driverLocation,
+  hasDestination,
   onDeliveryAction,
   isPickingUp = false,
+  deliveryActionLoading = false,
   eta,
 }: DriverActiveDeliveryCardProps) {
-  const storeLocation = googleMapsConfig.defaultCenter;
-  const { snapshotInput, hasDestination } = useDriverMapSnapshot({
-    stage: deliveryUi.stage,
-    destination: mapDestination,
-    storeLocation,
-  });
-  const debug = useDriverTrackingDebug();
   const order = activeDeliveryView.order;
   const stage = deliveryUi.stage;
+  const [mapStatus, setMapStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [lastRenderTime, setLastRenderTime] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLastRenderTime(new Date().toISOString());
+  }, [mapDestination, driverLocation, mapStatus]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-4 space-y-4">
       <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/40 backdrop-blur-sm">
         <div className="relative h-[400px] min-h-[400px] w-full">
-          <TrackingMap snapshotInput={snapshotInput} debug={debug} />
+          <DriverLiveMap
+            className="h-full"
+            destination={mapDestination}
+            driverLocation={driverLocation ?? undefined}
+            telemetryContext={{
+              surface: 'driver',
+              assignmentId: activeDeliveryView.assignment?.id ?? null,
+            }}
+            onMapStatusChange={setMapStatus}
+          />
           {!hasDestination && (
             <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/50 px-6 text-center">
               <MapPin className="h-10 w-10 text-primary/70" />
@@ -77,6 +88,15 @@ export function DriverActiveDeliveryCard({
         )}
       </div>
 
+      <TrackingV2DebugPanel
+        surface="driver"
+        assignmentId={activeDeliveryView.assignment?.id ?? null}
+        driverLocation={driverLocation ?? null}
+        destination={mapDestination}
+        mapStatus={mapStatus}
+        lastRenderTime={lastRenderTime}
+      />
+
       <div className="rounded-2xl bg-gradient-to-r from-primary/20 to-primary/10 border border-primary/30 p-4 backdrop-blur-sm">
         <div className="flex items-center gap-2 mb-3">
           <Package className="h-5 w-5 text-primary" />
@@ -104,6 +124,7 @@ export function DriverActiveDeliveryCard({
                   status={stage}
                   onAction={onDeliveryAction}
                   isPickingUp={isPickingUp}
+                  actionLoading={deliveryActionLoading}
                 />
               )}
             </div>

@@ -2,32 +2,28 @@
  * Validation utilities
  */
 
+const GREEK_MOBILE_PATTERN = /^(?:69\d{8}|\+3069\d{8})$/;
+const GREEK_LANDLINE_PATTERN = /^(?:2\d{9}|\+302\d{9})$/;
+
+export function normalizeGreekPhone(value: string): string {
+  return value.trim().replace(/[\s-]/g, "");
+}
+
+export function isGreekPhone(value: string): boolean {
+  const normalized = normalizeGreekPhone(value);
+  return GREEK_MOBILE_PATTERN.test(normalized) || GREEK_LANDLINE_PATTERN.test(normalized);
+}
+
+export function isGreekLandline(value: string): boolean {
+  return GREEK_LANDLINE_PATTERN.test(normalizeGreekPhone(value));
+}
+
 export const validators = {
   phone: (value: string): boolean => {
-    return /^[0-9+\s-]{8,}$/.test(value.trim());
+    return isGreekPhone(value);
   },
-  
-  email: (value: string): boolean => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
-  },
-  
+
   name: (value: string): boolean => {
     return value.trim().length >= 2;
   },
-  
-  address: (value: string): boolean => {
-    return value.trim().length >= 5;
-  },
-  
-  required: (value: string): boolean => {
-    return value.trim().length > 0;
-  },
-};
-
-export const errorMessages = {
-  phone: 'Παρακαλώ εισάγετε ένα έγκυρο τηλέφωνο (τουλάχιστον 8 χαρακτήρες)',
-  email: 'Παρακαλώ εισάγετε ένα έγκυρο email',
-  name: 'Το όνομα πρέπει να έχει τουλάχιστον 2 χαρακτήρες',
-  address: 'Η διεύθυνση πρέπει να έχει τουλάχιστον 5 χαρακτήρες',
-  required: 'Αυτό το πεδίο είναι υποχρεωτικό',
 };

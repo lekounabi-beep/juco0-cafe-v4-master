@@ -31,6 +31,11 @@ const QUEUE_KEY = 'driver_offline_queue';
 const GPS_BUFFER_KEY = 'offline_gps_buffer';
 const MAX_RETRIES = 5;
 const GPS_BATCH_SIZE = 5;
+/** Hard caps — localStorage is ~5MB; GPS batches must stay small. */
+const MAX_QUEUE_ITEMS = 60;
+const MAX_GPS_BUFFER_POINTS = 80;
+const MAX_GPS_POINTS_PER_ITEM = 40;
+const MAX_FAILED_ITEMS = 8;
 
 const DELIVERY_TYPES = new Set<OfflineActionType>([
   'ACCEPT_ORDER',
@@ -45,9 +50,13 @@ type SyncListener = (state: SyncState) => void;
 export type SyncState = {
   isSyncing: boolean;
   pendingCount: number;
-  /** Delivery actions only — drives the sync banner. */
   deliveryPendingCount: number;
   failedCount: number;
+};
+
+type GpsBufferPoint = GPSLocationUpdate & {
+  assignmentId: string;
+  driverId: string;
 };
 
 let isSyncing = false;
@@ -56,6 +65,62 @@ const syncListeners = new Set<SyncListener>();
 
 function isDeliveryAction(type: OfflineActionType): boolean {
   return DELIVERY_TYPES.has(type);
+}
+
+function isQuotaError(err: unknown): boolean {
+  if (!(err instanceof DOMException)) return false;
+  return err.name === 'QuotaExceededError' || err.code === 22;
+}
+
+function safeSetItem(key: string, value: string): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (err) {
+    if (!isQuotaError(err)) {
+      console.warn(`[offline-queue] storage write failed for ${key}`, err);
+      return false;
+    }
+    return false;
+  }
+}
+
+function trimGpsPoints(points: GpsBufferPoint[]): GpsBufferPoint[] {
+  if (points.length <= MAX_GPS_POINTS_PER_ITEM) return points;
+  return points.slice(-MAX_GPS_POINTS_PER_ITEM);
+}
+
+function compactGpsPayload(payload: Record<string, unknown>): Record<string, unknown> {
+  const points = payload.points;
+  if (!Array.isArray(points)) return payload;
+  return { ...payload, points: trimGpsPoints(points as GpsBufferPoint[]) };
+}
+
+/** Drop oldest GPS queue items first; keep delivery milestones. */
+function pruneQueue(queue: OfflineQueueItem[]): OfflineQueueItem[] {
+  const delivery = queue.filter((item) => isDeliveryAction(item.type));
+  const gps = queue
+    .filter((item) => item.type === 'GPS_UPDATE')
+    .map((item) => ({
+      ...item,
+      payload: compactGpsPayload(item.payload),
+    }));
+  const failed = queue.filter((item) => item.failed).slice(-MAX_FAILED_ITEMS);
+
+  const deliveryCap = Math.min(delivery.length, 20);
+  const trimmedDelivery = delivery.slice(-deliveryCap);
+
+  let gpsBudget = Math.max(0, MAX_QUEUE_ITEMS - trimmedDelivery.length - failed.length);
+  const trimmedGps = gps.slice(-gpsBudget);
+
+  const merged = [...trimmedDelivery, ...trimmedGps, ...failed];
+  const seen = new Set<string>();
+  return merged.filter((item) => {
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
 }
 
 function getPendingQueue(): OfflineQueueItem[] {
@@ -103,7 +168,22 @@ export function isNetworkOnline(): boolean {
 
 function saveQueue(queue: OfflineQueueItem[]) {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+
+  let pruned = pruneQueue(queue);
+  let json = JSON.stringify(pruned);
+
+  if (!safeSetItem(QUEUE_KEY, json)) {
+    pruned = pruneQueue(pruned.filter((item) => item.type !== 'GPS_UPDATE'));
+    json = JSON.stringify(pruned);
+    if (!safeSetItem(QUEUE_KEY, json)) {
+      const deliveryOnly = pruned.filter((item) => isDeliveryAction(item.type)).slice(-10);
+      safeSetItem(QUEUE_KEY, JSON.stringify(deliveryOnly));
+      console.warn('[offline-queue] storage full — kept delivery actions only');
+    } else {
+      console.warn('[offline-queue] storage full — dropped GPS queue items');
+    }
+  }
+
   notifySyncState();
 }
 
@@ -128,11 +208,77 @@ function updateQueueItem(
   saveQueue(queue);
 }
 
+function findMergeableGpsItem(
+  queue: OfflineQueueItem[],
+  assignmentId: string,
+  driverId: string
+): OfflineQueueItem | undefined {
+  return queue.find(
+    (item) =>
+      item.type === 'GPS_UPDATE' &&
+      !item.failed &&
+      item.payload.assignmentId === assignmentId &&
+      item.payload.driverId === driverId
+  );
+}
+
+function enqueueGpsPoints(points: GpsBufferPoint[]): void {
+  if (points.length === 0) return;
+
+  const assignmentId = points[0]!.assignmentId;
+  const driverId = points[0]!.driverId;
+  const queue = getQueue();
+  const existing = findMergeableGpsItem(queue, assignmentId, driverId);
+
+  if (existing) {
+    const merged = trimGpsPoints([
+      ...((existing.payload.points as GpsBufferPoint[]) ?? []),
+      ...points,
+    ]);
+    const index = queue.findIndex((item) => item.id === existing.id);
+    if (index !== -1) {
+      queue[index] = {
+        ...existing,
+        payload: { assignmentId, driverId, points: merged },
+        timestamp: Date.now(),
+      };
+      saveQueue(queue);
+      return;
+    }
+  }
+
+  const item: OfflineQueueItem = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    type: 'GPS_UPDATE',
+    payload: {
+      assignmentId,
+      driverId,
+      points: trimGpsPoints(points),
+    },
+    timestamp: Date.now(),
+    retryCount: 0,
+  };
+
+  queue.push(item);
+  saveQueue(queue);
+}
+
 /** Enqueue a fallback action. Callers must only use when offline or after request failure. */
 export function enqueue(
   type: OfflineActionType,
   payload: Record<string, unknown>
 ): string {
+  if (type === 'GPS_UPDATE') {
+    const points = payload.points as GpsBufferPoint[] | undefined;
+    if (Array.isArray(points) && points.length > 0) {
+      enqueueGpsPoints(points);
+      if (isNetworkOnline()) {
+        void syncOfflineQueue();
+      }
+      return 'gps-batch';
+    }
+  }
+
   const item: OfflineQueueItem = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     type,
@@ -156,16 +302,14 @@ export function removeItem(id: string) {
   saveQueue(getQueue().filter((item) => item.id !== id));
 }
 
-type GpsBufferPoint = GPSLocationUpdate & {
-  assignmentId: string;
-  driverId: string;
-};
-
 function loadGpsBuffer(): GpsBufferPoint[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem(GPS_BUFFER_KEY);
-    return raw ? (JSON.parse(raw) as GpsBufferPoint[]) : [];
+    const parsed = raw ? (JSON.parse(raw) as GpsBufferPoint[]) : [];
+    return parsed.length > MAX_GPS_BUFFER_POINTS
+      ? parsed.slice(-MAX_GPS_BUFFER_POINTS)
+      : parsed;
   } catch {
     return [];
   }
@@ -173,7 +317,14 @@ function loadGpsBuffer(): GpsBufferPoint[] {
 
 function saveGpsBuffer(points: GpsBufferPoint[]) {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(GPS_BUFFER_KEY, JSON.stringify(points));
+  const trimmed = points.length > MAX_GPS_BUFFER_POINTS
+    ? points.slice(-MAX_GPS_BUFFER_POINTS)
+    : points;
+  if (!safeSetItem(GPS_BUFFER_KEY, JSON.stringify(trimmed))) {
+    const minimal = trimmed.slice(-20);
+    safeSetItem(GPS_BUFFER_KEY, JSON.stringify(minimal));
+    console.warn('[offline-queue] GPS buffer trimmed due to storage quota');
+  }
 }
 
 /** Buffer GPS when offline or insert failed. Flushed into queue on sync. */
@@ -195,14 +346,14 @@ function flushGpsBufferToQueue() {
   const buffer = loadGpsBuffer();
   if (buffer.length === 0) return;
 
-  enqueue('GPS_UPDATE', { points: buffer });
+  enqueueGpsPoints(buffer);
   saveGpsBuffer([]);
 }
 
 function flushRemainingGpsBuffer() {
   const buffer = loadGpsBuffer();
   if (buffer.length === 0) return;
-  enqueue('GPS_UPDATE', { points: buffer });
+  enqueueGpsPoints(buffer);
   saveGpsBuffer([]);
 }
 
@@ -282,6 +433,13 @@ async function processItem(item: OfflineQueueItem): Promise<boolean> {
 
 function handleItemFailure(item: OfflineQueueItem): void {
   const nextRetry = item.retryCount + 1;
+
+  if (item.type === 'GPS_UPDATE' && nextRetry >= 2) {
+    removeItem(item.id);
+    console.warn('[offline-queue] dropped GPS batch after repeated failures');
+    return;
+  }
+
   if (nextRetry >= MAX_RETRIES) {
     updateQueueItem(item.id, (current) => ({
       ...current,
@@ -370,7 +528,16 @@ export async function syncOfflineQueue(): Promise<void> {
   return syncPromise;
 }
 
+/** Emergency trim — call on app boot if storage was corrupted/full. */
+export function repairOfflineQueueStorage(): void {
+  if (typeof window === 'undefined') return;
+  saveQueue(getQueue());
+  saveGpsBuffer(loadGpsBuffer());
+}
+
 if (typeof window !== 'undefined') {
+  repairOfflineQueueStorage();
+
   window.addEventListener(NETWORK_ONLINE_EVENT, () => {
     void syncOfflineQueue();
   });

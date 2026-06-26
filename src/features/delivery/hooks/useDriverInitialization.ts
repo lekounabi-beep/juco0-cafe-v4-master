@@ -1,19 +1,18 @@
 /**
  * Driver initialization hook
- * Loads driver profile from localStorage session (UUID) + Supabase.
- * Active delivery always fetched via server action (RLS-safe).
+ * Loads driver profile from localStorage session (UUID) + server actions (service role).
+ * Active delivery: delivery_assignments via fetchDriverActiveDelivery.
+ * Accept pool: fetchAcceptableOrdersForDriver (only when no active assignment).
  */
 
-import { useEffect, useState, useCallback } from 'react';
-import { useDriverStore } from '@/features/delivery/store/driver-store';
-import { useSafeRouter } from '@/hooks/useSafeRouter';
-import { getAvailableOrdersForDrivers } from '@/integrations/supabase/services/delivery.service';
-import { getDriverProfileById } from '../../../../app/actions/driver-login';
-import { fetchDriverActiveDelivery } from '../../../../app/actions/driver-delivery-sync';
-import { clearDriverSession, getDriverSession } from '@/lib/auth/driver-session';
-import { isUUID } from '@/shared/utils/uuid';
-import type { DriverProfile } from '../types/delivery.types';
-import { getOptimisticDelivery } from '../services/driver-offline-state';
+import { useEffect, useState, useCallback } from "react";
+import { useDriverStore } from "@/features/delivery/store/driver-store";
+import { getDriverProfileById } from "../../../../app/actions/driver-login";
+import { fetchDriverActiveDelivery } from "../../../../app/actions/driver-delivery-sync";
+import { fetchAcceptableOrdersForDriver } from "../../../../app/actions/driver-orders";
+import { clearDriverSession, getDriverSession } from "@/lib/auth/driver-session";
+import { isUUID } from "@/shared/utils/uuid";
+import type { DriverProfile } from "../types/delivery.types";
 
 type Order = {
   id: string;
@@ -42,6 +41,22 @@ type DeliveryAssignment = {
   order?: Order;
 };
 
+const INIT_TIMEOUT_MS = 20_000;
+
+function redirectToDriverLogin(): void {
+  if (typeof window === "undefined") return;
+  window.location.replace("/driver/login");
+}
+
+function withInitTimeout<T>(promise: Promise<T>): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error("Driver init timed out")), INIT_TIMEOUT_MS);
+    }),
+  ]);
+}
+
 interface UseDriverInitializationReturn {
   loading: boolean;
   error: string | null;
@@ -51,10 +66,10 @@ interface UseDriverInitializationReturn {
   serverConfirmedNoActive: boolean;
   refreshOrders: () => Promise<void>;
   refreshActiveDelivery: () => Promise<boolean>;
+  removeAvailableOrder: (orderId: string) => void;
 }
 
 export function useDriverInitialization(): UseDriverInitializationReturn {
-  const { replaceWhenReady } = useSafeRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [driverProfile, setDriverProfile] = useState<DriverProfile | null>(null);
@@ -62,18 +77,26 @@ export function useDriverInitialization(): UseDriverInitializationReturn {
   const [activeDelivery, setActiveDelivery] = useState<DeliveryAssignment | null>(null);
   const [serverConfirmedNoActive, setServerConfirmedNoActive] = useState(false);
 
-  const fetchAvailableOrders = useCallback(async () => {
+  const fetchAvailableOrders = useCallback(async (driverId: string) => {
+    if (!isUUID(driverId)) return;
+
     try {
-      const orders = await getAvailableOrdersForDrivers();
-      setAvailableOrders(orders as Order[]);
+      const result = await fetchAcceptableOrdersForDriver(driverId);
+      if (!result.success) {
+        console.error("[Driver] Failed to fetch acceptable orders:", result.error);
+        setAvailableOrders([]);
+        return;
+      }
+      setAvailableOrders(result.orders as Order[]);
     } catch (err) {
-      console.error('[Driver] Failed to fetch available orders:', err);
+      console.error("[Driver] Failed to fetch acceptable orders:", err);
+      setAvailableOrders([]);
     }
   }, []);
 
   const fetchActiveDeliveryFromDB = useCallback(async (driverId: string): Promise<boolean> => {
     if (!isUUID(driverId)) {
-      console.error('Invalid driver_id detected', driverId);
+      console.error("Invalid driver_id detected", driverId);
       setServerConfirmedNoActive(false);
       return false;
     }
@@ -82,26 +105,15 @@ export function useDriverInitialization(): UseDriverInitializationReturn {
       const result = await fetchDriverActiveDelivery(driverId);
 
       if (!result.success) {
-        console.error('[Driver] Server active delivery fetch failed:', result.error);
+        console.error("[Driver] Server active delivery fetch failed:", result.error);
         setServerConfirmedNoActive(false);
         return false;
       }
 
       if (result.assignment) {
         const assignment = result.assignment as DeliveryAssignment;
-        setActiveDelivery((prev) => {
-          return assignment;
-        });
-        setServerConfirmedNoActive(false);
-        return true;
-      }
-
-      const optimistic = getOptimisticDelivery(driverId);
-      if (optimistic) {
-        setActiveDelivery({
-          ...optimistic,
-          status: optimistic.status,
-        });
+        setActiveDelivery(assignment);
+        setAvailableOrders([]);
         setServerConfirmedNoActive(false);
         return true;
       }
@@ -110,17 +122,8 @@ export function useDriverInitialization(): UseDriverInitializationReturn {
       setServerConfirmedNoActive(true);
       return false;
     } catch (err) {
-      console.error('Failed to fetch active delivery:', err);
+      console.error("Failed to fetch active delivery:", err);
       setServerConfirmedNoActive(false);
-
-      const optimistic = getOptimisticDelivery(driverId);
-      if (optimistic) {
-        setActiveDelivery({
-          ...optimistic,
-          status: optimistic.status,
-        });
-        return true;
-      }
       return false;
     }
   }, []);
@@ -128,57 +131,76 @@ export function useDriverInitialization(): UseDriverInitializationReturn {
   const refreshActiveDelivery = useCallback(async (): Promise<boolean> => {
     const driverId = useDriverStore.getState().driver?.id;
     if (!driverId || !isUUID(driverId)) return false;
-    return fetchActiveDeliveryFromDB(driverId);
-  }, [fetchActiveDeliveryFromDB]);
+    const hasActive = await fetchActiveDeliveryFromDB(driverId);
+    if (!hasActive) {
+      await fetchAvailableOrders(driverId);
+    }
+    return hasActive;
+  }, [fetchActiveDeliveryFromDB, fetchAvailableOrders]);
+
+  const refreshOrders = useCallback(async () => {
+    const driverId = useDriverStore.getState().driver?.id;
+    if (!driverId || !isUUID(driverId)) return;
+    await fetchAvailableOrders(driverId);
+  }, [fetchAvailableOrders]);
+
+  const removeAvailableOrder = useCallback((orderId: string) => {
+    setAvailableOrders((prev) => prev.filter((order) => order.id !== orderId));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
 
     const initialize = async () => {
-      const session = getDriverSession();
-      if (!session) {
-        setLoading(false);
-        return;
-      }
-
-      if (!isUUID(session.driver_id)) {
-        console.error('Invalid driver_id detected', session.driver_id);
-        clearDriverSession();
-        if (!cancelled) {
-          replaceWhenReady('/driver/login');
-        }
-        return;
-      }
-
       try {
-        const profile = await getDriverProfileById(session.driver_id);
-        if (cancelled) return;
-
-        if (!profile) {
-          clearDriverSession();
-          replaceWhenReady('/driver/login');
+        const session = getDriverSession();
+        if (!session) {
           return;
         }
 
-        setDriverProfile(profile);
-        useDriverStore.getState().setDriver(profile);
-
-        await fetchAvailableOrders();
-        if (cancelled) return;
-
-        const hasActiveDelivery = await fetchActiveDeliveryFromDB(profile.id);
-        if (cancelled) return;
-
-        if (!hasActiveDelivery) {
-          useDriverStore.getState().setAvailabilityStatus(profile.availability_status);
+        if (!isUUID(session.driver_id)) {
+          console.error("Invalid driver_id detected", session.driver_id);
+          clearDriverSession();
+          redirectToDriverLogin();
+          return;
         }
 
-        setLoading(false);
+        await withInitTimeout(
+          (async () => {
+            const profile = await getDriverProfileById(session.driver_id);
+            if (cancelled) return;
+
+            if (!profile) {
+              clearDriverSession();
+              redirectToDriverLogin();
+              return;
+            }
+
+            setDriverProfile(profile);
+            useDriverStore.getState().setDriver(profile);
+
+            const hasActiveDelivery = await fetchActiveDeliveryFromDB(profile.id);
+            if (cancelled) return;
+
+            if (!hasActiveDelivery) {
+              await fetchAvailableOrders(profile.id);
+              if (cancelled) return;
+              useDriverStore.getState().setAvailabilityStatus(profile.availability_status);
+            }
+          })(),
+        );
       } catch (err) {
         if (cancelled) return;
-        console.error('[Driver] Failed to initialize:', err);
-        setError('Failed to load driver');
-        setLoading(false);
+        console.error("[Driver] Failed to initialize:", err);
+        setError(
+          err instanceof Error && err.message === "Driver init timed out"
+            ? "Η σύνδεση καθυστέρησε — δοκίμασε ξανά"
+            : "Failed to load driver",
+        );
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
@@ -187,7 +209,7 @@ export function useDriverInitialization(): UseDriverInitializationReturn {
     return () => {
       cancelled = true;
     };
-  }, [fetchAvailableOrders, fetchActiveDeliveryFromDB, replaceWhenReady]);
+  }, [fetchAvailableOrders, fetchActiveDeliveryFromDB]);
 
   return {
     loading,
@@ -196,7 +218,8 @@ export function useDriverInitialization(): UseDriverInitializationReturn {
     availableOrders,
     activeDelivery,
     serverConfirmedNoActive,
-    refreshOrders: fetchAvailableOrders,
+    refreshOrders,
     refreshActiveDelivery,
+    removeAvailableOrder,
   };
 }
