@@ -7,23 +7,17 @@ import { computeDeliveryState } from '@/features/delivery/core/compute-delivery-
 import { orderCoordinates } from '@/shared/utils/order-fields';
 import { isValidLatLng } from '@/shared/utils/coordinates';
 import type { Coordinates } from '@/shared/types/common.types';
+import type { DriverOrderDetails } from '../types/driver-order.types';
 
 export type DeliveryStage = 'assigned' | 'picked_up' | 'in_transit' | 'arrived';
 export type DriverAvailability = 'online' | 'offline' | 'busy';
 
-type OrderLike = {
-  id?: string;
-  order_number?: string;
-  status?: string;
-  delivery_status?: string;
-  items?: { name: string; qty: number }[];
-  total?: number;
-  address?: string;
-  lat?: number | null;
-  lng?: number | null;
-  coords?: { lat?: number; lng?: number } | Coordinates | null;
-  created_at?: string;
-} | null | undefined;
+type OrderLike =
+  | (Partial<DriverOrderDetails> & {
+      coords?: { lat?: number; lng?: number } | Coordinates | null;
+    })
+  | null
+  | undefined;
 
 type AssignmentLike = {
   id?: string;

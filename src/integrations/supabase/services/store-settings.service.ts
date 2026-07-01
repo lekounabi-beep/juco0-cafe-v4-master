@@ -14,7 +14,6 @@ export interface BusinessHours {
 }
 
 export interface StoreInfo {
-  name: string;
   address: string;
   phone: string;
   instagram: string;
@@ -40,7 +39,22 @@ export async function getStoreSettings(): Promise<StoreSettings> {
 
   return {
     business_hours: hoursData?.value as BusinessHours || getDefaultBusinessHours(),
-    store_info: infoData?.value as StoreInfo || getDefaultStoreInfo(),
+    store_info: normalizeStoreInfoFromDb(infoData?.value),
+  };
+}
+
+function normalizeStoreInfoFromDb(raw: unknown): StoreInfo {
+  const fallback = getDefaultStoreInfo();
+  if (!raw || typeof raw !== "object") return fallback;
+
+  const record = raw as Record<string, unknown>;
+  return {
+    address: typeof record.address === "string" && record.address.trim() ? record.address.trim() : fallback.address,
+    phone: typeof record.phone === "string" && record.phone.trim() ? record.phone.trim() : fallback.phone,
+    instagram:
+      typeof record.instagram === "string" && record.instagram.trim()
+        ? record.instagram.trim()
+        : fallback.instagram,
   };
 }
 
@@ -78,7 +92,6 @@ function getDefaultBusinessHours(): BusinessHours {
 
 function getDefaultStoreInfo(): StoreInfo {
   return {
-    name: 'Juco',
     address: 'Nafpaktos, Greece',
     phone: '+30 26340 00000',
     instagram: '@juco.nafpaktos',

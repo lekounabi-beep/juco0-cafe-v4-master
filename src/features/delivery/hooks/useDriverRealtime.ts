@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useRealtimeOrders } from '@/integrations/supabase/hooks/useRealtimeOrders';
 import { playNotificationSound } from '@/features/notifications/services/notification-sound.service';
 import { realtimeNotificationKeys } from '@/features/notifications/utils/realtime-notification-keys';
+import { shouldSkipDriverRealtimeCallback } from '@/lib/network/driver-network';
 
 const REALTIME_DEBOUNCE_MS = 300;
 
@@ -26,7 +27,7 @@ export function useDriverRealtime({ onOrderUpdate }: UseDriverRealtimeProps) {
   }, []);
 
   const handleUpdate = useCallback(() => {
-    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+    if (shouldSkipDriverRealtimeCallback()) return;
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       onOrderUpdateRef.current();

@@ -38,7 +38,14 @@ export function useDeliveryState({
 } {
   const assignmentId =
     assignment?.id && isUUID(assignment.id) ? assignment.id : null;
-  const { locations, debug } = useCanonicalDeliveryLocations(assignmentId);
+  const orderId =
+    order && typeof order === 'object' && 'id' in order && typeof order.id === 'string'
+      ? order.id
+      : null;
+  const { locations, debug } = useCanonicalDeliveryLocations(assignmentId, {
+    orderId: role === 'customer' ? orderId : null,
+    driverMode: role === 'driver',
+  });
 
   const deliveryState = useMemo(
     () =>

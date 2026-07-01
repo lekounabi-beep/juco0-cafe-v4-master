@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import {
   clearDriverSession,
   getDriverSession,
-  setDriverAuthCookie,
 } from '@/lib/auth/driver-session';
+import { verifyDriverSession } from '../../../../app/actions/driver-login';
 import { isUUID } from '@/shared/utils/uuid';
 
 function hardRedirect(url: string): void {
@@ -31,18 +31,19 @@ export function DriverGuard({ children }: { children: React.ReactNode }) {
     const session = getDriverSession();
 
     if (!session || !isUUID(session.driver_id)) {
-      if (session) {
-        console.error('Invalid driver_id detected', session.driver_id);
-        clearDriverSession();
-      } else {
-        clearDriverSession();
-      }
+      clearDriverSession();
       hardRedirect('/driver/login');
       return;
     }
 
-    setDriverAuthCookie();
-    setReady(true);
+    verifyDriverSession().then((ok) => {
+      if (!ok) {
+        clearDriverSession();
+        hardRedirect('/driver/login');
+        return;
+      }
+      setReady(true);
+    });
   }, []);
 
   if (!ready) {

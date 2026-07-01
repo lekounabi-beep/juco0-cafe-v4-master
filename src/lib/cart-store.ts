@@ -63,3 +63,15 @@ export function calcDeliveryFee(subtotal: number) {
 export function formatEur(p: number) {
   return `${p.toFixed(2).replace(".", ",")} €`;
 }
+
+export function useCartItem(name: string) {
+  const item = useCart((s) => s.items.find((i) => i.name === name));
+  const setQty = useCart((s) => s.setQty);
+  const remove = useCart((s) => s.remove);
+
+  return {
+    item,
+    setQty: (qty: number) => setQty(name, qty),
+    remove: () => remove(name),
+  };
+}

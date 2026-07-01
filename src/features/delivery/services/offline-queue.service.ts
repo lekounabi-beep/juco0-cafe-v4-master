@@ -9,6 +9,7 @@ import { clearOptimisticDelivery } from './driver-offline-state';
 import type { DeliveryStatus, OrderStatus } from '../types/delivery.types';
 import type { GPSLocationUpdate } from '../types/delivery.types';
 import { NETWORK_ONLINE_EVENT } from '@/hooks/useNetworkStatus';
+import { shouldDriverCoordinatorHandleOnline } from '@/lib/network/driver-network';
 
 export type OfflineActionType =
   | 'ACCEPT_ORDER'
@@ -528,6 +529,13 @@ export async function syncOfflineQueue(): Promise<void> {
   return syncPromise;
 }
 
+/** Drop in-flight sync promise — used when reconnect aborts stale work. */
+export function resetOfflineQueueSync(): void {
+  syncPromise = null;
+  isSyncing = false;
+  notifySyncState();
+}
+
 /** Emergency trim — call on app boot if storage was corrupted/full. */
 export function repairOfflineQueueStorage(): void {
   if (typeof window === 'undefined') return;
@@ -539,6 +547,7 @@ if (typeof window !== 'undefined') {
   repairOfflineQueueStorage();
 
   window.addEventListener(NETWORK_ONLINE_EVENT, () => {
+    if (shouldDriverCoordinatorHandleOnline()) return;
     void syncOfflineQueue();
   });
 

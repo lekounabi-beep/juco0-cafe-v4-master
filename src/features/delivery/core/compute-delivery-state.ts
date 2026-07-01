@@ -59,12 +59,36 @@ function latestLocation(locations: DeliveryLocationRow[]): DeliveryLocationRow |
   return sorted.length > 0 ? sorted[sorted.length - 1]! : null;
 }
 
-function buildRoutePoints(
+function buildTrailPoints(
   deliveryStatus: string,
-  locations: DeliveryLocationRow[]
-): { lat: number; lng: number }[] {
-  if (!POST_PICKUP.has(deliveryStatus)) return [];
-  return sortLocationsByRecordedAt(locations).map((p) => ({ lat: p.lat, lng: p.lng }));
+  locations: DeliveryLocationRow[],
+  assignment: ComputeDeliveryStateInput['assignment'],
+): { lat: number; lng: number; recordedAt: string }[] {
+  if (deliveryStatus !== 'in_transit') return [];
+
+  const startedAt = assignment?.started_delivery_at;
+  const startedMs = startedAt ? new Date(startedAt).getTime() : null;
+  if (startedMs == null || !Number.isFinite(startedMs)) return [];
+
+  const sorted = sortLocationsByRecordedAt(locations);
+  const inTransitRows = sorted.filter(
+    (row) => new Date(row.recorded_at).getTime() >= startedMs,
+  );
+
+  return inTransitRows.map((p) => ({
+    lat: p.lat,
+    lng: p.lng,
+    recordedAt: p.recorded_at,
+  }));
+}
+
+function shouldShowDriverTrail(
+  deliveryStatus: string,
+  assignment: ComputeDeliveryStateInput['assignment'],
+): boolean {
+  if (deliveryStatus !== 'in_transit') return false;
+  if (assignment?.delivered_at || assignment?.cancelled_at) return false;
+  return true;
 }
 
 function isDeliveryActive(deliveryStatus: string, assignment: ComputeDeliveryStateInput['assignment']): boolean {
@@ -99,7 +123,8 @@ export function computeDeliveryState(input: ComputeDeliveryStateInput): Computed
       }
     : null;
 
-  const routePoints = buildRoutePoints(deliveryStatus, locations);
+  const routePoints = buildTrailPoints(deliveryStatus, locations, assignment);
+  const showDriverTrail = shouldShowDriverTrail(deliveryStatus, assignment);
   const gpsReady = driverPosition != null;
   const active = isDeliveryActive(deliveryStatus, assignment);
 
@@ -110,6 +135,7 @@ export function computeDeliveryState(input: ComputeDeliveryStateInput): Computed
     destination,
     driverPosition,
     routePoints,
+    showDriverTrail,
     gpsReady,
   };
 }

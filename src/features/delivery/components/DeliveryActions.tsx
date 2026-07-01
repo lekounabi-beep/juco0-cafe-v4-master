@@ -11,6 +11,7 @@ interface DeliveryActionsProps {
   onAction: (action: string) => void;
   isPickingUp?: boolean;
   actionLoading?: boolean;
+  sticky?: boolean;
 }
 
 export function DeliveryActions({
@@ -18,6 +19,7 @@ export function DeliveryActions({
   onAction,
   isPickingUp = false,
   actionLoading = false,
+  sticky = false,
 }: DeliveryActionsProps) {
   const actions = [
     {
@@ -54,7 +56,9 @@ export function DeliveryActions({
       type="button"
       disabled={busy}
       onClick={() => onAction(currentAction.key)}
-      className="w-full h-14 rounded-xl bg-primary flex items-center justify-center gap-2 text-primary-foreground font-semibold shadow-[var(--shadow-glow)] hover:bg-primary/90 transition disabled:opacity-60 disabled:pointer-events-none"
+      className={`flex w-full min-h-[52px] items-center justify-center gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-[var(--shadow-glow)] transition hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-60 ${
+        sticky ? 'text-base' : 'h-14'
+      }`}
     >
       {busy ? (
         <Loader2 className="h-5 w-5 animate-spin" />

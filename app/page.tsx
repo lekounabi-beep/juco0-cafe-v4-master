@@ -37,7 +37,6 @@ export default function Index() {
       sunday: { open: "07:00", close: "21:00" },
     },
     store_info: {
-      name: "Juco",
       address: "Nafpaktos, Greece",
       phone: "+30 26340 00000",
       instagram: "@juco.nafpaktos",

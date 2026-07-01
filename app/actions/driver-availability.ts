@@ -3,6 +3,8 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { isUUID } from "@/shared/utils/uuid";
 import type { DriverAvailability } from "@/features/delivery/types/delivery.types";
+import { requireDriverSession } from "./driver-login";
+import { serverLog } from "@/lib/server/logger";
 
 const DRIVERS_TABLE = "drivers" as never;
 
@@ -13,6 +15,11 @@ export async function updateDriverAvailabilityServer(
   availabilityStatus: DriverAvailability,
   currentLocation?: Coordinates,
 ): Promise<{ success: boolean; error?: string }> {
+  const session = await requireDriverSession().catch(() => null);
+  if (!session || session.driverId !== driverId) {
+    return { success: false, error: "Unauthorized" };
+  }
+
   if (!isUUID(driverId)) {
     return { success: false, error: "Invalid driver_id: UUID required" };
   }
@@ -34,7 +41,8 @@ export async function updateDriverAvailabilityServer(
     .eq("id", driverId);
 
   if (error) {
-    return { success: false, error: error.message };
+    serverLog.warn("driver.availability.failed", { driverId, error: error.message });
+    return { success: false, error: "Could not update availability. Please try again." };
   }
 
   return { success: true };

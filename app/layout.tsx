@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 import { PwaInstallBanner } from "@/components/PwaInstallBanner";
+import { CustomerOfflineIndicator } from "@/components/CustomerOfflineIndicator";
+import { PwaDevCleanup } from "@/components/PwaDevCleanup";
 import { NotificationSoundInit } from "@/features/notifications/components/NotificationSoundInit";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -25,7 +27,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Juco — Fresh Juices & Quality Coffee",
   description: "Juco Coffee & Juice Bar in Nafpaktos — fresh juices, specialty coffee, smoothies & snacks.",
-  manifest: "/manifest.json",
+  manifest: "/manifest-customer.json",
   icons: {
     icon: [
       { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
@@ -61,7 +63,9 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: PWA_LEGACY_PURGE_SCRIPT }} />
       </head>
       <body className="min-h-screen font-sans">
+        <PwaDevCleanup />
         <ThemeProvider defaultTheme="dark" attribute="class">
+          <CustomerOfflineIndicator />
           {children}
         </ThemeProvider>
         <PwaInstallBanner />

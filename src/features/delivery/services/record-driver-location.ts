@@ -1,18 +1,33 @@
 /**
- * Driver location insert — strict validation + client Supabase repository.
- * MUST NOT import from app/actions (see gps-repository.ts).
+ * Driver location insert — validated server-side via authenticated driver session.
  */
 
 import { isUUID } from '@/shared/utils/uuid';
 import { normalizeCoordinates } from '@/shared/utils/coordinates';
-import {
-  insertDriverLocation,
-  type DriverLocationInsertPayload,
-  type InsertDriverLocationOptions,
-} from './gps-repository';
+import { insertDriverLocationServer } from '../../../../app/actions/driver-gps';
 import type { GPSLocationUpdate } from '../types/delivery.types';
 
-export type { DriverLocationInsertPayload };
+export type DriverLocationInsertPayload = {
+  delivery_assignment_id: string;
+  driver_id: string;
+  lat: number;
+  lng: number;
+  accuracy: number | null;
+  speed: number | null;
+  heading: number | null;
+  recorded_at: string;
+};
+
+export type InsertDriverLocationOptions = {
+  suppressOfflineQueue?: boolean;
+};
+
+export type InsertDriverLocationResult = {
+  success: boolean;
+  error?: string;
+  locationId?: string;
+  queued?: boolean;
+};
 
 export type RecordDriverLocationResult = {
   success: boolean;
@@ -59,6 +74,50 @@ export function validateDriverLocationPayload(
   };
 }
 
+async function queueOfflineInsert(payload: DriverLocationInsertPayload): Promise<void> {
+  try {
+    const { addOfflineGpsPoint } = await import('./offline-queue.service');
+    const point: GPSLocationUpdate = {
+      lat: payload.lat,
+      lng: payload.lng,
+      accuracy: payload.accuracy,
+      speed: payload.speed,
+      heading: payload.heading,
+      timestamp: payload.recorded_at,
+    };
+    addOfflineGpsPoint(payload.delivery_assignment_id, payload.driver_id, point);
+  } catch {
+    // offline queue unavailable
+  }
+}
+
+export async function insertDriverLocation(
+  payload: DriverLocationInsertPayload,
+  options: InsertDriverLocationOptions = {}
+): Promise<InsertDriverLocationResult> {
+  try {
+    const result = await insertDriverLocationServer(payload);
+
+    if (!result.success) {
+      if (!options.suppressOfflineQueue) {
+        await queueOfflineInsert(payload);
+      }
+      return { success: false, error: result.error, queued: !options.suppressOfflineQueue };
+    }
+
+    return { success: true, locationId: result.locationId };
+  } catch (error) {
+    if (!options.suppressOfflineQueue) {
+      await queueOfflineInsert(payload);
+    }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown GPS insert error',
+      queued: !options.suppressOfflineQueue,
+    };
+  }
+}
+
 export async function recordDriverLocationSafe(
   assignmentId: string,
   driverId: string,
@@ -71,25 +130,15 @@ export async function recordDriverLocationSafe(
   }
 
   const { payload } = validated;
+  const result = await insertDriverLocation(payload, options);
 
-  try {
-    const result = await insertDriverLocation(payload, options);
-
-    if (!result.success) {
-      return { success: false, error: result.error, payload };
-    }
-
-    return { success: true, payload };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown GPS insert error',
-      payload,
-    };
+  if (!result.success) {
+    return { success: false, error: result.error, payload };
   }
+
+  return { success: true, payload };
 }
 
-/** Local position fallback when DB insert fails — keeps map marker alive. */
 export function localPositionFromGpsUpdate(
   location: GPSLocationUpdate
 ): { lat: number; lng: number } | null {

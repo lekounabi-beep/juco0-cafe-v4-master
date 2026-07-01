@@ -1,14 +1,20 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { updateSession } from '@/integrations/supabase/middleware';
 import { DRIVER_AUTH_COOKIE } from '@/lib/auth/driver-session';
+import { verifySignedSessionTokenEdge } from '@/lib/auth/signed-session';
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Server redirect — no client JS needed (fixes mobile black screen on /driver).
-  if (pathname === '/driver') {
-    const hasAuth = request.cookies.get(DRIVER_AUTH_COOKIE)?.value === '1';
-    if (!hasAuth) {
+  if (pathname === '/driver' || pathname.startsWith('/driver/')) {
+    if (pathname === '/driver/login') {
+      return NextResponse.next();
+    }
+
+    const token = request.cookies.get(DRIVER_AUTH_COOKIE)?.value;
+    const payload = await verifySignedSessionTokenEdge(token, 'driver');
+
+    if (!payload) {
       return NextResponse.redirect(new URL('/driver/login', request.url));
     }
   }
@@ -25,5 +31,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/account/:path*', '/driver', '/sw.js'],
+  matcher: ['/account/:path*', '/driver', '/driver/:path*', '/sw.js'],
 };

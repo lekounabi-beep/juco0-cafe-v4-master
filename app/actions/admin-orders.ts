@@ -2,7 +2,7 @@
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { AdminOrder, AdminOrderListResult } from "@/features/admin/types/admin-order.types";
-import { requireAdminCookie } from "./admin-auth";
+import { requireAdminSession } from "./admin-auth";
 
 const ORDERS_TABLE = "orders" as never;
 const ADMIN_ORDER_LIMIT = 50;
@@ -10,7 +10,7 @@ const ADMIN_ORDER_LIMIT = 50;
 /** Server-authoritative admin order list — bypasses RLS via service role. */
 export async function getAllOrdersForAdmin(): Promise<AdminOrderListResult> {
   try {
-    await requireAdminCookie();
+    await requireAdminSession();
   } catch {
     return { success: false, error: "Unauthorized — sign in again at /admin/login" };
   }
@@ -22,7 +22,7 @@ export async function getAllOrdersForAdmin(): Promise<AdminOrderListResult> {
     .limit(ADMIN_ORDER_LIMIT);
 
   if (error) {
-    return { success: false, error: error.message };
+    return { success: false, error: "Failed to load orders" };
   }
 
   return { success: true, orders: (data ?? []) as AdminOrder[] };

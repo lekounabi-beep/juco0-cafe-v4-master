@@ -8,9 +8,11 @@ import { DriverLiveMap } from '@/features/live-tracking-v2/components/DriverLive
 import { TrackingV2DebugPanel } from '@/features/live-tracking-v2/components/TrackingV2DebugPanel';
 import { formatDistance, formatETA } from '@/features/delivery/services/eta.service';
 import { DeliveryActions } from './DeliveryActions';
+import { DriverOrderDetailsSection } from './DriverOrderDetailsSection';
 import type { useETA } from '../hooks/useETA';
 import type { DeliveryUiState } from '../utils/delivery-ui-selector';
 import type { ActiveDeliveryView } from '../utils/active-delivery';
+import type { DriverOrderDetails } from '../types/driver-order.types';
 
 interface DriverActiveDeliveryCardProps {
   activeDeliveryView: ActiveDeliveryView;
@@ -18,6 +20,8 @@ interface DriverActiveDeliveryCardProps {
   mapDestination: { lat: number; lng: number } | null;
   destinationResolving?: boolean;
   driverLocation?: { lat: number; lng: number } | null;
+  routePoints?: { lat: number; lng: number }[];
+  showDriverTrail?: boolean;
   hasDestination: boolean;
   onDeliveryAction: (action: string) => void;
   isPickingUp?: boolean;
@@ -31,6 +35,8 @@ export function DriverActiveDeliveryCard({
   mapDestination,
   destinationResolving = false,
   driverLocation,
+  routePoints = [],
+  showDriverTrail = false,
   hasDestination,
   onDeliveryAction,
   isPickingUp = false,
@@ -44,7 +50,7 @@ export function DriverActiveDeliveryCard({
 
   useEffect(() => {
     setLastRenderTime(new Date().toISOString());
-  }, [mapDestination, driverLocation, mapStatus]);
+  }, [mapDestination, driverLocation, mapStatus, routePoints, showDriverTrail]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-4 space-y-4">
@@ -54,6 +60,8 @@ export function DriverActiveDeliveryCard({
             className="h-full"
             destination={mapDestination}
             driverLocation={driverLocation ?? undefined}
+            routePoints={routePoints}
+            showDriverTrail={showDriverTrail}
             telemetryContext={{
               surface: 'driver',
               assignmentId: activeDeliveryView.assignment?.id ?? null,
@@ -62,12 +70,12 @@ export function DriverActiveDeliveryCard({
           />
           {!hasDestination && (
             <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/50 px-6 text-center">
-              <MapPin className="h-10 w-10 text-primary/70" />
+              <MapPin className="h-10 w-10 text-white/40" />
               <p className="text-sm font-medium text-white/90">
                 Αναμονή τοποθεσίας παραγγελίας...
               </p>
               {destinationResolving && (
-                <Loader2 className="h-5 w-5 animate-spin text-primary/60" />
+                <Loader2 className="h-5 w-5 animate-spin text-white/50" />
               )}
             </div>
           )}
@@ -75,7 +83,7 @@ export function DriverActiveDeliveryCard({
         {eta?.etaResult && hasDestination && (
           <div className="flex items-center justify-between border-t border-white/10 px-4 py-3">
             <div className="flex items-center gap-2 text-sm text-white/80">
-              <Navigation className="h-4 w-4 text-primary" />
+              <Navigation className="h-4 w-4 text-white/60" />
               <span>Πλοήγηση προς πελάτη</span>
             </div>
             <div className="text-right">
@@ -97,26 +105,18 @@ export function DriverActiveDeliveryCard({
         lastRenderTime={lastRenderTime}
       />
 
-      <div className="rounded-2xl bg-gradient-to-r from-primary/20 to-primary/10 border border-primary/30 p-4 backdrop-blur-sm">
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
         <div className="flex items-center gap-2 mb-3">
-          <Package className="h-5 w-5 text-primary" />
+          <Package className="h-5 w-5 text-white/70" />
           <h3 className="font-semibold text-white">Ενεργή Παράδοση</h3>
         </div>
 
         {order && (
           <div className="space-y-3">
-            <div className="flex justify-between text-sm">
-              <span className="text-white/80">Αριθμός Παραγγελίας</span>
-              <span className="text-white font-semibold">#{order.order_number}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-white/80">Διεύθυνση</span>
-              <span className="text-white/60">{order.address}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-white/80">Σύνολο</span>
-              <span className="text-white font-semibold">{order.total?.toFixed(2)}€</span>
-            </div>
+            <DriverOrderDetailsSection
+              order={order as DriverOrderDetails}
+              deliveryStage={stage}
+            />
 
             <div className="pt-3 border-t border-white/10">
               {stage && (

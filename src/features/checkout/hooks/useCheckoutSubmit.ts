@@ -1,16 +1,16 @@
 /**
- * Checkout Submit hook - handles order submission
+ * Checkout Submit hook - handles order submission via server-authoritative pricing.
  */
 
 import { useCallback, useRef } from "react";
 import { useCheckoutStore } from "../store/checkout-store";
 import { useCart } from "@/lib/cart-store";
-import { createOrder, type OrderResult } from "@/integrations/supabase/services/order.service";
 import {
-  createVivaOrderCode,
-  redirectToVivaPayment,
-} from "@/integrations/viva/services/payment.service";
-import { calcDeliveryFee } from "@/shared/utils/currency";
+  submitCodOrderServer,
+  initiateCardCheckoutServer,
+  type CheckoutCustomerInput,
+} from "@app/actions/checkout-order";
+import { redirectToVivaPayment } from "@/integrations/viva/services/payment.service";
 import {
   isCompleteCheckoutAddress,
   isValidCheckoutAddress,
@@ -55,7 +55,8 @@ function customerSafeError(error: unknown, payment: string) {
     error.message.includes("όνομα") ||
     error.message.includes("διεύθυνση") ||
     error.message.includes("καλάθι") ||
-    error.message.includes("περιοχής")
+    error.message.includes("περιοχής") ||
+    error.message.includes("προϊόν")
   ) {
     return error.message;
   }
@@ -65,6 +66,7 @@ function customerSafeError(error: unknown, payment: string) {
 
 export function useCheckoutSubmit() {
   const submitLockRef = useRef(false);
+  const clientRequestIdRef = useRef<string | null>(null);
   const items = useCart((s) => s.items);
   const clear = useCart((s) => s.clear);
   const {
@@ -90,11 +92,15 @@ export function useCheckoutSubmit() {
     setSubmitting(true);
     setError(null);
 
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setError("Internet connection is required to complete your order.");
+      submitLockRef.current = false;
+      setSubmitting(false);
+      return;
+    }
+
     try {
-      const subtotal = items.reduce((sum, i) => sum + i.qty * i.price, 0);
       const isPickup = fulfillment === "pickup";
-      const deliveryFee = isPickup ? 0 : calcDeliveryFee(subtotal);
-      const total = subtotal + deliveryFee;
       const deliveryNotes = isPickup ? null : buildDeliveryNotes(floor, bell, deliveryInstructions);
       const normalizedPhone = normalizeGreekPhone(phone);
 
@@ -131,69 +137,18 @@ export function useCheckoutSubmit() {
         lng = candidateAddress.lng;
       }
 
-      // Card payment flow
-      if (payment === "card") {
-        const vivaResponse = await Promise.race([
-          createVivaOrderCode(total, {
-            email: undefined,
-            fullName: name.trim(),
-            phone: normalizedPhone,
-          }),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("Viva Wallet API timeout")), 15000),
-          ),
-        ]);
-
-        console.log("Viva Wallet response:", vivaResponse);
-
-        if (!vivaResponse.orderCode) {
-          throw new Error(vivaResponse.errorText || "Failed to create Viva Wallet order");
-        }
-
-        // Store order data in sessionStorage
-        const orderPayload = {
-          items: items.map((i) => ({
-            name: i.name,
-            price: i.price,
-            qty: i.qty,
-            category: i.category,
-          })),
-          subtotal,
-          delivery_fee: deliveryFee,
-          total,
-          customer_name: name.trim(),
-          customer_phone: normalizedPhone,
-          address,
-          address_notes: deliveryNotes,
-          lat,
-          lng,
-          payment_method: payment,
-          payment_status: "pending",
-          notes: notes.trim() || null,
-          status: "pending",
-          user_id: userId || null,
-        };
-
-        sessionStorage.setItem("pendingOrder", JSON.stringify(orderPayload));
-
-        releaseSubmitLock = false;
-        setTimeout(() => {
-          redirectToVivaPayment(vivaResponse.orderCode);
-        }, 100);
-        return;
+      if (!clientRequestIdRef.current) {
+        clientRequestIdRef.current = crypto.randomUUID();
       }
+      const clientRequestId = clientRequestIdRef.current;
 
-      // Cash on delivery or pickup flow
-      const payload = {
-        items: items.map((i) => ({
+      const checkoutInput: CheckoutCustomerInput = {
+        fulfillment: isPickup ? "pickup" : "delivery",
+        cartItems: items.map((i) => ({
           name: i.name,
-          price: i.price,
           qty: i.qty,
           category: i.category,
         })),
-        subtotal,
-        delivery_fee: deliveryFee,
-        total,
         customer_name: name.trim(),
         customer_phone: normalizedPhone,
         address,
@@ -201,33 +156,46 @@ export function useCheckoutSubmit() {
         lat,
         lng,
         payment_method: payment,
-        payment_status: "pending",
         notes: notes.trim() || null,
-        status: "pending",
         user_id: userId || null,
       };
 
-      let data: OrderResult | undefined;
-      try {
-        data = await Promise.race([
-          createOrder(payload),
+      if (payment === "card") {
+        const { checkoutToken, orderCode } = await Promise.race([
+          initiateCardCheckoutServer(checkoutInput, clientRequestId),
           new Promise<never>((_, reject) =>
-            setTimeout(
-              () => reject(new Error("Database timeout - please check your connection")),
-              10000,
-            ),
+            setTimeout(() => reject(new Error("Viva Wallet API timeout")), 15000),
           ),
         ]);
-      } catch (err) {
-        console.error("Order creation error:", err);
-        throw new Error(err instanceof Error ? err.message : "Failed to save order");
+
+        sessionStorage.setItem("checkoutToken", checkoutToken);
+        localStorage.setItem("juco_checkout_token", checkoutToken);
+        sessionStorage.removeItem("pendingOrder");
+
+        setSubmitting(false);
+        submitLockRef.current = false;
+        releaseSubmitLock = false;
+        setTimeout(() => {
+          redirectToVivaPayment(orderCode);
+        }, 100);
+        return;
       }
 
-      if (!data || !data.id) {
+      const data = await Promise.race([
+        submitCodOrderServer(checkoutInput, clientRequestId),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Database timeout - please check your connection")),
+            10000,
+          ),
+        ),
+      ]);
+
+      if (!data?.id) {
         throw new Error("Failed to create order - no data returned");
       }
 
-      console.log("Order created successfully, ID:", data.id);
+      clientRequestIdRef.current = null;
       clear();
 
       releaseSubmitLock = false;

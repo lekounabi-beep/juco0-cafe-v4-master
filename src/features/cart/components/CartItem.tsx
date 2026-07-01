@@ -4,7 +4,7 @@
 
 import Image from 'next/image';
 import { ShoppingBag, Plus, Minus, Trash2 } from 'lucide-react';
-import { useCartItem } from '../hooks/useCart';
+import { useCartItem } from '@/lib/cart-store';
 import { productImages } from '@/data/productImages';
 import { formatEur } from '@/shared/utils/currency';
 

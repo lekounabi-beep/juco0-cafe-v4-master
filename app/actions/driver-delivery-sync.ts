@@ -1,8 +1,13 @@
 'use server';
 
 import { supabaseAdmin } from '@/integrations/supabase/client.server';
+import { requireDriverSession } from './driver-login';
 import { isUUID } from '@/shared/utils/uuid';
 import { assignmentStatusFromTimestamps } from '@/shared/utils/order-fields';
+import {
+  DRIVER_ORDER_SELECT,
+  type DriverOrderDetails,
+} from '@/features/delivery/types/driver-order.types';
 
 export type DriverActiveDeliveryPayload = {
   id: string;
@@ -17,17 +22,7 @@ export type DriverActiveDeliveryPayload = {
   cancelled_at: string | null;
   cancellation_reason?: string | null;
   status: string;
-  order?: {
-    id: string;
-    order_number: string;
-    status: string;
-    items: { name: string; qty: number }[];
-    total: number;
-    address: string;
-    lat?: number | null;
-    lng?: number | null;
-    created_at: string;
-  };
+  order?: DriverOrderDetails;
 };
 
 export type FetchDriverActiveDeliveryResult = {
@@ -47,6 +42,11 @@ function formatDbError(error: { message?: string; details?: string; hint?: strin
 export async function fetchDriverActiveDelivery(
   driverId: string
 ): Promise<FetchDriverActiveDeliveryResult> {
+  const session = await requireDriverSession().catch(() => null);
+  if (!session || session.driverId !== driverId) {
+    return { success: false, assignment: null, error: 'Unauthorized' };
+  }
+
   if (!isUUID(driverId)) {
     return { success: false, assignment: null, error: 'Invalid driver_id: UUID required' };
   }
@@ -74,7 +74,7 @@ export async function fetchDriverActiveDelivery(
 
   const { data: orderData, error: orderError } = await supabaseAdmin
     .from('orders' as any)
-    .select('*')
+    .select(DRIVER_ORDER_SELECT)
     .eq('id', orderId)
     .single();
 
@@ -82,16 +82,16 @@ export async function fetchDriverActiveDelivery(
     return { success: false, assignment: null, error: formatDbError(orderError) };
   }
 
+  const order = orderData as DriverOrderDetails;
+  if (order.driver_id && order.driver_id !== driverId) {
+    return { success: false, assignment: null, error: 'Unauthorized' };
+  }
+
   const assignment: DriverActiveDeliveryPayload = {
     ...(row as DriverActiveDeliveryPayload),
     status: assignmentStatusFromTimestamps(row as Parameters<typeof assignmentStatusFromTimestamps>[0]),
-    order: orderData as DriverActiveDeliveryPayload['order'],
+    order,
   };
 
   return { success: true, assignment };
-}
-
-export async function driverHasActiveDelivery(driverId: string): Promise<boolean> {
-  const result = await fetchDriverActiveDelivery(driverId);
-  return result.success && result.assignment !== null;
 }

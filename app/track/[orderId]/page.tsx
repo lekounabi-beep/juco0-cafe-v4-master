@@ -5,210 +5,206 @@
 
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { EspressoBackground } from '@/components/EspressoBackground';
-import { useRealtimeOrder } from '@/integrations/supabase/hooks/useRealtimeOrders';
-import { useRealtimeDeliveryAssignment } from '@/integrations/supabase/hooks/useRealtimeDeliveries';
-import { useRealtimeDriver } from '@/integrations/supabase/hooks/useRealtimeDrivers';
 import { useETA } from '@/features/delivery/hooks/useETA';
 import { formatETA, formatDistance } from '@/features/delivery/services/eta.service';
-import { supabase } from '@/integrations/supabase/client';
 import { CustomerDeliveryTimelineUI } from '@/features/tracking/components/CustomerDeliveryTimelineUI';
-import type { Coordinates } from '@/shared/types/common.types';
+import { useCustomerTrackingSync } from '@/features/tracking/hooks/useCustomerTrackingSync';
+import { useTrackingSession } from '@/features/tracking/hooks/useTrackingSession';
+import { isTrackingSessionEnabled } from '@/features/tracking/config/tracking-session-flag';
 import { orderCoordinates } from '@/shared/utils/order-fields';
 import { useDeliveryState } from '@/features/delivery/hooks/useDeliveryState';
 import { speedFromKmh } from '@/features/delivery/services/speed.service';
-import { playNotificationSound } from '@/features/notifications/services/notification-sound.service';
 import { MapPin, Package, AlertCircle } from 'lucide-react';
 import { V2TrackingSection } from '@/features/live-tracking-v2';
+import type { CustomerTrackingDebugSnapshot } from '@/features/live-tracking-v2/types/customer-tracking-debug.types';
+import { isTerminalOrder } from '@/features/tracking/core/terminal-order';
+import type { CustomerOrderStep } from '@/shared/utils/customer-status';
+import type { TrackingOrder } from '@/features/tracking/hooks/useCustomerTrackingSync';
 
 const FALLBACK_ETA_SPEED_MS = speedFromKmh(25);
 
-type Order = {
-  id: string;
-  order_number: string;
-  status: string;
-  delivery_status: string;
-  driver_id: string | null;
-  items: { name: string; qty: number; price: number }[];
-  subtotal: number;
-  delivery_fee: number;
-  total: number;
-  address: string;
-  address_notes?: string;
-  customer_phone: string;
-  payment_method: string;
-  payment_status: string;
-  created_at: string;
-  lat?: number | null;
-  lng?: number | null;
-  coords?: Coordinates;
-};
-
-type Driver = {
-  id: string;
-  full_name: string;
-  vehicle_type: string;
-  phone: string;
-  availability_status: string;
-};
-
-type DeliveryAssignment = {
-  id: string;
-  order_id: string;
-  driver_id: string;
-  assigned_at: string;
-  accepted_at?: string | null;
-  picked_up_at?: string | null;
-  started_delivery_at?: string | null;
-  arrived_at?: string | null;
-  delivered_at?: string | null;
-  cancelled_at?: string | null;
-};
-
-export default function TrackOrderPage() {
-  const params = useParams();
+function TrackPageLegacy({ orderId }: { orderId: string }) {
   const router = useRouter();
-  const orderId = params.orderId as string;
+  const { order, driver, delivery, loading, error } = useCustomerTrackingSync(orderId);
 
-  const [order, setOrder] = useState<Order | null>(null);
-  const [driver, setDriver] = useState<Driver | null>(null);
-  const [delivery, setDelivery] = useState<DeliveryAssignment | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useRealtimeOrder(orderId, (payload) => {
-    if (payload.eventType === 'UPDATE') {
-      setOrder(payload.new as Order);
-    }
-  });
-
-  useRealtimeDeliveryAssignment(delivery?.id || '', (payload) => {
-    if (payload.eventType === 'UPDATE') {
-      const prev = delivery;
-      const next = payload.new as DeliveryAssignment;
-      setDelivery(next);
-
-      const milestoneReached =
-        (!prev?.picked_up_at && next.picked_up_at) ||
-        (!prev?.started_delivery_at && next.started_delivery_at) ||
-        (!prev?.arrived_at && next.arrived_at) ||
-        (!prev?.delivered_at && next.delivered_at);
-
-      if (milestoneReached) {
-        void playNotificationSound('delivery', {
-          eventId: `${next.id}-${next.picked_up_at ?? ''}-${next.started_delivery_at ?? ''}-${next.arrived_at ?? ''}-${next.delivered_at ?? ''}`,
-          orderId: orderId,
-        });
-      }
-    }
-  });
-
-  useRealtimeDriver(order?.driver_id || '', (payload) => {
-    if (payload.eventType === 'UPDATE') {
-      setDriver(payload.new as Driver);
-    }
-  });
-
-  useEffect(() => {
-    if (!order?.driver_id) {
-      setDelivery(null);
-      return;
-    }
-
-    let cancelled = false;
-
-    const fetchDelivery = async () => {
-      const { data, error: fetchError } = await (supabase.rpc as any)(
-        'get_delivery_assignment_for_order',
-        { p_order_id: orderId }
-      );
-
-      if (cancelled || fetchError || !data) return;
-      const row = Array.isArray(data) ? data[0] : data;
-      if (row) setDelivery(row as DeliveryAssignment);
-    };
-
-    void fetchDelivery();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [order?.driver_id, order?.status, order?.delivery_status, orderId]);
-
-  useEffect(() => {
-    const driverId = order?.driver_id;
-    if (!driverId) return;
-
-    const fetchDriver = async () => {
-      const { data, error: fetchError } = await supabase
-        .from('drivers' as any)
-        .select('*')
-        .eq('id', driverId)
-        .single();
-
-      if (fetchError || !data) return;
-      setDriver(data as Driver);
-    };
-
-    fetchDriver();
-  }, [order?.driver_id]);
-
-  useEffect(() => {
-    const fetchOrder = async () => {
-      try {
-        const { data, error: fetchError } = await (supabase.rpc as any)('get_order_for_tracking', {
-          order_uuid: orderId,
-        });
-
-        if (fetchError) {
-          setError('Order not found');
-          setLoading(false);
-          return;
-        }
-
-        const row = Array.isArray(data) ? data[0] : data;
-        if (!row) {
-          setError('Order not found');
-          setLoading(false);
-          return;
-        }
-
-        setOrder(row as Order);
-        setLoading(false);
-      } catch {
-        setError('Failed to load order');
-        setLoading(false);
-      }
-    };
-
-    fetchOrder();
-  }, [orderId]);
-
-  const { deliveryState } = useDeliveryState({
+  const { deliveryState, locationDebug } = useDeliveryState({
     order,
     assignment: delivery,
     role: 'customer',
   });
 
-  const deliveryStatus = deliveryState.deliveryStatus;
-  const customerStep = deliveryState.customerStep;
+  const customerDebug = useMemo(
+    (): CustomerTrackingDebugSnapshot => ({
+      connectionState: error ? 'error' : loading ? 'idle' : 'polling',
+      trackingSessionEnabled: false,
+      gpsPointsLoaded: locationDebug.locationCount,
+      lastGpsTimestamp: deliveryState.driverPosition?.recordedAt ?? null,
+      orderStatus: order?.status,
+      assignmentStatus: order?.delivery_status ?? deliveryState.deliveryStatus,
+      customerStep: deliveryState.customerStep,
+      isTerminal: order ? isTerminalOrder(order) : false,
+      pollingActive: locationDebug.realtimeConnected,
+    }),
+    [
+      error,
+      loading,
+      locationDebug.locationCount,
+      locationDebug.realtimeConnected,
+      deliveryState.driverPosition?.recordedAt,
+      deliveryState.deliveryStatus,
+      deliveryState.customerStep,
+      order,
+    ],
+  );
 
-  const destination = useMemo(() => orderCoordinates(order), [order]);
+  return (
+    <TrackPageShell
+      router={router}
+      order={order}
+      driver={driver}
+      delivery={delivery}
+      loading={loading}
+      error={error}
+      customerStep={deliveryState.customerStep}
+      deliveryStatus={deliveryState.deliveryStatus}
+      driverPosition={deliveryState.driverPosition}
+      v2Session={undefined}
+      customerDebug={customerDebug}
+      routePoints={deliveryState.routePoints}
+      showDriverTrail={deliveryState.showDriverTrail}
+    />
+  );
+}
 
-  const driverPosition = deliveryState.driverPosition;
+function TrackPageSession({ orderId }: { orderId: string }) {
+  const router = useRouter();
+  const session = useTrackingSession(orderId);
 
-  const driverLat = driverPosition?.lat;
-  const driverLng = driverPosition?.lng;
+  const driverPosition = session.deliveryState.driverPosition;
 
-  useEffect(() => {
-    if (process.env.NODE_ENV !== 'development') return;
-    console.log('[TrackPage] driver coordinates changed', {
-      driverLat,
-      driverLng,
-    });
-  }, [driverLat, driverLng]);
+  const v2Session = useMemo(
+    () => ({
+      driverLocation: session.latestLocation,
+      connectionState: session.connectionState,
+      locationLoading: session.loading,
+      locationError: session.error,
+      lastUpdatedAt:
+        driverPosition?.recordedAt ??
+        session.lastPollAt,
+    }),
+    [
+      session.latestLocation,
+      session.connectionState,
+      session.loading,
+      session.error,
+      driverPosition?.recordedAt,
+      session.lastPollAt,
+    ],
+  );
+
+  const customerDebug = useMemo(
+    (): CustomerTrackingDebugSnapshot => ({
+      connectionState: session.connectionState,
+      trackingSessionEnabled: true,
+      pollCount: session.pollCount,
+      lastPollAt: session.lastPollAt,
+      gpsPointsLoaded: session.locations.length,
+      lastGpsTimestamp: driverPosition?.recordedAt ?? session.lastPollAt,
+      orderStatus: session.order?.status,
+      assignmentStatus: session.timeline.deliveryStatus,
+      customerStep: session.timeline.customerStep,
+      isTerminal: session.isTerminal,
+      eta: session.eta,
+      etaLastUpdated: session.lastPollAt,
+      pollingActive: session.connectionState === 'polling',
+    }),
+    [
+      session.connectionState,
+      session.pollCount,
+      session.lastPollAt,
+      session.locations.length,
+      driverPosition?.recordedAt,
+      session.order?.status,
+      session.timeline.deliveryStatus,
+      session.timeline.customerStep,
+      session.isTerminal,
+      session.eta,
+    ],
+  );
+
+  return (
+    <TrackPageShell
+      router={router}
+      order={session.order}
+      driver={session.driver}
+      delivery={session.assignment}
+      loading={session.loading}
+      error={session.error}
+      customerStep={session.timeline.customerStep}
+      deliveryStatus={session.timeline.deliveryStatus}
+      driverPosition={driverPosition}
+      etaFromSession={session.eta}
+      v2Session={v2Session}
+      customerDebug={customerDebug}
+      routePoints={session.routePoints}
+      showDriverTrail={session.deliveryState.showDriverTrail}
+    />
+  );
+}
+
+function TrackPageShell({
+  router,
+  order,
+  driver,
+  delivery,
+  loading,
+  error,
+  customerStep,
+  deliveryStatus,
+  driverPosition,
+  etaFromSession,
+  v2Session,
+  customerDebug,
+  routePoints = [],
+  showDriverTrail = false,
+}: {
+  router: ReturnType<typeof useRouter>;
+  order: TrackingOrder | null;
+  driver: { full_name: string } | null;
+  delivery: { id: string } | null;
+  loading: boolean;
+  error: string | null;
+  customerStep: CustomerOrderStep;
+  deliveryStatus: string;
+  driverPosition: { lat: number; lng: number; heading?: number; recordedAt?: string } | null;
+  etaFromSession?: ReturnType<typeof useTrackingSession>['eta'];
+  v2Session?: React.ComponentProps<typeof V2TrackingSection>['session'];
+  customerDebug?: CustomerTrackingDebugSnapshot;
+  routePoints?: React.ComponentProps<typeof V2TrackingSection>['routePoints'];
+  showDriverTrail?: boolean;
+}) {
+  const destinationCacheRef = useRef<{ lat: number; lng: number } | null>(null);
+  const destination = useMemo(() => {
+    const next = orderCoordinates(order);
+    if (!next) {
+      destinationCacheRef.current = null;
+      return null;
+    }
+    const cached = destinationCacheRef.current;
+    if (cached && cached.lat === next.lat && cached.lng === next.lng) {
+      return cached;
+    }
+    destinationCacheRef.current = next;
+    return next;
+  }, [
+    order?.lat,
+    order?.lng,
+    order?.coords?.lat,
+    order?.coords?.lng,
+  ]);
 
   const driverLocation = useMemo(
     () =>
@@ -219,20 +215,56 @@ export default function TrackOrderPage() {
             heading: driverPosition.heading ?? 0,
           }
         : null,
-    [driverPosition]
+    [driverPosition?.lat, driverPosition?.lng, driverPosition?.heading],
   );
 
   const showDriverOnMap = customerStep === 'on_the_way';
 
   const etaResult = useETA({
     currentLocation:
-      showDriverOnMap && driverLocation
+      showDriverOnMap && driverLocation && !etaFromSession
         ? { lat: driverLocation.lat, lng: driverLocation.lng }
         : null,
     destination,
     averageSpeedMs:
-      showDriverOnMap && driverLocation ? FALLBACK_ETA_SPEED_MS : 0,
+      showDriverOnMap && driverLocation && !etaFromSession ? FALLBACK_ETA_SPEED_MS : 0,
   });
+
+  const etaLabel =
+    showDriverOnMap && etaFromSession?.eta
+      ? formatETA(etaFromSession.eta)
+      : showDriverOnMap && etaResult.etaResult?.eta
+        ? formatETA(etaResult.etaResult.eta)
+        : null;
+
+  const distanceLabel =
+    showDriverOnMap && etaFromSession
+      ? formatDistance(etaFromSession.remainingDistance)
+      : showDriverOnMap && etaResult.etaResult
+        ? formatDistance(etaResult.etaResult.remainingDistance)
+        : null;
+
+  const v2CustomerDebug = useMemo((): CustomerTrackingDebugSnapshot | undefined => {
+    if (!customerDebug) return undefined;
+    const eta =
+      customerDebug.eta ??
+      (showDriverOnMap && etaResult.etaResult ? etaResult.etaResult : null);
+    return {
+      ...customerDebug,
+      eta,
+      etaLastUpdated:
+        customerDebug.etaLastUpdated ?? driverPosition?.recordedAt ?? null,
+    };
+  }, [customerDebug, showDriverOnMap, etaResult.etaResult, driverPosition?.recordedAt]);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'development') return;
+    console.log('[TrackPage] driver coordinates changed', {
+      driverLat: driverPosition?.lat,
+      driverLng: driverPosition?.lng,
+      mode: v2Session != null ? 'session' : 'legacy',
+    });
+  }, [driverPosition?.lat, driverPosition?.lng]);
 
   const showError = !loading && (error || !order);
   const showContent = !loading && order && !error;
@@ -288,24 +320,23 @@ export default function TrackOrderPage() {
 
           <div className="mx-auto max-w-7xl px-4 py-6">
             <div className="mb-6">
-              <V2TrackingSection order={order} assignment={delivery} />
+              <V2TrackingSection
+                order={order}
+                assignment={delivery}
+                session={v2Session}
+                customerDebug={v2CustomerDebug}
+                routePoints={routePoints}
+                showDriverTrail={showDriverTrail}
+              />
             </div>
 
             <CustomerDeliveryTimelineUI
               customerStep={customerStep}
               orderStatus={order.status}
-              deliveryStatus={deliveryStatus}
+              deliveryStatus={order.delivery_status ?? deliveryStatus}
               driverName={driver?.full_name}
-              eta={
-                showDriverOnMap && etaResult.etaResult?.eta
-                  ? formatETA(etaResult.etaResult.eta)
-                  : null
-              }
-              distance={
-                showDriverOnMap && etaResult.etaResult
-                  ? formatDistance(etaResult.etaResult.remainingDistance)
-                  : null
-              }
+              eta={etaLabel}
+              distance={distanceLabel}
             />
           </div>
 
@@ -358,4 +389,16 @@ export default function TrackOrderPage() {
       )}
     </div>
   );
+}
+
+export default function TrackOrderPage() {
+  const params = useParams();
+  const orderId = params.orderId as string;
+  const useSession = isTrackingSessionEnabled();
+
+  if (useSession) {
+    return <TrackPageSession orderId={orderId} />;
+  }
+
+  return <TrackPageLegacy orderId={orderId} />;
 }

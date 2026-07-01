@@ -18,11 +18,12 @@ function readConnectionType(): string | null {
 }
 
 export function useNetworkStatus() {
-  const [isOnline, setIsOnline] = useState(() =>
-    typeof navigator !== 'undefined' ? navigator.onLine : true
-  );
+  // Always start online so SSR and the first client render match (navigator.onLine
+  // can be false on mobile during hydration even when the page is reachable).
+  const [isOnline, setIsOnline] = useState(true);
   const [wasOffline, setWasOffline] = useState(false);
   const [connectionType, setConnectionType] = useState<string | null>(null);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   const refresh = useCallback(() => {
     const online = navigator.onLine;
@@ -32,6 +33,7 @@ export function useNetworkStatus() {
   }, []);
 
   useEffect(() => {
+    setIsHydrated(true);
     refresh();
 
     const handleOnline = () => {
@@ -62,5 +64,5 @@ export function useNetworkStatus() {
     };
   }, [refresh, wasOffline]);
 
-  return { isOnline, wasOffline, connectionType };
+  return { isOnline, wasOffline, connectionType, isHydrated };
 }
