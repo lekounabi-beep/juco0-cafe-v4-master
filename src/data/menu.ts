@@ -1,4 +1,15 @@
-export type MenuItem = { category: string; name: string; price: number; description: string; image: string; sort_order?: number };
+export type MenuItem = {
+  category: string;
+  name: string;
+  price: number;
+  description: string;
+  image: string;
+  sort_order?: number;
+  /** Present in admin editor when loaded from database */
+  id?: string;
+  /** Defaults to available when omitted */
+  is_available?: boolean;
+};
 export const menu: MenuItem[] = [
   {
     "category": "ΚΑΦΕΔΕΣ",

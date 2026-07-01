@@ -2,16 +2,31 @@
 
 import Link from "next/link";
 import { useEffect, useState, useRef, Suspense } from "react";
-import { useRouter } from "next/navigation";
 import { CheckCircle2, Clock, Home, MapPin, Phone, Heart, XCircle } from "lucide-react";
 import { EspressoBackground } from "@/components/EspressoBackground";
 import { formatEur } from "@/shared/utils/currency";
-import { completeVivaOrder } from "../actions/complete-viva-order";
+import {
+  getCardPaymentOrderStatusAction,
+  getCardPaymentOrderStatusByOrderCodeAction,
+  reconcileVivaPaymentByOrderCode,
+  reconcileVivaPaymentReturn,
+} from "../actions/complete-viva-order";
 import { getOrderById } from "@/integrations/supabase/services/order.service";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { GoogleButton } from "@/features/auth/components/GoogleButton";
 import { useCart } from "@/lib/cart-store";
 import { useSearchParams } from "next/navigation";
+
+const CHECKOUT_TOKEN_KEY = "checkoutToken";
+const CHECKOUT_TOKEN_BACKUP_KEY = "juco_checkout_token";
+const WEBHOOK_WAIT_ATTEMPTS = 12;
+const WEBHOOK_WAIT_MS = 500;
+
+const VIVA_EVENT_MESSAGES: Record<string, string> = {
+  "2061":
+    "Η πιστοποίηση 3D Secure δεν ολοκληρώθηκε. Μείνετε στη σελίδα μέχρι να τελειώσει η πληρωμή και δοκιμάστε ξανά.",
+  "2062": "Η πιστοποίηση 3D Secure απέτυχε. Ελέγξτε τον κωδικό και δοκιμάστε ξανά.",
+};
 
 type Order = {
   id: string;
@@ -29,9 +44,96 @@ type Order = {
   created_at: string;
 };
 
+function readCheckoutToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return (
+    sessionStorage.getItem(CHECKOUT_TOKEN_KEY) ||
+    localStorage.getItem(CHECKOUT_TOKEN_BACKUP_KEY)
+  );
+}
+
+function clearCheckoutTokens(): void {
+  sessionStorage.removeItem(CHECKOUT_TOKEN_KEY);
+  sessionStorage.removeItem("pendingOrder");
+  localStorage.removeItem(CHECKOUT_TOKEN_BACKUP_KEY);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function vivaFailureMessage(eventId: string | undefined): string {
+  if (eventId && VIVA_EVENT_MESSAGES[eventId]) {
+    return VIVA_EVENT_MESSAGES[eventId];
+  }
+  if (eventId) {
+    return `Η πληρωμή δεν ολοκληρώθηκε (κωδικός Viva: ${eventId}). Δοκιμάστε ξανά ή επιλέξτε μετρητά στην παράδοση.`;
+  }
+  return "Η πληρωμή δεν ολοκληρώθηκε. Δοκιμάστε ξανά ή επιλέξτε μετρητά στην παράδοση.";
+}
+
+async function resolvePaidCardOrder(
+  transactionId: string,
+  checkoutToken: string | null,
+): Promise<{ id: string; order_number: string } | null> {
+  const immediate = await getCardPaymentOrderStatusAction(transactionId);
+  if (immediate.status === "ready") {
+    return immediate.order;
+  }
+
+  const reconciled = await reconcileVivaPaymentReturn(transactionId, checkoutToken);
+  if (reconciled) {
+    return reconciled;
+  }
+
+  for (let attempt = 0; attempt < WEBHOOK_WAIT_ATTEMPTS; attempt++) {
+    await sleep(WEBHOOK_WAIT_MS);
+    const status = await getCardPaymentOrderStatusAction(transactionId);
+    if (status.status === "ready") {
+      return status.order;
+    }
+  }
+
+  return null;
+}
+
+async function resolvePaidCardOrderByCode(
+  vivaOrderCode: string,
+  transactionId: string | null,
+  checkoutToken: string | null,
+): Promise<{ id: string; order_number: string } | null> {
+  const immediate = await getCardPaymentOrderStatusByOrderCodeAction(vivaOrderCode);
+  if (immediate.status === "ready") {
+    return immediate.order;
+  }
+
+  if (transactionId) {
+    const reconciled = await reconcileVivaPaymentReturn(transactionId, checkoutToken);
+    if (reconciled) return reconciled;
+
+    const byCode = await reconcileVivaPaymentByOrderCode(vivaOrderCode, transactionId);
+    if (byCode) return byCode;
+  }
+
+  for (let attempt = 0; attempt < WEBHOOK_WAIT_ATTEMPTS; attempt++) {
+    await sleep(WEBHOOK_WAIT_MS);
+    const status = await getCardPaymentOrderStatusByOrderCodeAction(vivaOrderCode);
+    if (status.status === "ready") {
+      return status.order;
+    }
+  }
+
+  return null;
+}
+
+function redirectToTrack(orderId: string, clearCheckoutTokens: () => void, clearCart: () => void) {
+  clearCheckoutTokens();
+  clearCart();
+  window.location.replace(`/track/${orderId}`);
+}
+
 function OrderSuccessContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const id = searchParams.get("id") || undefined;
   const t = searchParams.get("t") || undefined;
   const s = searchParams.get("s") || undefined;
@@ -50,22 +152,28 @@ function OrderSuccessContent() {
 
     async function processOrder() {
       try {
+        const checkoutToken = readCheckoutToken();
+
         if (t) {
-          const pendingOrderStr = sessionStorage.getItem("pendingOrder");
-
-          if (!pendingOrderStr) {
-            setError("Δεν βρέθηκε η παραγγελία. Παρακαλώ ξεκινήστε ξανά.");
-            setLoading(false);
-            return;
-          }
-
-          const pendingOrder = JSON.parse(pendingOrderStr);
-
           try {
-            const data = await completeVivaOrder(pendingOrder, t);
-            sessionStorage.removeItem("pendingOrder");
-            clearCart();
-            router.push(`/track/${data.id}`);
+            const data = await resolvePaidCardOrder(t, checkoutToken);
+            if (data?.id) {
+              redirectToTrack(data.id, clearCheckoutTokens, clearCart);
+              return;
+            }
+
+            if (s) {
+              const byCode = await resolvePaidCardOrderByCode(s, t, checkoutToken);
+              if (byCode?.id) {
+                redirectToTrack(byCode.id, clearCheckoutTokens, clearCart);
+                return;
+              }
+            }
+
+            setError(
+              "Η πληρωμή μπορεί να έχει ολοκληρωθεί, αλλά δεν μπορέσαμε να επιβεβαιώσουμε την παραγγελία ακόμα. Δοκιμάστε να ανανεώσετε τη σελίδα ή επικοινωνήστε με το κατάστημα.",
+            );
+            setLoading(false);
             return;
           } catch (dbError) {
             const message = dbError instanceof Error ? dbError.message : "";
@@ -80,10 +188,20 @@ function OrderSuccessContent() {
           }
         }
 
-        if (s || eventId) {
-          setError(
-            "Η πληρωμή επέστρεψε από τη Viva, αλλά δεν λάβαμε κωδικό συναλλαγής για επιβεβαίωση. Επικοινωνήστε με το κατάστημα.",
-          );
+        if (s) {
+          const data = await resolvePaidCardOrderByCode(s, null, checkoutToken);
+          if (data?.id) {
+            redirectToTrack(data.id, clearCheckoutTokens, clearCart);
+            return;
+          }
+
+          setError(vivaFailureMessage(eventId));
+          setLoading(false);
+          return;
+        }
+
+        if (eventId) {
+          setError(vivaFailureMessage(eventId));
           setLoading(false);
           return;
         }
@@ -111,8 +229,8 @@ function OrderSuccessContent() {
       }
     }
 
-    processOrder();
-  }, [clearCart, eventId, id, s, t, router]);
+    void processOrder();
+  }, [clearCart, eventId, id, s, t]);
 
   const isSuccess = !!order && !error;
   const heading = loading
@@ -219,7 +337,6 @@ function OrderSuccessContent() {
             <p className="mt-6 text-sm text-destructive">Δεν βρέθηκε η παραγγελία.</p>
           )}
 
-          {/* Registration prompt for guest users */}
           {!isAuthenticated && order && (
             <div className="mt-8 rounded-2xl bg-white/5 p-6 text-left">
               <div className="flex items-center gap-3 mb-4">
@@ -249,6 +366,15 @@ function OrderSuccessContent() {
                 </Link>
               </div>
             </div>
+          )}
+
+          {!loading && error && (
+            <Link
+              href="/checkout"
+              className="mt-6 inline-flex items-center justify-center rounded-full bg-white/10 px-5 py-3 text-sm font-semibold text-white hover:bg-white/15"
+            >
+              Επιστροφή στο checkout
+            </Link>
           )}
 
           <div className="mt-8 flex flex-col gap-2 sm:flex-row sm:justify-center">

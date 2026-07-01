@@ -5,17 +5,9 @@
 
 import { Clock, Package } from 'lucide-react';
 import { OrderCard } from './OrderCard';
+import type { DriverOrderDetails } from '../types/driver-order.types';
 
-type Order = {
-  id: string;
-  order_number: string;
-  status: string;
-  items: { name: string; qty: number }[];
-  total: number;
-  address: string;
-  coords?: any;
-  created_at: string;
-};
+type Order = DriverOrderDetails;
 
 interface DriverAvailableOrdersProps {
   availableOrders: Order[];

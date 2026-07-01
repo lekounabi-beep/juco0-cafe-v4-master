@@ -2,18 +2,25 @@
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { DeliveryStatus } from "@/features/delivery/types/delivery.types";
+import { requireDriverSession } from "./driver-login";
+import { isUUID } from "@/shared/utils/uuid";
+import { serverLog } from "@/lib/server/logger";
 
-type SupabaseDbError = {
-  message?: string;
-};
-
-/** Single atomic milestone: assignment timestamp + derived order fields (+ driver online on delivered). */
 export async function driverTransitionAtomic(
   assignmentId: string,
   orderId: string,
   driverId: string,
   newStatus: Extract<DeliveryStatus, "picked_up" | "in_transit" | "arrived" | "delivered">,
 ): Promise<{ success: boolean; error?: string }> {
+  const session = await requireDriverSession().catch(() => null);
+  if (!session || session.driverId !== driverId) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  if (!isUUID(assignmentId) || !isUUID(orderId) || !isUUID(driverId)) {
+    return { success: false, error: "Invalid id parameters" };
+  }
+
   const { error } = await (supabaseAdmin as any).rpc("transition_delivery_atomic", {
     p_order_id: orderId,
     p_assignment_id: assignmentId,
@@ -22,7 +29,8 @@ export async function driverTransitionAtomic(
   });
 
   if (error) {
-    return { success: false, error: error.message };
+    serverLog.warn("driver.transition.failed", { assignmentId, orderId, driverId, error: error.message });
+    return { success: false, error: "Could not update delivery status. Please try again." };
   }
 
   return { success: true };

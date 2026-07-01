@@ -1,12 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  syncOfflineQueue,
   subscribeSyncState,
   type SyncState,
 } from '@/features/delivery/services/offline-queue.service';
-import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { useDriverNetworkState } from '@/hooks/useDriverNetwork';
 
 const INITIAL_SYNC_STATE: SyncState = {
   isSyncing: false,
@@ -16,16 +15,13 @@ const INITIAL_SYNC_STATE: SyncState = {
 };
 
 export function useOfflineSync() {
-  const { isOnline } = useNetworkStatus();
+  const { phase, isOnline, isReconnecting } = useDriverNetworkState();
   const [syncState, setSyncState] = useState<SyncState>(INITIAL_SYNC_STATE);
 
   useEffect(() => subscribeSyncState(setSyncState), []);
 
-  useEffect(() => {
-    if (isOnline) {
-      void syncOfflineQueue();
-    }
-  }, [isOnline]);
-
-  return { ...syncState, isOnline };
+  return useMemo(
+    () => ({ ...syncState, isOnline, isReconnecting, phase }),
+    [syncState, isOnline, isReconnecting, phase],
+  );
 }

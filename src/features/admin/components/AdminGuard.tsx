@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut } from "lucide-react";
 import { isAdminSessionActive, clearAdminSession, setAdminSession } from "@/lib/auth/admin-session";
 import { adminLogout, verifyAdminCookie } from "../../../../app/actions/admin-auth";
+import { AdminShell } from "@/features/admin/components/AdminShell";
 
 export function AdminGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -67,19 +67,5 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  return (
-    <>
-      <div className="fixed right-4 top-4 z-50">
-        <button
-          type="button"
-          onClick={() => void handleLogout()}
-          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/60 px-4 py-2 text-sm font-semibold text-white backdrop-blur-md transition hover:bg-white/10"
-        >
-          <LogOut className="h-4 w-4" />
-          Logout
-        </button>
-      </div>
-      {children}
-    </>
-  );
+  return <AdminShell onLogout={handleLogout}>{children}</AdminShell>;
 }

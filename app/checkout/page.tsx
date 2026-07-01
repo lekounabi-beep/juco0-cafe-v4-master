@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { EspressoBackground } from "@/components/EspressoBackground";
 import { FulfillmentStep } from "@/features/checkout/components/FulfillmentStep";
 import { ContactStep } from "@/features/checkout/components/ContactStep";
@@ -21,6 +22,11 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 import { getProfile } from "@/integrations/supabase/services/profile.service";
 import { useCart } from "@/lib/cart-store";
 import { calcDeliveryFee } from "@/shared/utils/currency";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import {
+  hasVivaReturnParams,
+  VivaCheckoutReturnRedirect,
+} from "@/features/checkout/components/VivaCheckoutReturnHandler";
 
 const SECTION_FOR_FIELD: Record<string, string> = {
   items: "review",
@@ -29,7 +35,18 @@ const SECTION_FOR_FIELD: Record<string, string> = {
   address: "address",
 };
 
-function CheckoutPage() {
+function CheckoutPageContent() {
+  const searchParams = useSearchParams();
+  const isVivaReturn = hasVivaReturnParams(searchParams);
+
+  if (isVivaReturn) {
+    return <VivaCheckoutReturnRedirect />;
+  }
+
+  return <CheckoutPageBody />;
+}
+
+function CheckoutPageBody() {
   const { user } = useAuth();
   const setUserId = useCheckoutStore((s) => s.setUserId);
   const deliveryAddress = useCheckoutStore((s) => s.deliveryAddress);
@@ -46,6 +63,8 @@ function CheckoutPage() {
   const addressActionRef = useRef<HTMLButtonElement | null>(null);
   const items = useCart((s) => s.items);
   const subtotal = useCart((s) => s.subtotal());
+  const { isOnline, isHydrated } = useNetworkStatus();
+  const isOfflineBlocked = isHydrated && !isOnline;
   const isPickup = fulfillment === "pickup";
   const deliveryFee = isPickup ? 0 : calcDeliveryFee(subtotal);
   const total = subtotal + deliveryFee;
@@ -175,9 +194,28 @@ function CheckoutPage() {
         submitting={submitting}
         payment={payment}
         onSubmit={handleSubmit}
+        disabled={isOfflineBlocked}
+        disabledReason={
+          isOfflineBlocked ? "Internet connection is required to complete your order." : undefined
+        }
       />
     </div>
   );
 }
 
-export default CheckoutPage;
+export default function CheckoutPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="relative min-h-screen text-foreground">
+          <EspressoBackground />
+          <main className="relative z-10 mx-auto flex min-h-screen max-w-2xl items-center justify-center px-4">
+            <p className="text-white/60">Φόρτωση...</p>
+          </main>
+        </div>
+      }
+    >
+      <CheckoutPageContent />
+    </Suspense>
+  );
+}

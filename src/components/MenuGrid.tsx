@@ -210,6 +210,26 @@ function Card({ item, i, editable = false, onEdit }: { item: MenuItem; i: number
             )}
           </div>
         )}
+        {editable && (
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={() =>
+                onEdit?.(i, {
+                  ...item,
+                  is_available: item.is_available === false,
+                })
+              }
+              className={`w-full rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                item.is_available === false
+                  ? "bg-red-500/20 text-red-300 hover:bg-red-500/30"
+                  : "bg-green-500/20 text-green-300 hover:bg-green-500/30"
+              }`}
+            >
+              {item.is_available === false ? "Μη διαθέσιμο — πάτα για ενεργοποίηση" : "Διαθέσιμο — πάτα για απενεργοποίηση"}
+            </button>
+          </div>
+        )}
         <div className="mt-4">
           {editable ? (
             editing && editField === 'price' ? (

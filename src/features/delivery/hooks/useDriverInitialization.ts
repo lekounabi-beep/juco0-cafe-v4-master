@@ -13,18 +13,19 @@ import { fetchAcceptableOrdersForDriver } from "../../../../app/actions/driver-o
 import { clearDriverSession, getDriverSession } from "@/lib/auth/driver-session";
 import { isUUID } from "@/shared/utils/uuid";
 import type { DriverProfile } from "../types/delivery.types";
+import {
+  clearRefreshActiveDeliveryIfCurrent,
+  clearRefreshOrdersIfCurrent,
+  getRefreshActiveDeliveryInFlight,
+  getRefreshOrdersInFlight,
+  getDriverRefreshGeneration,
+  trackRefreshActiveDeliveryPromise,
+  trackRefreshOrdersPromise,
+} from "../services/driver-refresh-inflight";
 
-type Order = {
-  id: string;
-  order_number: string;
-  status: string;
-  items: { name: string; qty: number }[];
-  total: number;
-  address: string;
-  lat?: number | null;
-  lng?: number | null;
-  created_at: string;
-};
+import type { DriverOrderDetails } from "../types/driver-order.types";
+
+type Order = DriverOrderDetails;
 
 type DeliveryAssignment = {
   id: string;
@@ -129,19 +130,48 @@ export function useDriverInitialization(): UseDriverInitializationReturn {
   }, []);
 
   const refreshActiveDelivery = useCallback(async (): Promise<boolean> => {
-    const driverId = useDriverStore.getState().driver?.id;
-    if (!driverId || !isUUID(driverId)) return false;
-    const hasActive = await fetchActiveDeliveryFromDB(driverId);
-    if (!hasActive) {
-      await fetchAvailableOrders(driverId);
+    const existing = getRefreshActiveDeliveryInFlight();
+    if (existing) return existing;
+
+    const generation = getDriverRefreshGeneration();
+    const promise = (async (): Promise<boolean> => {
+      if (getDriverRefreshGeneration() !== generation) return false;
+      const driverId = useDriverStore.getState().driver?.id;
+      if (!driverId || !isUUID(driverId)) return false;
+      const hasActive = await fetchActiveDeliveryFromDB(driverId);
+      if (getDriverRefreshGeneration() !== generation) return hasActive;
+      if (!hasActive) {
+        await fetchAvailableOrders(driverId);
+      }
+      return hasActive;
+    })();
+
+    trackRefreshActiveDeliveryPromise(promise);
+    try {
+      return await promise;
+    } finally {
+      clearRefreshActiveDeliveryIfCurrent(promise);
     }
-    return hasActive;
   }, [fetchActiveDeliveryFromDB, fetchAvailableOrders]);
 
   const refreshOrders = useCallback(async () => {
-    const driverId = useDriverStore.getState().driver?.id;
-    if (!driverId || !isUUID(driverId)) return;
-    await fetchAvailableOrders(driverId);
+    const existing = getRefreshOrdersInFlight();
+    if (existing) return existing;
+
+    const generation = getDriverRefreshGeneration();
+    const promise = (async () => {
+      if (getDriverRefreshGeneration() !== generation) return;
+      const driverId = useDriverStore.getState().driver?.id;
+      if (!driverId || !isUUID(driverId)) return;
+      await fetchAvailableOrders(driverId);
+    })();
+
+    trackRefreshOrdersPromise(promise);
+    try {
+      await promise;
+    } finally {
+      clearRefreshOrdersIfCurrent(promise);
+    }
   }, [fetchAvailableOrders]);
 
   const removeAvailableOrder = useCallback((orderId: string) => {

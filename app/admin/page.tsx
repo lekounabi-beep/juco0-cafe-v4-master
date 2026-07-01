@@ -1,114 +1,55 @@
-// @ts-nocheck - Supabase types don't include new tables yet
-
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState, useRef, useCallback } from "react";
-import {
-  Bell,
-  Home,
-  RefreshCw,
-  CheckCircle2,
-  Clock,
-  MapPin,
-  Phone,
-  Edit,
-  User,
-  Plus,
-  X,
-} from "lucide-react";
-import { EspressoBackground } from "@/components/EspressoBackground";
+import { useMemo } from "react";
+import { useSearchParams } from "next/navigation";
+import { Bell, CheckCircle2, Clock, MapPin, Phone, RefreshCw, User } from "lucide-react";
+import { toast } from "sonner";
 import { formatEur } from "@/lib/cart-store";
-import type { OrderStatus } from "@/features/delivery/types/delivery.types";
+import { AdminContentContainer } from "@/features/admin/components/AdminContentContainer";
+import { AdminPageHeader } from "@/features/admin/components/AdminPageHeader";
+import { useAdminOrdersSync } from "@/features/admin/hooks/useAdminOrdersSync";
 import type { AdminOrder } from "@/features/admin/types/admin-order.types";
-import { getAllOrdersForAdmin } from "../actions/admin-orders";
-import { adminTransitionOrderStatus } from "../actions/admin-kitchen-workflow";
 import {
   ADMIN_ORDER_COLUMNS,
   groupOrdersByColumn,
   getAdminNextAction,
   type AdminOrderColumnId,
 } from "@/features/admin/utils/admin-order-columns";
-import { toast } from "sonner";
-import { useRealtimeOrders } from "@/integrations/supabase/hooks/useRealtimeOrders";
-import { playNotificationSound } from "@/features/notifications/services/notification-sound.service";
-import { realtimeNotificationKeys } from "@/features/notifications/utils/realtime-notification-keys";
-import { NotificationSettingsSection } from "@/features/notifications/components/NotificationSettingsSection";
-import { createDriver } from "../actions/create-driver";
+import { AdminDriversWorkspace } from "@/features/admin/components/drivers/AdminDriversWorkspace";
+import { ADMIN_SECTION, getAdminSectionFromSearch } from "@/features/admin/utils/admin-shell";
+import type { OrderStatus } from "@/features/delivery/types/delivery.types";
+import { adminTransitionOrderStatus } from "../actions/admin-kitchen-workflow";
 
-const ADMIN_POLL_INTERVAL_MS = 30_000;
+function getColumnAccent(columnId: AdminOrderColumnId) {
+  switch (columnId) {
+    case "incoming":
+      return "border-yellow-500/30 bg-yellow-500/5";
+    case "preparing":
+      return "border-blue-500/30 bg-blue-500/5";
+    case "ready":
+      return "border-green-500/30 bg-green-500/5";
+    case "on_delivery":
+      return "border-orange-500/30 bg-orange-500/5";
+    case "completed":
+      return "border-white/20 bg-white/5";
+    default:
+      return "border-white/20 bg-white/5";
+  }
+}
 
-function AdminDashboard() {
-  const [orders, setOrders] = useState<AdminOrder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showDriverModal, setShowDriverModal] = useState(false);
-  const [driverForm, setDriverForm] = useState({
-    email: '',
-    full_name: '',
-    phone: '',
-    vehicle_type: 'car',
-  });
-  const loadOrdersTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const loadOrders = useCallback(async () => {
-    try {
-      const result = await getAllOrdersForAdmin();
-
-      if (!result.success) {
-        console.error("Error loading orders:", result.error);
-        if (result.error.includes("Unauthorized")) {
-          toast.error(result.error);
-        }
-        setOrders([]);
-        return;
-      }
-
-      setOrders(result.orders);
-    } catch (error) {
-      console.error("Error loading orders:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to load orders");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const scheduleLoadOrders = useCallback(() => {
-    if (loadOrdersTimerRef.current) {
-      clearTimeout(loadOrdersTimerRef.current);
-    }
-    loadOrdersTimerRef.current = setTimeout(() => {
-      loadOrders();
-    }, 300);
-  }, [loadOrders]);
-
-  // Initial load + polling fallback (realtime may not fire under anon RLS)
-  useEffect(() => {
-    loadOrders();
-    const pollId = window.setInterval(() => {
-      loadOrders();
-    }, ADMIN_POLL_INTERVAL_MS);
-    return () => window.clearInterval(pollId);
-  }, [loadOrders]);
-
-  // Realtime wake-up: always refetch from server-authoritative action
-  useRealtimeOrders((payload) => {
-    if (payload.eventType === 'INSERT') {
-      void playNotificationSound('order', realtimeNotificationKeys(payload));
-    }
-    scheduleLoadOrders();
-  });
+function OrdersWorkspace() {
+  const { orders, loading, refresh: loadOrders } = useAdminOrdersSync();
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
-      // Kitchen transition via server action (service role)
       const result = await adminTransitionOrderStatus(orderId, newStatus as OrderStatus);
-      
+
       if (!result.success) {
         console.error("Error updating order status:", result.error);
         toast.error(result.error || "Failed to update order status");
         return;
       }
-      
+
       await loadOrders();
       toast.success("Order status updated successfully");
     } catch (error) {
@@ -117,99 +58,37 @@ function AdminDashboard() {
     }
   };
 
-  const getColumnAccent = (columnId: AdminOrderColumnId) => {
-    switch (columnId) {
-      case "incoming":
-        return "border-yellow-500/30 bg-yellow-500/5";
-      case "preparing":
-        return "border-blue-500/30 bg-blue-500/5";
-      case "ready":
-        return "border-green-500/30 bg-green-500/5";
-      case "on_delivery":
-        return "border-orange-500/30 bg-orange-500/5";
-      case "completed":
-        return "border-white/20 bg-white/5";
-      default:
-        return "border-white/20 bg-white/5";
-    }
-  };
-
   const ordersByColumn = groupOrdersByColumn(orders);
 
-  const handleCreateDriver = async () => {
-    try {
-      const result = await createDriver(driverForm);
-      
-      if (result.error) {
-        toast.error(result.error);
-        return;
-      }
-      
-      toast.success('Driver δημιουργήθηκε επιτυχώς!');
-      setShowDriverModal(false);
-      setDriverForm({ email: '', full_name: '', phone: '', vehicle_type: 'car' });
-    } catch (error) {
-      console.error('Error creating driver:', error);
-      toast.error('Αποτυχία δημιουργίας driver.');
-    }
-  };
-
   return (
-    <div className="relative min-h-screen text-foreground">
-      <EspressoBackground />
-      
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-black/40 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
-            <span className="grid h-8 w-8 place-items-center rounded-full bg-primary font-display text-sm font-bold text-primary-foreground">J</span>
-            <span className="font-display text-lg font-semibold text-white">Admin Dashboard</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setShowDriverModal(true)}
-              className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)]"
-            >
-              <Plus className="h-4 w-4" />
-              + Driver
-            </button>
-            <Link
-              href="/admin/menu"
-              className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/15"
-            >
-              <Edit className="h-4 w-4" />
-              Edit Menu
-            </Link>
-            <button
-              onClick={loadOrders}
-              className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/15"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Ανανέωση
-            </button>
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/15"
-            >
-              <Home className="h-4 w-4" />
-              Αρχική
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      <main className="relative z-10 mx-auto max-w-7xl px-4 py-8">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-white">Παραγγελίες</h1>
-            <p className="mt-1 text-white/60">
-              {loading ? "Φόρτωση..." : `${orders.length} παραγγελίες`}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 rounded-full bg-white/10 px-4 py-2">
-            <Bell className="h-4 w-4 text-primary" />
-            <span className="text-sm text-white/80">Real-time updates</span>
-          </div>
-        </div>
+    <>
+      <AdminContentContainer className="py-8">
+        <AdminPageHeader
+          title="Orders"
+          description={
+            <>
+              <p>{loading ? "Φόρτωση..." : `${orders.length} παραγγελίες`}</p>
+              <p className="mt-1">
+                Διαχειρίσου τη ροή κουζίνας και παρακολούθησε live τις ενεργές παραγγελίες.
+              </p>
+            </>
+          }
+          actions={
+            <>
+              <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2">
+                <Bell className="h-4 w-4 text-primary" />
+                <span className="text-sm text-white/80">Real-time updates</span>
+              </div>
+              <button
+                onClick={() => void loadOrders()}
+                className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Ανανέωση
+              </button>
+            </>
+          }
+        />
 
         {loading ? (
           <div className="flex items-center justify-center py-20">
@@ -219,7 +98,7 @@ function AdminDashboard() {
             </div>
           </div>
         ) : orders.length === 0 ? (
-          <div className="rounded-3xl glass p-12 text-center">
+          <div className="glass rounded-3xl p-12 text-center">
             <Clock className="mx-auto h-16 w-16 text-white/30" />
             <h2 className="mt-4 text-xl font-semibold text-white">Δεν υπάρχουν παραγγελίες</h2>
             <p className="mt-2 text-white/60">Οι νέες παραγγελίες θα εμφανιστούν εδώ.</p>
@@ -239,7 +118,7 @@ function AdminDashboard() {
                   </p>
                 </div>
 
-                <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+                <div className="space-y-3 pr-1 xl:max-h-[70vh] xl:overflow-y-auto">
                   {ordersByColumn[column.id].length === 0 ? (
                     <p className="rounded-xl bg-black/20 px-3 py-6 text-center text-xs text-white/40">
                       Καμία παραγγελία
@@ -271,7 +150,7 @@ function AdminDashboard() {
                           <div className="mt-3 space-y-2 text-sm">
                             <div className="flex items-start gap-2">
                               <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-                              <span className="text-white/80 line-clamp-2">{order.address}</span>
+                              <span className="line-clamp-2 text-white/80">{order.address}</span>
                             </div>
                             <div className="flex items-center gap-2">
                               <Phone className="h-3.5 w-3.5 text-primary" />
@@ -285,7 +164,7 @@ function AdminDashboard() {
                           </div>
 
                           <ul className="mt-3 space-y-0.5 text-xs text-white/70">
-                            {order.items.slice(0, 3).map((item: any, idx: number) => (
+                            {order.items.slice(0, 3).map((item, idx: number) => (
                               <li key={idx}>
                                 {item.qty}× {item.name}
                               </li>
@@ -304,8 +183,10 @@ function AdminDashboard() {
 
                           {nextAction && (
                             <button
-                              onClick={() => updateOrderStatus(order.id, nextAction.nextStatus)}
-                              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground shadow-[var(--shadow-glow)] hover:bg-primary/90 transition"
+                              onClick={() =>
+                                void updateOrderStatus(order.id, nextAction.nextStatus)
+                              }
+                              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground shadow-[var(--shadow-glow)] transition hover:bg-primary/90"
                             >
                               <CheckCircle2 className="h-3.5 w-3.5" />
                               {nextAction.label}
@@ -327,101 +208,23 @@ function AdminDashboard() {
             ))}
           </div>
         )}
-      </main>
-
-      <div className="relative z-10 mx-auto max-w-7xl px-4 pb-8">
-        <NotificationSettingsSection compact />
-      </div>
-
-      {/* Driver Creation Modal */}
-      {showDriverModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl bg-black/90 border border-white/10 p-6 shadow-2xl">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-white">Δημιουργία Driver</h2>
-              <button
-                onClick={() => setShowDriverModal(false)}
-                className="rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-white/80">
-                  Email *
-                </label>
-                <input
-                  type="email"
-                  value={driverForm.email}
-                  onChange={(e) => setDriverForm({ ...driverForm, email: e.target.value })}
-                  className="w-full rounded-lg bg-white/10 border border-white/20 px-4 py-2 text-white placeholder-white/50 focus:border-primary focus:outline-none"
-                  placeholder="driver@example.com"
-                />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-white/80">
-                  Όνομα *
-                </label>
-                <input
-                  type="text"
-                  value={driverForm.full_name}
-                  onChange={(e) => setDriverForm({ ...driverForm, full_name: e.target.value })}
-                  className="w-full rounded-lg bg-white/10 border border-white/20 px-4 py-2 text-white placeholder-white/50 focus:border-primary focus:outline-none"
-                  placeholder="Όνομα Driver"
-                />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-white/80">
-                  Τηλέφωνο *
-                </label>
-                <input
-                  type="tel"
-                  value={driverForm.phone}
-                  onChange={(e) => setDriverForm({ ...driverForm, phone: e.target.value })}
-                  className="w-full rounded-lg bg-white/10 border border-white/20 px-4 py-2 text-white placeholder-white/50 focus:border-primary focus:outline-none"
-                  placeholder="+30 6900000000"
-                />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-white/80">
-                  Τύπος Οχήματος
-                </label>
-                <select
-                  value={driverForm.vehicle_type}
-                  onChange={(e) => setDriverForm({ ...driverForm, vehicle_type: e.target.value })}
-                  className="w-full rounded-lg bg-white/10 border border-white/20 px-4 py-2 text-white focus:border-primary focus:outline-none"
-                >
-                  <option value="car">Αυτοκίνητο</option>
-                  <option value="motorcycle">Μοτοσικλέτα</option>
-                  <option value="bicycle">Ποδήλατο</option>
-                </select>
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={() => setShowDriverModal(false)}
-                  className="flex-1 rounded-lg bg-white/10 px-4 py-2 text-white hover:bg-white/20 transition"
-                >
-                  Ακύρωση
-                </button>
-                <button
-                  onClick={handleCreateDriver}
-                  className="flex-1 rounded-lg bg-primary px-4 py-2 text-white font-semibold shadow-[var(--shadow-glow)] hover:bg-primary/90 transition"
-                >
-                  Δημιουργία
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      </AdminContentContainer>
+    </>
   );
+}
+
+function AdminDashboard() {
+  const searchParams = useSearchParams();
+  const section = getAdminSectionFromSearch("/admin", searchParams.get("section"));
+
+  const workspace = useMemo(() => {
+    if (section === ADMIN_SECTION.DRIVERS) {
+      return <AdminDriversWorkspace />;
+    }
+    return <OrdersWorkspace />;
+  }, [section]);
+
+  return workspace;
 }
 
 export default AdminDashboard;

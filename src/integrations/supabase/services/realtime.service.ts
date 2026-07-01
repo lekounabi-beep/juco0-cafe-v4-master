@@ -9,30 +9,37 @@ export type ConnectionState = 'connected' | 'connecting' | 'disconnected' | 'rec
 
 export type SubscriptionType = 'orders' | 'deliveries' | 'drivers' | 'delivery_assignments';
 
+type SubscriptionFilter = {
+  event?: 'INSERT' | 'UPDATE' | 'DELETE';
+  filter?: string;
+};
+
 export interface RealtimeSubscription {
   id: string;
   type: SubscriptionType;
-  channel: any;
-  callback: (payload: any) => void;
+  channel: ReturnType<typeof supabase.channel>;
+  callback: (payload: unknown) => void;
+  filter?: SubscriptionFilter;
 }
+
+const RECONNECT_SUBSCRIBE_TIMEOUT_MS = 15_000;
+
+let reconnectInFlight: Promise<void> | null = null;
+let reconnectGeneration = 0;
 
 class RealtimeService {
   private subscriptions: Map<string, RealtimeSubscription> = new Map();
   private connectionState: ConnectionState = 'disconnected';
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private reconnectDelay = 1000;
-  private connectionCheckInterval: NodeJS.Timeout | null = null;
+  private suppressDisconnectedEvents = false;
 
   constructor() {
     this.setupConnectionMonitoring();
   }
 
   private setupConnectionMonitoring() {
-    // Monitor connection state
     if (typeof window !== 'undefined') {
       window.addEventListener('online', () => {
-        this.handleReconnect();
+        void this.reconnectNow();
       });
 
       window.addEventListener('offline', () => {
@@ -41,127 +48,256 @@ class RealtimeService {
     }
   }
 
+  private logRealtime(
+    event:
+      | 'reconnect_begin'
+      | 'reconnect_skip_inflight'
+      | 'reconnect_subscribe_start'
+      | 'reconnect_subscribe_done'
+      | 'reconnect_complete'
+      | 'reconnect_failed',
+    payload: Record<string, unknown> = {},
+  ): void {
+    console.info(`[Realtime] ${event}`, {
+      generation: reconnectGeneration,
+      phase: this.connectionState,
+      ...payload,
+    });
+  }
+
   private setConnectionState(state: ConnectionState) {
+    if (this.connectionState === state) return;
     this.connectionState = state;
     console.log(`[Realtime] Connection state: ${state}`);
   }
 
-  private handleReconnect() {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('[Realtime] Max reconnection attempts reached');
+  reconnectNow(): Promise<void> {
+    if (reconnectInFlight) {
+      this.logRealtime('reconnect_skip_inflight', { reason: 'in_flight' });
+      return reconnectInFlight;
+    }
+
+    if (this.connectionState === 'reconnecting') {
+      this.logRealtime('reconnect_skip_inflight', { reason: 'already_reconnecting' });
+      return Promise.resolve();
+    }
+
+    const generation = ++reconnectGeneration;
+    this.logRealtime('reconnect_begin', { generation });
+
+    reconnectInFlight = (async () => {
+      try {
+        this.setConnectionState('reconnecting');
+        await this.reconnectAllSubscriptions(generation);
+        this.setConnectionState('connected');
+        this.logRealtime('reconnect_complete', { generation });
+      } catch (err) {
+        this.logRealtime('reconnect_failed', {
+          generation,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        this.setConnectionState('disconnected');
+        throw err;
+      } finally {
+        reconnectInFlight = null;
+      }
+    })();
+
+    return reconnectInFlight;
+  }
+
+  private handleChannelStatus(status: string): void {
+    if (
+      this.suppressDisconnectedEvents &&
+      (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT')
+    ) {
       return;
     }
 
-    this.setConnectionState('reconnecting');
-    this.reconnectAttempts++;
+    if (status === 'SUBSCRIBED') {
+      if (!this.suppressDisconnectedEvents) {
+        this.setConnectionState('connected');
+      }
+      return;
+    }
 
-    setTimeout(() => {
-      this.reconnectAllSubscriptions();
-    }, this.reconnectDelay * this.reconnectAttempts);
+    if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+      this.setConnectionState('disconnected');
+    }
   }
 
-  private reconnectAllSubscriptions() {
-    console.log('[Realtime] Reconnecting all subscriptions...');
-    
-    // Resubscribe to all active subscriptions
-    this.subscriptions.forEach((sub, id) => {
-      this.subscribeInternal(sub.type, sub.callback, id);
+  private async reconnectAllSubscriptions(generation: number): Promise<void> {
+    if (this.subscriptions.size === 0) {
+      return;
+    }
+
+    this.logRealtime('reconnect_subscribe_start', {
+      generation,
+      count: this.subscriptions.size,
     });
 
-    this.setConnectionState('connected');
-    this.reconnectAttempts = 0;
+    const snapshot = Array.from(this.subscriptions.values()).map((sub) => ({
+      id: sub.id,
+      type: sub.type,
+      callback: sub.callback,
+      filter: sub.filter,
+    }));
+
+    this.suppressDisconnectedEvents = true;
+    try {
+      for (const sub of this.subscriptions.values()) {
+        try {
+          await supabase.removeChannel(sub.channel);
+        } catch {
+          // intentional teardown during reconnect
+        }
+      }
+
+      const subscribePromises = snapshot.map((item) =>
+        this.resubscribeOne(item.id, item.type, item.callback, item.filter),
+      );
+
+      await Promise.race([
+        Promise.all(subscribePromises),
+        new Promise<void>((_, reject) => {
+          setTimeout(
+            () => reject(new Error('reconnect_subscribe_timeout')),
+            RECONNECT_SUBSCRIBE_TIMEOUT_MS,
+          );
+        }),
+      ]);
+    } finally {
+      this.suppressDisconnectedEvents = false;
+    }
+
+    this.logRealtime('reconnect_subscribe_done', { generation });
+  }
+
+  private resubscribeOne(
+    id: string,
+    type: SubscriptionType,
+    callback: (payload: unknown) => void,
+    filter?: SubscriptionFilter,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const tableName = this.getTableName(type);
+      const channelName = `${type}-${id}`;
+
+      const config: Record<string, string> = {
+        event: filter?.event || '*',
+        schema: 'public',
+        table: tableName,
+      };
+
+      if (filter?.filter) {
+        config.filter = filter.filter;
+      }
+
+      const channel = supabase
+        .channel(channelName)
+        .on('postgres_changes', config as never, (payload: unknown) => {
+          callback(payload);
+        })
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            resolve();
+            return;
+          }
+
+          if (status === 'CHANNEL_ERROR') {
+            reject(new Error(`channel_error:${id}`));
+            return;
+          }
+
+          this.handleChannelStatus(status);
+        });
+
+      this.subscriptions.set(id, {
+        id,
+        type,
+        channel,
+        callback,
+        filter,
+      });
+    });
   }
 
   /**
    * Subscribe to order changes (INSERT, UPDATE, DELETE)
    */
   subscribeToOrders(
-    callback: (payload: any) => void,
-    filter?: { event?: 'INSERT' | 'UPDATE' | 'DELETE'; filter?: string }
+    callback: (payload: unknown) => void,
+    filter?: SubscriptionFilter,
   ): string {
     return this.subscribeInternal('orders', callback, undefined, filter);
   }
 
-  /**
-   * Subscribe to delivery changes (INSERT, UPDATE, DELETE)
-   */
   subscribeToDeliveries(
-    callback: (payload: any) => void,
-    filter?: { event?: 'INSERT' | 'UPDATE' | 'DELETE'; filter?: string }
+    callback: (payload: unknown) => void,
+    filter?: SubscriptionFilter,
   ): string {
     return this.subscribeInternal('deliveries', callback, undefined, filter);
   }
 
-  /**
-   * Subscribe to driver changes (INSERT, UPDATE, DELETE)
-   */
   subscribeToDrivers(
-    callback: (payload: any) => void,
-    filter?: { event?: 'INSERT' | 'UPDATE' | 'DELETE'; filter?: string }
+    callback: (payload: unknown) => void,
+    filter?: SubscriptionFilter,
   ): string {
     return this.subscribeInternal('drivers', callback, undefined, filter);
   }
 
-  /**
-   * Subscribe to delivery assignment changes (INSERT, UPDATE, DELETE)
-   */
   subscribeToDeliveryAssignments(
-    callback: (payload: any) => void,
-    filter?: { event?: 'INSERT' | 'UPDATE' | 'DELETE'; filter?: string }
+    callback: (payload: unknown) => void,
+    filter?: SubscriptionFilter,
   ): string {
     return this.subscribeInternal('delivery_assignments', callback, undefined, filter);
   }
 
-  /**
-   * Subscribe to a specific order by ID
-   */
-  subscribeToOrder(orderId: string, callback: (payload: any) => void): string {
+  subscribeToOrder(orderId: string, callback: (payload: unknown) => void): string {
     return this.subscribeInternal('orders', callback, undefined, {
       event: 'UPDATE',
       filter: `id=eq.${orderId}`,
     });
   }
 
-  /**
-   * Subscribe to a specific delivery assignment by ID
-   */
-  subscribeToDeliveryAssignment(assignmentId: string, callback: (payload: any) => void): string {
+  subscribeToDeliveryAssignment(
+    assignmentId: string,
+    callback: (payload: unknown) => void,
+  ): string {
     return this.subscribeInternal('delivery_assignments', callback, undefined, {
       event: 'UPDATE',
       filter: `id=eq.${assignmentId}`,
     });
   }
 
-  /**
-   * Subscribe to a specific driver by ID
-   */
-  subscribeToDriver(driverId: string, callback: (payload: any) => void): string {
+  subscribeToDriver(driverId: string, callback: (payload: unknown) => void): string {
     return this.subscribeInternal('drivers', callback, undefined, {
       event: 'UPDATE',
       filter: `id=eq.${driverId}`,
     });
   }
 
-  /**
-   * Internal subscription method
-   */
   private subscribeInternal(
     type: SubscriptionType,
-    callback: (payload: any) => void,
+    callback: (payload: unknown) => void,
     subscriptionId?: string,
-    filter?: { event?: 'INSERT' | 'UPDATE' | 'DELETE'; filter?: string }
+    filter?: SubscriptionFilter,
   ): string {
     const id = subscriptionId || `${type}-${Date.now()}-${Math.random()}`;
 
-    // Unsubscribe existing subscription with same ID
+    if (this.connectionState === 'reconnecting') {
+      console.log(`[Realtime] subscribe deferred during reconnect: ${type} (${id})`);
+      return id;
+    }
+
     if (this.subscriptions.has(id)) {
-      this.unsubscribe(id);
+      this.unsubscribe(id, { suppressEvents: true });
     }
 
     const tableName = this.getTableName(type);
     const channelName = `${type}-${id}`;
 
-    const config: any = {
+    const config: Record<string, string> = {
       event: filter?.event || '*',
       schema: 'public',
       table: tableName,
@@ -173,86 +309,78 @@ class RealtimeService {
 
     const channel = supabase
       .channel(channelName)
-      .on('postgres_changes', config, (payload: any) => {
+      .on('postgres_changes', config as never, (payload: unknown) => {
         console.log(`[Realtime] ${type} event:`, payload);
         callback(payload);
       })
       .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          this.setConnectionState('connected');
-        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-          this.setConnectionState('disconnected');
-        }
+        this.handleChannelStatus(status);
       });
 
-    const subscription: RealtimeSubscription = {
+    this.subscriptions.set(id, {
       id,
       type,
       channel,
       callback,
-    };
-
-    this.subscriptions.set(id, subscription);
+      filter,
+    });
     console.log(`[Realtime] Subscribed to ${type} with ID: ${id}`);
 
     return id;
   }
 
-  /**
-   * Unsubscribe from a specific subscription
-   */
-  unsubscribe(subscriptionId: string): void {
+  unsubscribe(subscriptionId: string, options?: { suppressEvents?: boolean }): void {
     const subscription = this.subscriptions.get(subscriptionId);
-    if (subscription) {
-      supabase.removeChannel(subscription.channel);
-      this.subscriptions.delete(subscriptionId);
-      console.log(`[Realtime] Unsubscribed from ${subscription.type} with ID: ${subscriptionId}`);
+    if (!subscription) return;
+
+    const prevSuppress = this.suppressDisconnectedEvents;
+    if (options?.suppressEvents) {
+      this.suppressDisconnectedEvents = true;
     }
+
+    try {
+      supabase.removeChannel(subscription.channel);
+    } finally {
+      this.suppressDisconnectedEvents = prevSuppress;
+    }
+
+    this.subscriptions.delete(subscriptionId);
+    console.log(`[Realtime] Unsubscribed from ${subscription.type} with ID: ${subscriptionId}`);
   }
 
-  /**
-   * Unsubscribe from all subscriptions of a specific type
-   */
   unsubscribeByType(type: SubscriptionType): void {
     const toRemove: string[] = [];
-    
+
     this.subscriptions.forEach((sub, id) => {
       if (sub.type === type) {
         toRemove.push(id);
       }
     });
 
-    toRemove.forEach(id => this.unsubscribe(id));
+    toRemove.forEach((id) => this.unsubscribe(id, { suppressEvents: true }));
   }
 
-  /**
-   * Unsubscribe from all subscriptions
-   */
   unsubscribeAll(): void {
-    this.subscriptions.forEach((sub, id) => {
-      supabase.removeChannel(sub.channel);
-    });
-    this.subscriptions.clear();
+    this.suppressDisconnectedEvents = true;
+    try {
+      this.subscriptions.forEach((sub) => {
+        supabase.removeChannel(sub.channel);
+      });
+      this.subscriptions.clear();
+    } finally {
+      this.suppressDisconnectedEvents = false;
+    }
     console.log('[Realtime] Unsubscribed from all subscriptions');
   }
 
-  /**
-   * Get current connection state
-   */
   getConnectionState(): ConnectionState {
     return this.connectionState;
   }
 
-  /**
-   * Get active subscriptions count
-   */
   getActiveSubscriptionsCount(): number {
     return this.subscriptions.size;
   }
 
-  /**
-   * Get table name from subscription type
-   */
   private getTableName(type: SubscriptionType): string {
     switch (type) {
       case 'orders':
@@ -269,5 +397,4 @@ class RealtimeService {
   }
 }
 
-// Export singleton instance
 export const realtimeService = new RealtimeService();

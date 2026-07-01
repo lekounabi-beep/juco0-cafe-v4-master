@@ -17,7 +17,8 @@ export function trackV2(
     | 'driver_updated'
     | 'map_error'
     | 'map_load'
-    | 'map_remove',
+    | 'map_remove'
+    | 'trail_updated',
   payload?: Record<string, unknown>
 ): void {
   if (!ENABLE_TRACKING_V2_DEBUG) return;

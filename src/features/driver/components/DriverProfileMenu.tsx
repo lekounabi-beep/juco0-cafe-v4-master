@@ -24,6 +24,10 @@ export interface DriverProfileMenuProps {
   driverProfile: DriverProfile | null;
   isOnDelivery: boolean;
   availabilityStatus: string;
+  /** Hide the header status badge — use when parent renders status separately. */
+  hideStatusBadge?: boolean;
+  /** Menu-only mode: avatar trigger without wrapping header chrome. */
+  minimal?: boolean;
 }
 
 type StatusInfo = {
@@ -149,6 +153,8 @@ export function DriverProfileMenu({
   driverProfile,
   isOnDelivery,
   availabilityStatus,
+  hideStatusBadge = false,
+  minimal = false,
 }: DriverProfileMenuProps) {
   const isMobile = useIsMobile();
   const logout = useDriverLogout();
@@ -158,7 +164,6 @@ export function DriverProfileMenu({
   const driverName = driverProfile?.full_name || 'Οδηγός';
   const vehicleType = driverProfile?.vehicle_type || 'Μέσο';
   const status = resolveStatus(isOnDelivery, availabilityStatus);
-  const { Icon } = status;
 
   const handleOpenChange = useCallback((next: boolean) => {
     setOpen(next);
@@ -191,44 +196,77 @@ export function DriverProfileMenu({
     </button>
   );
 
+  const menuTrigger = isMobile ? (
+    avatarButton
+  ) : (
+    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
+      <DropdownMenuTrigger asChild>{avatarButton}</DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        sideOffset={8}
+        className={cn(
+          menuSurfaceClass,
+          'min-w-[15rem] p-2',
+          'data-[state=open]:animate-in data-[state=closed]:animate-out',
+          'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+          'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+          'data-[state=open]:duration-200 data-[state=closed]:duration-150'
+        )}
+      >
+        <div className="px-2 py-2">
+          <ProfileSummary driverName={driverName} vehicleType={vehicleType} status={status} />
+        </div>
+        <DropdownMenuSeparator className="bg-white/10" />
+        <DriverMenuActions
+          variant="dropdown"
+          status={status}
+          onRefresh={handleRefresh}
+          onLogout={handleLogout}
+        />
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  const mobileSheet = isMobile && (
+    <Sheet open={open} onOpenChange={handleOpenChange}>
+      <SheetContent
+        side="bottom"
+        className={cn(
+          menuSurfaceClass,
+          'rounded-t-2xl border-t px-4 pb-8 pt-6',
+          'data-[state=open]:duration-200 data-[state=closed]:duration-150',
+          '[&>button.absolute]:hidden'
+        )}
+      >
+        <SheetTitle className="sr-only">Driver profile menu</SheetTitle>
+        <ProfileSummary driverName={driverName} vehicleType={vehicleType} status={status} />
+        <div className="my-4 h-px bg-white/10" />
+        <DriverMenuActions
+          variant="sheet"
+          status={status}
+          onRefresh={handleRefresh}
+          onLogout={handleLogout}
+        />
+      </SheetContent>
+    </Sheet>
+  );
+
+  if (minimal) {
+    return (
+      <>
+        {menuTrigger}
+        {mobileSheet}
+      </>
+    );
+  }
+
+  const StatusIcon = status.Icon;
+
   return (
     <header className="sticky top-0 z-30 border-b border-white/10 bg-black/40 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
         <div className="flex min-w-0 items-center gap-3">
-          {isMobile ? (
-            avatarButton
-          ) : (
-            <DropdownMenu open={open} onOpenChange={handleOpenChange}>
-              <DropdownMenuTrigger asChild>{avatarButton}</DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="start"
-                sideOffset={8}
-                className={cn(
-                  menuSurfaceClass,
-                  'min-w-[15rem] p-2',
-                  'data-[state=open]:animate-in data-[state=closed]:animate-out',
-                  'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
-                  'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
-                  'data-[state=open]:duration-200 data-[state=closed]:duration-150'
-                )}
-              >
-                <div className="px-2 py-2">
-                  <ProfileSummary
-                    driverName={driverName}
-                    vehicleType={vehicleType}
-                    status={status}
-                  />
-                </div>
-                <DropdownMenuSeparator className="bg-white/10" />
-                <DriverMenuActions
-                  variant="dropdown"
-                  status={status}
-                  onRefresh={handleRefresh}
-                  onLogout={handleLogout}
-                />
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+          {menuTrigger}
 
           <div className="min-w-0">
             <p className="truncate font-semibold text-white">{driverName}</p>
@@ -236,38 +274,18 @@ export function DriverProfileMenu({
           </div>
         </div>
 
-        <div
-          className={cn('flex shrink-0 items-center gap-1', status.colorClass)}
-          aria-label={`Availability: ${status.label}`}
-        >
-          <Icon className="h-4 w-4" aria-hidden />
-          <span className="text-xs font-semibold">{status.label}</span>
-        </div>
+        {!hideStatusBadge && (
+          <div
+            className={cn('flex shrink-0 items-center gap-1', status.colorClass)}
+            aria-label={`Availability: ${status.label}`}
+          >
+            <StatusIcon className="h-4 w-4" aria-hidden />
+            <span className="text-xs font-semibold">{status.label}</span>
+          </div>
+        )}
       </div>
 
-      {isMobile && (
-        <Sheet open={open} onOpenChange={handleOpenChange}>
-          <SheetContent
-            side="bottom"
-            className={cn(
-              menuSurfaceClass,
-              'rounded-t-2xl border-t px-4 pb-8 pt-6',
-              'data-[state=open]:duration-200 data-[state=closed]:duration-150',
-              '[&>button.absolute]:hidden'
-            )}
-          >
-            <SheetTitle className="sr-only">Driver profile menu</SheetTitle>
-            <ProfileSummary driverName={driverName} vehicleType={vehicleType} status={status} />
-            <div className="my-4 h-px bg-white/10" />
-            <DriverMenuActions
-              variant="sheet"
-              status={status}
-              onRefresh={handleRefresh}
-              onLogout={handleLogout}
-            />
-          </SheetContent>
-        </Sheet>
-      )}
+      {mobileSheet}
     </header>
   );
 }

@@ -26,10 +26,10 @@ export function LocationPermissionModal({ open, onOpenChange, onRetry }: Locatio
           <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
             <MapPin className="h-6 w-6 text-primary" />
           </div>
-          <DialogTitle className="text-center">Enable location to continue delivery</DialogTitle>
+          <DialogTitle className="text-center">Ενεργοποίηση τοποθεσίας</DialogTitle>
           <DialogDescription className="text-center">
-            Χρειάζεται πρόσβαση στην τοποθεσία για την παραλαβή και την παράδοση. Ενεργοποιήστε την
-            τοποθεσία στις ρυθμίσεις του browser ή πατήστε «Δοκιμή ξανά».
+            Χρειάζεται πρόσβαση στην τοποθεσία για την παραλαβή και την παράδοση. Ενεργοποίησε την
+            τοποθεσία στις ρυθμίσεις του browser ή πάτα «Δοκιμή ξανά».
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="flex-col gap-2 sm:flex-col">

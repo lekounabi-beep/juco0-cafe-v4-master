@@ -1,21 +1,56 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { cn } from '@/lib/utils';
 import { liveTrackingMapboxConfig } from '../config/mapbox';
 import {
+  isTrailRenderable,
+  toDriverTrailGeoJson,
+  trailLayerDataKey,
+  trailPointsSignature,
+  type TrailPoint,
+} from '../utils/driver-trail-geojson';
+import {
+  ensureDriverTrailLayer,
+  removeDriverTrailLayer,
+  updateDriverTrailLayer,
+} from '../utils/driver-trail-mapbox';
+import {
   trackV2,
   type TrackingV2TelemetryContext,
 } from '../telemetry/tracking-v2-telemetry';
 
+export type DriverTrailDebugState = {
+  trailVisible: boolean;
+  trailPoints: number;
+  trailSourceReady: boolean;
+  trailLayerReady: boolean;
+};
+
+function isSameTrailDebugState(
+  previous: DriverTrailDebugState | null,
+  next: DriverTrailDebugState,
+): boolean {
+  if (!previous) return false;
+  return (
+    previous.trailVisible === next.trailVisible &&
+    previous.trailPoints === next.trailPoints &&
+    previous.trailSourceReady === next.trailSourceReady &&
+    previous.trailLayerReady === next.trailLayerReady
+  );
+}
+
 export type LiveTrackingMapProps = {
   destination: { lat: number; lng: number };
   driverLocation?: { lat: number; lng: number };
+  routePoints?: TrailPoint[];
+  showDriverTrail?: boolean;
   className?: string;
   telemetryContext?: TrackingV2TelemetryContext;
   onMapStatusChange?: (status: 'loading' | 'ready' | 'error') => void;
+  onTrailDebugChange?: (state: DriverTrailDebugState) => void;
 };
 
 type MapboxModule = typeof import('mapbox-gl');
@@ -83,6 +118,19 @@ function collectFitPoints(destination: LatLng, driverLocation?: LatLng | null): 
   return points;
 }
 
+function mapCoordsFingerprint(
+  destination: LatLng,
+  driverLocation?: LatLng | null,
+): string {
+  const dest = isValidCoord(destination)
+    ? `${destination.lat},${destination.lng}`
+    : 'none';
+  const driver = isValidCoord(driverLocation)
+    ? `${driverLocation.lat},${driverLocation.lng}`
+    : 'none';
+  return `${dest}|${driver}`;
+}
+
 function fitMapToPoints(
   map: mapboxgl.Map,
   mapbox: MapboxModule,
@@ -121,9 +169,12 @@ function fitMapToPoints(
 export function LiveTrackingMap({
   destination,
   driverLocation,
+  routePoints = [],
+  showDriverTrail = false,
   className,
   telemetryContext,
   onMapStatusChange,
+  onTrailDebugChange,
 }: LiveTrackingMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -131,6 +182,7 @@ export function LiveTrackingMap({
   const destinationMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const driverMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const hasFittedRef = useRef(false);
+  const lastMapCoordsFingerprintRef = useRef<string | null>(null);
 
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -139,6 +191,21 @@ export function LiveTrackingMap({
   const driverLocationRef = useRef(driverLocation);
   destinationRef.current = destination;
   driverLocationRef.current = driverLocation;
+
+  const stableTrailPointsRef = useRef(routePoints);
+  const trailSignature = trailPointsSignature(routePoints);
+  const trailSignatureRef = useRef(trailSignature);
+  if (trailSignatureRef.current !== trailSignature) {
+    trailSignatureRef.current = trailSignature;
+    stableTrailPointsRef.current = routePoints;
+  }
+  const stableTrailPoints = stableTrailPointsRef.current;
+
+  const trailGeoJson = useMemo(
+    () => toDriverTrailGeoJson(stableTrailPoints),
+    [trailSignature],
+  );
+  const trailDebugRef = useRef<DriverTrailDebugState | null>(null);
 
   const telemetryPayload = (extra?: Record<string, unknown>) => ({
     assignmentId: telemetryContext?.assignmentId ?? null,
@@ -260,6 +327,8 @@ export function LiveTrackingMap({
 
           map.resize();
 
+          ensureDriverTrailLayer(map);
+
           if (!destinationMarker) {
             destinationMarker = new mapbox.default.Marker({
               element: createDestinationMarkerElement(),
@@ -318,10 +387,12 @@ export function LiveTrackingMap({
       destinationMarkerRef.current = null;
       driverMarkerRef.current = null;
 
+      removeDriverTrailLayer(map);
       map?.remove();
       mapRef.current = null;
       mapboxRef.current = null;
       hasFittedRef.current = false;
+      lastMapCoordsFingerprintRef.current = null;
     };
   }, []);
 
@@ -330,6 +401,15 @@ export function LiveTrackingMap({
     const mapbox = mapboxRef.current;
     if (!map || !mapbox || status !== 'ready') return;
     if (!isValidCoord(destination)) return;
+
+    const currentDriver = driverLocationRef.current;
+    const safeDriverLocation = isValidCoord(currentDriver) ? currentDriver : null;
+    const fingerprint = mapCoordsFingerprint(destination, safeDriverLocation);
+
+    if (lastMapCoordsFingerprintRef.current === fingerprint) {
+      return;
+    }
+    lastMapCoordsFingerprintRef.current = fingerprint;
 
     trackV2('destination_updated', telemetryPayload({ destination }));
 
@@ -344,8 +424,6 @@ export function LiveTrackingMap({
       destinationMarkerRef.current.setLngLat([destination.lng, destination.lat]);
     }
 
-    const currentDriver = driverLocationRef.current;
-    const safeDriverLocation = isValidCoord(currentDriver) ? currentDriver : null;
     if (!safeDriverLocation && currentDriver !== undefined) {
       if (process.env.NODE_ENV === 'development') {
         console.warn('[LiveTrackingMap] invalid driver location', currentDriver);
@@ -373,6 +451,32 @@ export function LiveTrackingMap({
     fitMapToPoints(map, mapbox, points, hasFittedRef.current);
     hasFittedRef.current = true;
   }, [destination, driverLocation, status]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || status !== 'ready') return;
+
+    const visible = isTrailRenderable(showDriverTrail, stableTrailPoints);
+    const dataKey = trailLayerDataKey(stableTrailPoints, visible);
+    updateDriverTrailLayer(map, trailGeoJson, visible, dataKey);
+
+    trackV2('trail_updated', telemetryPayload({
+      trailVisible: visible,
+      trailPoints: stableTrailPoints.length,
+    }));
+
+    const nextTrailDebug: DriverTrailDebugState = {
+      trailVisible: visible,
+      trailPoints: stableTrailPoints.length,
+      trailSourceReady: Boolean(map.getSource('driver-trail-source')),
+      trailLayerReady: Boolean(map.getLayer('driver-trail-layer')),
+    };
+
+    if (!isSameTrailDebugState(trailDebugRef.current, nextTrailDebug)) {
+      trailDebugRef.current = nextTrailDebug;
+      onTrailDebugChange?.(nextTrailDebug);
+    }
+  }, [trailGeoJson, trailSignature, showDriverTrail, status, onTrailDebugChange]);
 
   useEffect(() => {
     if (!mapRef.current || status !== 'ready') return;

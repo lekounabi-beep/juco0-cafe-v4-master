@@ -3,22 +3,20 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { isUUID } from "@/shared/utils/uuid";
 import { fetchDriverActiveDelivery } from "./driver-delivery-sync";
+import {
+  DRIVER_ORDER_SELECT,
+  type DriverOrderDetails,
+} from "@/features/delivery/types/driver-order.types";
 
 const ORDERS_TABLE = "orders" as never;
 const ASSIGNMENTS_TABLE = "delivery_assignments" as never;
 
-export type DriverAcceptableOrder = {
-  id: string;
-  order_number: string;
-  status: string;
+import { requireDriverSession } from "./driver-login";
+import { serverLog } from "@/lib/server/logger";
+
+export type DriverAcceptableOrder = DriverOrderDetails & {
   delivery_status: string;
   driver_id: string | null;
-  items: { name: string; qty: number }[];
-  total: number;
-  address: string;
-  lat?: number | null;
-  lng?: number | null;
-  created_at: string;
 };
 
 export type FetchAcceptableOrdersResult = {
@@ -36,6 +34,11 @@ export type FetchAcceptableOrdersResult = {
 export async function fetchAcceptableOrdersForDriver(
   driverId: string,
 ): Promise<FetchAcceptableOrdersResult> {
+  const session = await requireDriverSession().catch(() => null);
+  if (!session || session.driverId !== driverId) {
+    return { success: false, orders: [], error: "Unauthorized" };
+  }
+
   if (!isUUID(driverId)) {
     return { success: false, orders: [], error: "Invalid driver_id: UUID required" };
   }
@@ -54,9 +57,7 @@ export async function fetchAcceptableOrdersForDriver(
 
   const { data: orders, error: ordersError } = await supabaseAdmin
     .from(ORDERS_TABLE)
-    .select(
-      "id, order_number, status, delivery_status, driver_id, items, total, address, lat, lng, created_at",
-    )
+    .select(DRIVER_ORDER_SELECT)
     .eq("status", "ready")
     .eq("delivery_status", "pending")
     .is("driver_id", null)
@@ -64,7 +65,8 @@ export async function fetchAcceptableOrdersForDriver(
     .limit(50);
 
   if (ordersError) {
-    return { success: false, orders: [], error: ordersError.message };
+    serverLog.warn("driver.orders.fetch_failed", { driverId, error: ordersError.message });
+    return { success: false, orders: [], error: "Failed to load orders" };
   }
 
   const candidateOrders = (orders ?? []) as DriverAcceptableOrder[];
@@ -81,7 +83,8 @@ export async function fetchAcceptableOrdersForDriver(
     .is("cancelled_at", null);
 
   if (assignmentError) {
-    return { success: false, orders: [], error: assignmentError.message };
+    serverLog.warn("driver.orders.assignment_fetch_failed", { driverId, error: assignmentError.message });
+    return { success: false, orders: [], error: "Failed to load orders" };
   }
 
   const blockedOrderIds = new Set(

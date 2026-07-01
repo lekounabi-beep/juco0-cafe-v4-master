@@ -56,7 +56,10 @@ export type ComputedDeliveryState = {
   isDeliveryActive: boolean;
   destination: Coordinates | null;
   driverPosition: DriverPosition | null;
-  routePoints: { lat: number; lng: number }[];
+  /** Chronologically sorted GPS trail — only during in_transit toward customer. */
+  routePoints: { lat: number; lng: number; recordedAt: string }[];
+  /** True when driver is en route to customer (in_transit lifecycle). */
+  showDriverTrail: boolean;
   gpsReady: boolean;
 };
 

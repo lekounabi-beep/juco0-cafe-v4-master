@@ -39,8 +39,7 @@ function safeLocalStorageRemove(key: string): void {
 }
 
 export function setDriverAuthCookie(): void {
-  if (typeof document === 'undefined') return;
-  document.cookie = `${DRIVER_AUTH_COOKIE}=1; path=/; max-age=${COOKIE_MAX_AGE_SEC}; SameSite=Lax`;
+  // HttpOnly driver session cookie is set server-side on authenticateDriver().
 }
 
 export function clearDriverAuthCookie(): void {
@@ -72,7 +71,6 @@ export function setDriverSession(session: DriverSession): void {
     throw new Error('driver_id must be a valid UUID');
   }
   safeLocalStorageSet(DRIVER_SESSION_KEY, JSON.stringify(session));
-  setDriverAuthCookie();
 }
 
 export function clearDriverSession(): void {
@@ -84,9 +82,7 @@ export function isDriverSessionActive(): boolean {
   return getDriverSession() !== null;
 }
 
-/** Restore auth cookie from localStorage (e.g. after middleware sent user to login). */
+/** @deprecated Cookie is HttpOnly — use verifyDriverSession server action. */
 export function ensureDriverSessionCookie(): boolean {
-  if (!getDriverSession()) return false;
-  setDriverAuthCookie();
-  return true;
+  return getDriverSession() !== null;
 }

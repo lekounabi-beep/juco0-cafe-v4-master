@@ -2,6 +2,8 @@
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { isUUID } from "@/shared/utils/uuid";
+import { requireDriverSession } from "./driver-login";
+import { serverLog } from "@/lib/server/logger";
 
 type AssignmentRow = {
   id: string;
@@ -16,43 +18,30 @@ type AssignmentRow = {
   cancelled_at: string | null;
 };
 
-type SupabaseDbError = {
-  message?: string;
-  details?: string;
-  hint?: string;
-  code?: string;
-};
-
-
 export type DriverAcceptOrderResult = {
   success: boolean;
   assignment?: AssignmentRow;
   error?: string;
 };
 
-function formatDbError(error: SupabaseDbError): string {
+function formatDbError(error: { message?: string; details?: string; hint?: string }): string {
   return [error.message, error.details, error.hint].filter(Boolean).join(" — ") || "Database error";
 }
 
-function logDev(payload: unknown, error?: unknown) {
-  if (process.env.NODE_ENV === "development") {
-    console.error("[driverAcceptOrder]", payload, error);
-  }
-}
-
-/**
- * Atomic driver accept: creates assignment + assigns order + sets driver BUSY.
- * Uses service role — safe for device-login drivers without Supabase auth session.
- */
 export async function driverAcceptOrder(
   orderId: string,
   driverId: string,
 ): Promise<DriverAcceptOrderResult> {
+  const session = await requireDriverSession().catch(() => null);
+  if (!session || session.driverId !== driverId) {
+    return { success: false, error: "Unauthorized" };
+  }
+
   if (!isUUID(orderId)) {
     return { success: false, error: "Invalid order_id: UUID required" };
   }
   if (!isUUID(driverId)) {
-    return { success: false, error: "Invalid driver_id: UUID required (drivers.id from profile)" };
+    return { success: false, error: "Invalid driver_id: UUID required" };
   }
 
   const { data, error } = await (supabaseAdmin as any).rpc("accept_delivery_atomic", {
@@ -61,14 +50,16 @@ export async function driverAcceptOrder(
   });
 
   if (error) {
-    logDev({ orderId, driverId, step: "accept_delivery_atomic" }, error);
-    return { success: false, error: formatDbError(error) };
+    serverLog.warn("driver.assignment.failed", { orderId, driverId, error: error.message });
+    return { success: false, error: "Could not accept order. Please try again." };
   }
 
   const assignment = Array.isArray(data) ? data[0] : data;
   if (!assignment) {
     return { success: false, error: "Accept RPC returned no assignment row" };
   }
+
+  serverLog.info("driver.assignment.accepted", { orderId, driverId, assignmentId: assignment.id });
 
   return { success: true, assignment: assignment as AssignmentRow };
 }

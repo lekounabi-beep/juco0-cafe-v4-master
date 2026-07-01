@@ -8,7 +8,10 @@
     "tunnel": "node scripts/run-tunnel.mjs",
     "build": "next build",
     "start": "next start -p 8080",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
@@ -46,6 +49,7 @@
     "@tailwindcss/postcss": "^4.3.0",
     "@vercel/analytics": "^1.6.1",
     "autoprefixer": "^10.5.0",
+    "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -77,6 +81,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
+    "@types/bcryptjs": "^3.0.0",
     "@types/mapbox-gl": "^3.5.0",
     "@types/node": "^22.16.5",
     "@types/react": "^19.2.0",
@@ -88,6 +93,7 @@
     "globals": "^15.15.0",
     "prettier": "^3.7.3",
     "typescript": "^5.8.3",
-    "typescript-eslint": "^8.56.1"
+    "typescript-eslint": "^8.56.1",
+    "vitest": "^4.1.9"
   }
 }

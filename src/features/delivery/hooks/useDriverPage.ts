@@ -25,7 +25,8 @@ import {
   runDeliveryTransitionWithOffline,
 } from '../services/driver-offline-actions';
 import { safeAcceptOrder, withAcceptTimeout, type AcceptResult } from '../services/safe-accept-order';
-import { isNetworkOnline } from '../services/offline-queue.service';
+import { isNetworkOnline, syncOfflineQueue, resetOfflineQueueSync } from '../services/offline-queue.service';
+import { clearDriverRefreshInFlight } from '../services/driver-refresh-inflight';
 import {
   getActiveDelivery,
   reconcileDriverStoreAvailability,
@@ -40,21 +41,17 @@ import { speedFromKmh } from '../services/speed.service';
 import { orderCoordinates } from '@/shared/utils/order-fields';
 import { isUUID } from '@/shared/utils/uuid';
 import { attachForensicToWindow, forensicCoord, forensicLog } from '@/features/maps/debug/map-forensic-logger';
+import { setPwaDeliveryActive } from '@/lib/pwa-update-guard';
+import { useDriverNetworkCoordinator } from '@/hooks/useDriverNetworkCoordinator';
+import { registerDriverReconnectHandlers } from '@/lib/network/driver-network';
+import { realtimeService } from '@/integrations/supabase/services/realtime.service';
 
 const MIN_ETA_SPEED_MS = speedFromKmh(5);
 const FALLBACK_ETA_SPEED_MS = speedFromKmh(25);
 
-type Order = {
-  id: string;
-  order_number: string;
-  status: string;
-  items: { name: string; qty: number }[];
-  total: number;
-  address: string;
-  lat?: number | null;
-  lng?: number | null;
-  created_at: string;
-};
+import type { DriverOrderDetails } from '../types/driver-order.types';
+
+type Order = DriverOrderDetails;
 
 interface UseDriverPageReturn {
   loading: boolean;
@@ -74,6 +71,8 @@ interface UseDriverPageReturn {
   destinationResolving: boolean;
   hasMapDestination: boolean;
   driverPosition: { lat: number; lng: number } | null;
+  routePoints: { lat: number; lng: number }[];
+  showDriverTrail: boolean;
   driverHeading: number;
   isWakeLockActive: boolean;
   handleAvailabilityChange: (newAvailability: string) => Promise<void>;
@@ -89,6 +88,7 @@ interface UseDriverPageReturn {
 
 export function useDriverPage(): UseDriverPageReturn {
   const driver = useDriverStore((s) => s.driver);
+  const { isRefreshAllowed, shouldSkipRealtime } = useDriverNetworkCoordinator();
 
   const {
     loading,
@@ -135,7 +135,29 @@ export function useDriverPage(): UseDriverPageReturn {
 
   const { isWakeLockActive } = useWakeLock(deliveryUi.isOnDelivery);
 
+  useEffect(() => {
+    setPwaDeliveryActive(deliveryUi.isOnDelivery);
+    return () => setPwaDeliveryActive(false);
+  }, [deliveryUi.isOnDelivery]);
+
+  const refreshActiveDeliveryRef = useRef(refreshActiveDelivery);
+  const refreshOrdersRef = useRef(refreshOrders);
+  refreshActiveDeliveryRef.current = refreshActiveDelivery;
+  refreshOrdersRef.current = refreshOrders;
+
+  useEffect(() => {
+    return registerDriverReconnectHandlers({
+      reconnectRealtime: () => realtimeService.reconnectNow(),
+      syncOfflineQueue: () => syncOfflineQueue(),
+      refreshActiveDelivery: () => refreshActiveDeliveryRef.current(),
+      refreshOrders: () => refreshOrdersRef.current(),
+      abortStaleRefreshes: () => clearDriverRefreshInFlight('reconnect'),
+      resetOfflineSync: () => resetOfflineQueueSync(),
+    });
+  }, []);
+
   const handleRealtimeDataRefresh = useCallback(() => {
+    if (shouldSkipRealtime || !isRefreshAllowed) return;
     if (!isNetworkOnline()) return;
     if (deliveryUi.isOnDelivery) {
       void refreshActiveDelivery();
@@ -146,7 +168,13 @@ export function useDriverPage(): UseDriverPageReturn {
         void refreshOrders();
       }
     });
-  }, [deliveryUi.isOnDelivery, refreshActiveDelivery, refreshOrders]);
+  }, [
+    shouldSkipRealtime,
+    isRefreshAllowed,
+    deliveryUi.isOnDelivery,
+    refreshActiveDelivery,
+    refreshOrders,
+  ]);
 
   useDriverRealtime({ onOrderUpdate: handleRealtimeDataRefresh });
 
@@ -265,6 +293,7 @@ export function useDriverPage(): UseDriverPageReturn {
 
   useEffect(() => {
     if (loading) return;
+    if (!isRefreshAllowed) return;
 
     const storePatch = reconcileDriverStoreAvailability(storeAvailability, deliveryUi, {
       loading,
@@ -282,14 +311,15 @@ export function useDriverPage(): UseDriverPageReturn {
     assignmentLoading,
     driver?.id,
     serverConfirmedNoActive,
+    isRefreshAllowed,
   ]);
 
   useEffect(() => {
-    if (loading || !driver?.id || !isNetworkOnline()) return;
+    if (loading || !driver?.id || !isNetworkOnline() || !isRefreshAllowed) return;
     if (storeAvailability === 'busy' && !deliveryUi.isOnDelivery) {
       void refreshActiveDelivery();
     }
-  }, [loading, driver?.id, storeAvailability, deliveryUi.isOnDelivery, refreshActiveDelivery]);
+  }, [loading, driver?.id, storeAvailability, deliveryUi.isOnDelivery, refreshActiveDelivery, isRefreshAllowed]);
 
   useEffect(() => {
     const assignmentId = persistedAssignmentId;
@@ -567,6 +597,8 @@ export function useDriverPage(): UseDriverPageReturn {
     destinationResolving,
     hasMapDestination,
     driverPosition,
+    routePoints: deliveryState.routePoints,
+    showDriverTrail: deliveryState.showDriverTrail,
     driverHeading,
     isWakeLockActive,
     handleAvailabilityChange,
