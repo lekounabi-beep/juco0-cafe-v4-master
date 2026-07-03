@@ -3,7 +3,8 @@ import { Star, MapPin, Send, CheckCircle2 } from "lucide-react";
 
 type Phase = "rating" | "positive" | "negative" | "thanks";
 
-const GOOGLE_MAPS_URL = "https://www.google.com/maps/search/?api=1&query=Juco+Coffee+Juice+Bar+Nafpaktos";
+const GOOGLE_MAPS_URL =
+  "https://www.google.com/maps/search/?api=1&query=Juco+Coffee+Juice+Bar+Nafpaktos";
 const WOLT_URL = "https://wolt.com/en/grc/nafpaktos";
 
 export function ReviewGate() {
@@ -23,10 +24,17 @@ export function ReviewGate() {
         <div className="pointer-events-none absolute -top-20 -right-20 h-56 w-56 rounded-full bg-primary/20 blur-3xl" />
         {phase === "rating" && (
           <div className="animate-fade-up text-center">
-            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Your opinion matters</p>
+            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+              Your opinion matters
+            </p>
             <h2 className="mt-2 text-2xl sm:text-3xl font-semibold">Rate your experience</h2>
-            <p className="mt-2 text-sm text-muted-foreground">Tap a star to let us know how we did.</p>
-            <div className="mt-6 flex justify-center gap-2 sm:gap-3" onMouseLeave={() => setHover(0)}>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Tap a star to let us know how we did.
+            </p>
+            <div
+              className="mt-6 flex justify-center gap-2 sm:gap-3"
+              onMouseLeave={() => setHover(0)}
+            >
               {[1, 2, 3, 4, 5].map((n) => {
                 const active = (hover || rating) >= n;
                 return (
@@ -39,7 +47,9 @@ export function ReviewGate() {
                   >
                     <Star
                       className={`h-10 w-10 sm:h-12 sm:w-12 transition-all ${
-                        active ? "fill-primary stroke-primary drop-shadow-[0_4px_12px_oklch(0.92_0.21_102_/_0.5)]" : "stroke-muted-foreground/40"
+                        active
+                          ? "fill-primary stroke-primary drop-shadow-[0_4px_12px_oklch(0.92_0.21_102_/_0.5)]"
+                          : "stroke-muted-foreground/40"
                       }`}
                     />
                   </button>
@@ -55,7 +65,9 @@ export function ReviewGate() {
               <CheckCircle2 className="h-8 w-8 text-primary-foreground" />
             </div>
             <h3 className="mt-4 text-2xl font-semibold">Amazing — thank you!</h3>
-            <p className="mt-2 text-sm text-muted-foreground">Would you share your experience publicly?</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Would you share your experience publicly?
+            </p>
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <a
                 href={GOOGLE_MAPS_URL}

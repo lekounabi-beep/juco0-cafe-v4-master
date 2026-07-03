@@ -2,13 +2,13 @@
  * Account Dashboard component
  */
 
-'use client';
+"use client";
 
-import { useAuth } from '@/features/auth/hooks/useAuth';
-import { useProfile } from '@/features/account/hooks/useProfile';
-import { useAuthStore } from '@/features/auth/store/auth-store';
-import Link from 'next/link';
-import { User, MapPin, ShoppingBag, Heart, LogOut, ChevronRight } from 'lucide-react';
+import { useAuth } from "@/features/auth/hooks/useAuth";
+import { useProfile } from "@/features/account/hooks/useProfile";
+import { useAuthStore } from "@/features/auth/store/auth-store";
+import Link from "next/link";
+import { User, MapPin, ShoppingBag, Heart, LogOut, ChevronRight } from "lucide-react";
 
 export function AccountDashboard() {
   const { user } = useAuth();
@@ -17,7 +17,7 @@ export function AccountDashboard() {
 
   const handleLogout = async () => {
     await logout();
-    window.location.href = '/';
+    window.location.href = "/";
   };
 
   return (
@@ -27,9 +27,7 @@ export function AccountDashboard() {
           <User className="h-8 w-8" />
         </div>
         <div>
-          <h2 className="text-xl font-semibold text-white">
-            {profile?.full_name || 'Χρήστης'}
-          </h2>
+          <h2 className="text-xl font-semibold text-white">{profile?.full_name || "Χρήστης"}</h2>
           <p className="text-sm text-white/60">{profile?.email || user?.email}</p>
         </div>
       </div>
@@ -92,8 +90,8 @@ export function AccountDashboard() {
               <Heart className="h-5 w-5" />
             </div>
             <div>
-              <p className="font-medium text-white">Αγαπημένη Παραγγελία</p>
-              <p className="text-xs text-white/50">Η αγαπημένη σας παραγγελία</p>
+              <p className="font-medium text-white">Συνήθης Παραγγελία</p>
+              <p className="text-xs text-white/50">Η συνήθης παραγγελία σας</p>
             </div>
           </div>
           <ChevronRight className="h-5 w-5 text-white/40" />

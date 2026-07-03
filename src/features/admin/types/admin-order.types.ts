@@ -21,5 +21,4 @@ export type AdminOrder = {
 };
 
 export type AdminOrderListResult =
-  | { success: true; orders: AdminOrder[] }
-  | { success: false; error: string };
+  { success: true; orders: AdminOrder[] } | { success: false; error: string };

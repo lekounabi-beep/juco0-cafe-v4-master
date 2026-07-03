@@ -2,10 +2,10 @@
  * Driver location insert — validated server-side via authenticated driver session.
  */
 
-import { isUUID } from '@/shared/utils/uuid';
-import { normalizeCoordinates } from '@/shared/utils/coordinates';
-import { insertDriverLocationServer } from '../../../../app/actions/driver-gps';
-import type { GPSLocationUpdate } from '../types/delivery.types';
+import { isUUID } from "@/shared/utils/uuid";
+import { normalizeCoordinates } from "@/shared/utils/coordinates";
+import { insertDriverLocationServer } from "../../../../app/actions/driver-gps";
+import type { GPSLocationUpdate } from "../types/delivery.types";
 
 export type DriverLocationInsertPayload = {
   delivery_assignment_id: string;
@@ -38,10 +38,10 @@ export type RecordDriverLocationResult = {
 export function validateDriverLocationPayload(
   assignmentId: string,
   driverId: string,
-  location: GPSLocationUpdate
+  location: GPSLocationUpdate,
 ): { valid: true; payload: DriverLocationInsertPayload } | { valid: false; error: string } {
   if (!assignmentId || !driverId) {
-    return { valid: false, error: 'assignment_id and driver_id are required' };
+    return { valid: false, error: "assignment_id and driver_id are required" };
   }
 
   if (!isUUID(assignmentId)) {
@@ -54,7 +54,7 @@ export function validateDriverLocationPayload(
 
   const coords = normalizeCoordinates({ lat: location.lat, lng: location.lng });
   if (!coords) {
-    return { valid: false, error: 'Invalid lat/lng coordinates' };
+    return { valid: false, error: "Invalid lat/lng coordinates" };
   }
 
   const timestamp = location.timestamp ?? new Date().toISOString();
@@ -76,7 +76,7 @@ export function validateDriverLocationPayload(
 
 async function queueOfflineInsert(payload: DriverLocationInsertPayload): Promise<void> {
   try {
-    const { addOfflineGpsPoint } = await import('./offline-queue.service');
+    const { addOfflineGpsPoint } = await import("./offline-queue.service");
     const point: GPSLocationUpdate = {
       lat: payload.lat,
       lng: payload.lng,
@@ -93,7 +93,7 @@ async function queueOfflineInsert(payload: DriverLocationInsertPayload): Promise
 
 export async function insertDriverLocation(
   payload: DriverLocationInsertPayload,
-  options: InsertDriverLocationOptions = {}
+  options: InsertDriverLocationOptions = {},
 ): Promise<InsertDriverLocationResult> {
   try {
     const result = await insertDriverLocationServer(payload);
@@ -112,7 +112,7 @@ export async function insertDriverLocation(
     }
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown GPS insert error',
+      error: error instanceof Error ? error.message : "Unknown GPS insert error",
       queued: !options.suppressOfflineQueue,
     };
   }
@@ -122,7 +122,7 @@ export async function recordDriverLocationSafe(
   assignmentId: string,
   driverId: string,
   location: GPSLocationUpdate,
-  options: InsertDriverLocationOptions = {}
+  options: InsertDriverLocationOptions = {},
 ): Promise<RecordDriverLocationResult> {
   const validated = validateDriverLocationPayload(assignmentId, driverId, location);
   if (!validated.valid) {
@@ -140,13 +140,14 @@ export async function recordDriverLocationSafe(
 }
 
 export function localPositionFromGpsUpdate(
-  location: GPSLocationUpdate
+  location: GPSLocationUpdate,
 ): { lat: number; lng: number } | null {
   return normalizeCoordinates({ lat: location.lat, lng: location.lng });
 }
 
-export function localPositionFromPayload(
-  payload: DriverLocationInsertPayload
-): { lat: number; lng: number } {
+export function localPositionFromPayload(payload: DriverLocationInsertPayload): {
+  lat: number;
+  lng: number;
+} {
   return { lat: payload.lat, lng: payload.lng };
 }

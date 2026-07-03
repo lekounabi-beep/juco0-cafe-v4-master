@@ -2,10 +2,10 @@
  * Currency formatting utilities
  */
 
-import { FREE_DELIVERY_THRESHOLD, DELIVERY_FEE } from '@/config/constants';
+import { FREE_DELIVERY_THRESHOLD, DELIVERY_FEE } from "@/config/constants";
 
 export function formatEur(amount: number): string {
-  return `${amount.toFixed(2).replace('.', ',')} €`;
+  return `${amount.toFixed(2).replace(".", ",")} €`;
 }
 
 export function formatCentsToEur(cents: number): number {

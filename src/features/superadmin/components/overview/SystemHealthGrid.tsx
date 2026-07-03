@@ -27,11 +27,7 @@ function toneClass(tone: HealthItem["tone"]) {
   }
 }
 
-function mapStatus(
-  labelKey: SuperAdminMessageKey,
-  value: string,
-  icon: typeof Server,
-): HealthItem {
+function mapStatus(labelKey: SuperAdminMessageKey, value: string, icon: typeof Server): HealthItem {
   const lower = value.toLowerCase();
   let tone: HealthItem["tone"] = "muted";
   if (lower.includes("healthy") || lower.includes("configured") || lower.includes("available")) {
@@ -91,7 +87,9 @@ export function SystemHealthGrid({
         return (
           <Card key={item.labelKey} className="border-zinc-800 bg-zinc-900/50 shadow-none">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-zinc-300">{t(item.labelKey)}</CardTitle>
+              <CardTitle className="text-sm font-medium text-zinc-300">
+                {t(item.labelKey)}
+              </CardTitle>
               <Icon className="h-4 w-4 text-zinc-600" />
             </CardHeader>
             <CardContent>

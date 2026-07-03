@@ -2,7 +2,10 @@
 
 import type { ReactNode } from "react";
 import { SuperAdminContentContainer } from "@/features/superadmin/components/SuperAdminContentContainer";
-import { SuperAdminSidebar, SuperAdminTopBar } from "@/features/superadmin/components/SuperAdminSidebar";
+import {
+  SuperAdminSidebar,
+  SuperAdminTopBar,
+} from "@/features/superadmin/components/SuperAdminSidebar";
 import { SuperAdminLocaleProvider } from "@/features/superadmin/i18n/SuperAdminLocaleProvider";
 
 export function SuperAdminShell({ children }: { children: ReactNode }) {

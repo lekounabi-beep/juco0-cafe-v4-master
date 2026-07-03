@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
 /**
  * @deprecated Use useTrackingSession — V2 map receives GPS via session props.
  */
 
-import { useEffect, useRef, useState } from 'react';
-import { getLocationHistoryForTrackingServer } from '@app/actions/tracking-delivery';
-import { trackV2Realtime } from '../telemetry/tracking-v2-telemetry';
+import { useEffect, useRef, useState } from "react";
+import { getLocationHistoryForTrackingServer } from "@app/actions/tracking-delivery";
+import { trackV2Realtime } from "../telemetry/tracking-v2-telemetry";
 
 export type LiveDriverLocation = {
   lat: number;
@@ -30,14 +30,14 @@ export type UseLiveDriverLocationResult = {
 const POLL_INTERVAL_MS = 3000;
 
 function parseLocationRow(row: unknown): LocationRow | null {
-  if (!row || typeof row !== 'object') return null;
+  if (!row || typeof row !== "object") return null;
   const record = row as Record<string, unknown>;
   const lat = Number(record.lat);
   const lng = Number(record.lng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
 
   const recordedAt = record.recorded_at;
-  if (typeof recordedAt !== 'string' || !recordedAt) return null;
+  if (typeof recordedAt !== "string" || !recordedAt) return null;
 
   return { lat, lng, recorded_at: recordedAt };
 }
@@ -48,9 +48,7 @@ function recordedAtMs(row: LocationRow): number {
 
 function pickLatestRow(rows: LocationRow[]): LocationRow | null {
   if (rows.length === 0) return null;
-  return rows.reduce((best, row) =>
-    recordedAtMs(row) >= recordedAtMs(best) ? row : best
-  );
+  return rows.reduce((best, row) => (recordedAtMs(row) >= recordedAtMs(best) ? row : best));
 }
 
 async function fetchLatestFromHistory(
@@ -66,7 +64,7 @@ async function fetchLatestFromHistory(
     }
     return { latest: pickLatestRow(parsed), error: null };
   } catch {
-    return { latest: null, error: 'Failed to load location history' };
+    return { latest: null, error: "Failed to load location history" };
   }
 }
 
@@ -98,7 +96,7 @@ export function useLiveDriverLocation(
       setLocation(null);
       setLoading(false);
       setConnected(false);
-      setError(assignmentId ? 'Missing order ID' : 'Missing assignment ID');
+      setError(assignmentId ? "Missing order ID" : "Missing assignment ID");
       return;
     }
 
@@ -118,7 +116,7 @@ export function useLiveDriverLocation(
       setLocation({ lat: row.lat, lng: row.lng });
       setLastUpdatedAt(row.recorded_at);
       setError(null);
-      trackV2Realtime('gps_update_committed', {
+      trackV2Realtime("gps_update_committed", {
         assignmentId,
         lat: row.lat,
         lng: row.lng,
@@ -136,7 +134,7 @@ export function useLiveDriverLocation(
       } else {
         commitLatestRow(latest);
         setConnected(true);
-        trackV2Realtime('gps_seed_received', {
+        trackV2Realtime("gps_seed_received", {
           assignmentId,
           hasLatest: latest != null,
           recorded_at: latest?.recorded_at ?? null,

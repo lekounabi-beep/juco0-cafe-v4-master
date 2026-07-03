@@ -31,7 +31,7 @@ export async function adminTransitionOrderStatus(
   }
 
   const { data: order, error: fetchError } = await supabaseAdmin
-    .from("orders" as never)
+    .from("orders")
     .select("status")
     .eq("id", orderId)
     .single();
@@ -43,20 +43,17 @@ export async function adminTransitionOrderStatus(
     };
   }
 
-  const currentStatus = (order as { status: string }).status as OrderStatus;
+  const currentStatus = order.status as OrderStatus;
   const validation = validateOrderStatusTransition(currentStatus, newStatus);
   if (!validation.valid) {
     return { success: false, error: validation.reason };
   }
 
-  const { error: rpcError } = await (supabaseAdmin as never as { rpc: Function }).rpc(
-    "admin_transition_order_status_atomic",
-    {
-      p_order_id: orderId,
-      p_expected_status: currentStatus,
-      p_new_status: newStatus,
-    },
-  );
+  const { error: rpcError } = await supabaseAdmin.rpc("admin_transition_order_status_atomic", {
+    p_order_id: orderId,
+    p_expected_status: currentStatus,
+    p_new_status: newStatus,
+  });
 
   if (rpcError) {
     serverLog.warn("order.rejected", {

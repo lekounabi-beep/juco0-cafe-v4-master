@@ -12,7 +12,7 @@
  * DEV-oriented cumulative byte counter for driver map debug (GPS, realtime, tiles).
  */
 
-export type MapDataUsageCategory = 'gpsUpload' | 'gpsDownload' | 'realtime' | 'mapTiles';
+export type MapDataUsageCategory = "gpsUpload" | "gpsDownload" | "realtime" | "mapTiles";
 
 export type MapDataUsageSnapshot = {
   totalBytes: number;
@@ -37,8 +37,7 @@ function bytesToKbit(n: number): number {
 }
 
 function buildSnapshot(): MapDataUsageSnapshot {
-  const totalBytes =
-    bytes.gpsUpload + bytes.gpsDownload + bytes.realtime + bytes.mapTiles;
+  const totalBytes = bytes.gpsUpload + bytes.gpsDownload + bytes.realtime + bytes.mapTiles;
   return {
     totalBytes,
     totalKbit: bytesToKbit(totalBytes),

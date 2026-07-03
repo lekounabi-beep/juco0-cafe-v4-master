@@ -2,16 +2,16 @@
  * Profile Section component
  */
 
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useProfile } from '../hooks/useProfile';
-import { Loader2, Check } from 'lucide-react';
+import { useState } from "react";
+import { useProfile } from "../hooks/useProfile";
+import { Loader2, Check } from "lucide-react";
 
 export function ProfileSection() {
   const { profile, loading, error, update } = useProfile();
-  const [fullName, setFullName] = useState(profile?.full_name || '');
-  const [phone, setPhone] = useState(profile?.phone || '');
+  const [fullName, setFullName] = useState(profile?.full_name || "");
+  const [phone, setPhone] = useState(profile?.phone || "");
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
 
@@ -55,7 +55,7 @@ export function ProfileSection() {
           <input
             id="email"
             type="email"
-            value={profile?.email || ''}
+            value={profile?.email || ""}
             disabled
             className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white/50 cursor-not-allowed"
           />
@@ -92,9 +92,7 @@ export function ProfileSection() {
         </div>
 
         {error && (
-          <div className="rounded-lg bg-red-500/20 px-4 py-3 text-sm text-red-200">
-            {error}
-          </div>
+          <div className="rounded-lg bg-red-500/20 px-4 py-3 text-sm text-red-200">{error}</div>
         )}
 
         {success && (
@@ -115,7 +113,7 @@ export function ProfileSection() {
               Αποθήκευση...
             </span>
           ) : (
-            'Αποθήκευση'
+            "Αποθήκευση"
           )}
         </button>
       </div>

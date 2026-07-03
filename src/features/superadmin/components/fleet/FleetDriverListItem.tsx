@@ -63,8 +63,7 @@ export function FleetDriverListItem({
           <div className="mt-2 space-y-1 text-xs text-zinc-500">
             {driver.active_order_number ? (
               <p>
-                Order{" "}
-                <span className="text-zinc-300">#{driver.active_order_number}</span>
+                Order <span className="text-zinc-300">#{driver.active_order_number}</span>
                 {driver.active_delivery_status ? (
                   <span className="text-zinc-600"> · {driver.active_delivery_status}</span>
                 ) : null}

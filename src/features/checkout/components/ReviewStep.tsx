@@ -17,17 +17,17 @@ function paymentLabel(payment: string, fulfillment: string) {
 export function ReviewStep({ onEditAddress }: ReviewStepProps) {
   const items = useCart((s) => s.items);
   const subtotal = useCart((s) => s.subtotal());
-  const { fulfillment, phone, deliveryAddress, floor, bell, deliveryInstructions, payment } =
-    useCheckoutForm();
+  const { fulfillment, phone, deliveryAddress, payment } = useCheckoutForm();
   const isPickup = fulfillment === "pickup";
   const deliveryFee = isPickup ? 0 : calcDeliveryFee(subtotal);
   const total = subtotal + deliveryFee;
+  const preferences = deliveryAddress?.deliveryPreferences?.join(" · ") ?? "";
 
   return (
     <section className="space-y-4 rounded-3xl glass p-4">
       <div>
         <p className="text-xs uppercase tracking-wider text-white/50">
-          Βήμα {isPickup ? "4" : "6"}
+          Βήμα {isPickup ? "4" : "5"}
         </p>
         <h2 className="text-lg font-semibold text-white">Έλεγχος παραγγελίας</h2>
         <p className="mt-1 text-sm text-white/55">
@@ -64,6 +64,18 @@ export function ReviewStep({ onEditAddress }: ReviewStepProps) {
                       {deliveryAddress.number ||
                         (deliveryAddress.manualPinConfirmed ? "Επιβεβαιωμένη καρφίτσα" : "Λείπει")}
                     </p>
+                    {deliveryAddress.floor && (
+                      <p className="text-xs text-white/45">Όροφος: {deliveryAddress.floor}</p>
+                    )}
+                    {deliveryAddress.bell && (
+                      <p className="text-xs text-white/45">Κουδούνι: {deliveryAddress.bell}</p>
+                    )}
+                    {preferences && (
+                      <p className="text-xs text-white/45">Παράδοση: {preferences}</p>
+                    )}
+                    {deliveryAddress.notes && (
+                      <p className="text-xs text-white/45">Οδηγίες: {deliveryAddress.notes}</p>
+                    )}
                   </>
                 )}
                 <button
@@ -71,17 +83,9 @@ export function ReviewStep({ onEditAddress }: ReviewStepProps) {
                   onClick={onEditAddress}
                   className="mt-2 inline-flex min-h-11 items-center rounded-full px-3 text-xs font-semibold text-primary"
                 >
-                  Αλλαγή διεύθυνσης
+                  Επεξεργασία
                 </button>
               </div>
-            </div>
-            <ReviewRow label="Όροφος" value={floor || "Δεν συμπληρώθηκε"} />
-            <ReviewRow label="Κουδούνι" value={bell || "Δεν συμπληρώθηκε"} />
-            <div className="flex items-start justify-between gap-3">
-              <span className="text-white/50">Οδηγίες</span>
-              <p className="max-w-[65%] text-right text-white">
-                {deliveryInstructions || "Δεν συμπληρώθηκαν"}
-              </p>
             </div>
           </div>
         )}

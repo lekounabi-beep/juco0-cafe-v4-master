@@ -2,12 +2,34 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { EspressoBackground } from "@/components/EspressoBackground";
 import { setAdminSession } from "@/lib/auth/admin-session";
 import { adminLogin } from "../../../../app/actions/admin-auth";
 
+function resolveSafeAdminRedirect(raw: string | null): string {
+  if (!raw) return "/admin";
+
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith("/") || trimmed.startsWith("//")) {
+    return "/admin";
+  }
+
+  if (trimmed.includes("://")) {
+    return "/admin";
+  }
+
+  if (trimmed === "/admin/login" || trimmed.startsWith("/admin/login?")) {
+    return "/admin";
+  }
+
+  return trimmed;
+}
+
 export function AdminLoginForm() {
+  const searchParams = useSearchParams();
+  const postLoginPath = resolveSafeAdminRedirect(searchParams.get("redirect"));
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -41,7 +63,7 @@ export function AdminLoginForm() {
       // Sync client marker for legacy checks; server cookie is the source of truth.
       setAdminSession();
       // Full navigation ensures Set-Cookie from the server action is applied before /admin loads.
-      window.location.assign("/admin");
+      window.location.assign(postLoginPath);
     } catch (loginError) {
       console.error("[AdminLoginForm] login failed:", loginError);
       setError("Sign in failed. Please try again.");

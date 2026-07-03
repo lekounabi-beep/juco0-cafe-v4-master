@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from "react";
 import {
   subscribeSyncState,
   type SyncState,
-} from '@/features/delivery/services/offline-queue.service';
-import { useDriverNetworkState } from '@/hooks/useDriverNetwork';
+} from "@/features/delivery/services/offline-queue.service";
+import { useDriverNetworkState } from "@/hooks/useDriverNetwork";
 
 const INITIAL_SYNC_STATE: SyncState = {
   isSyncing: false,

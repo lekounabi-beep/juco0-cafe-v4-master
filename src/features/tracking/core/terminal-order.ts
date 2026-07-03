@@ -10,11 +10,11 @@ export type TerminalOrderFields = {
 
 export function isTerminalOrder(order: TerminalOrderFields): boolean {
   if (!order) return false;
-  if (order.status === 'cancelled' || order.delivery_status === 'cancelled') return true;
-  if (order.payment_status === 'failed') return true;
+  if (order.status === "cancelled" || order.delivery_status === "cancelled") return true;
+  if (order.payment_status === "failed") return true;
   return (
-    order.status === 'delivered' ||
-    order.status === 'completed' ||
-    order.delivery_status === 'delivered'
+    order.status === "delivered" ||
+    order.status === "completed" ||
+    order.delivery_status === "delivered"
   );
 }

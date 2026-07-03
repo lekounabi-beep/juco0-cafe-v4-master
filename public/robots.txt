@@ -1,5 +1,0 @@
-User-agent: *
-Allow: /
-Disallow: /admin
-
-Sitemap: https://juco-vibe-menu.lovable.app/sitemap.xml

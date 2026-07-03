@@ -7,15 +7,15 @@
  * @deprecated Use useTrackingSession when NEXT_PUBLIC_TRACKING_SESSION=true.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { getOrderForTrackingServer } from '@app/actions/order-tracking';
+import { useCallback, useEffect, useRef, useState } from "react";
+import { getOrderForTrackingServer } from "@app/actions/order-tracking";
 import {
   getAssignmentForTrackingServer,
   getDriverForTrackingServer,
-} from '@app/actions/tracking-delivery';
-import { useRealtimeOrder } from '@/integrations/supabase/hooks/useRealtimeOrders';
-import { playNotificationSound } from '@/features/notifications/services/notification-sound.service';
-import { isTerminalOrder } from '@/features/tracking/core/terminal-order';
+} from "@app/actions/tracking-delivery";
+import { useRealtimeOrder } from "@/integrations/supabase/hooks/useRealtimeOrders";
+import { playNotificationSound } from "@/features/notifications/services/notification-sound.service";
+import { isTerminalOrder } from "@/features/tracking/core/terminal-order";
 
 const POLL_INTERVAL_MS = 3_000;
 const REALTIME_DEBOUNCE_MS = 300;
@@ -117,8 +117,8 @@ export function useCustomerTrackingSync(orderId: string): UseCustomerTrackingSyn
         setDelivery(next);
 
         if (playMilestoneSound && assignmentMilestoneReached(prev, next)) {
-          void playNotificationSound('delivery', {
-            eventId: `${next.id}-${next.picked_up_at ?? ''}-${next.started_delivery_at ?? ''}-${next.arrived_at ?? ''}-${next.delivered_at ?? ''}`,
+          void playNotificationSound("delivery", {
+            eventId: `${next.id}-${next.picked_up_at ?? ""}-${next.started_delivery_at ?? ""}-${next.arrived_at ?? ""}-${next.delivered_at ?? ""}`,
             orderId,
           });
         }
@@ -141,7 +141,7 @@ export function useCustomerTrackingSync(orderId: string): UseCustomerTrackingSyn
 
         if (!row) {
           if (!options?.silent) {
-            setError('Order not found');
+            setError("Order not found");
           }
           return;
         }
@@ -157,7 +157,7 @@ export function useCustomerTrackingSync(orderId: string): UseCustomerTrackingSyn
         await syncRelated(nextOrder, options?.playMilestoneSound ?? false);
       } catch {
         if (!options?.silent) {
-          setError('Failed to load order');
+          setError("Failed to load order");
         }
       } finally {
         loadInFlightRef.current = false;
@@ -192,13 +192,13 @@ export function useCustomerTrackingSync(orderId: string): UseCustomerTrackingSyn
     void loadTracking({ playMilestoneSound: false });
 
     pollTimerRef.current = window.setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       if (terminalRef.current) return;
       void loadTracking({ playMilestoneSound: true, silent: true });
     }, POLL_INTERVAL_MS);
 
     const onVisible = () => {
-      if (document.visibilityState === 'visible' && !terminalRef.current) {
+      if (document.visibilityState === "visible" && !terminalRef.current) {
         void loadTracking({ playMilestoneSound: true, silent: true });
       }
     };
@@ -209,8 +209,8 @@ export function useCustomerTrackingSync(orderId: string): UseCustomerTrackingSyn
       }
     };
 
-    document.addEventListener('visibilitychange', onVisible);
-    window.addEventListener('online', onOnline);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", onOnline);
 
     return () => {
       if (pollTimerRef.current) {
@@ -221,14 +221,14 @@ export function useCustomerTrackingSync(orderId: string): UseCustomerTrackingSyn
         clearTimeout(debounceTimerRef.current);
         debounceTimerRef.current = null;
       }
-      document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener('online', onOnline);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", onOnline);
     };
   }, [orderId, loadTracking]);
 
   // Realtime wake-up when RLS/client allows postgres_changes (no-op after Phase 1.5).
   useRealtimeOrder(orderId, (payload) => {
-    if (payload.eventType === 'UPDATE') {
+    if (payload.eventType === "UPDATE") {
       scheduleDebouncedLoad();
     }
   });

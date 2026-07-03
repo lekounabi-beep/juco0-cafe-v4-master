@@ -27,20 +27,20 @@ export function hasPendingPwaUpdate(): boolean {
 }
 
 /** User confirmed update — skipWaiting unless delivery is active. */
-export function applyPwaUpdate(): 'applied' | 'deferred' | 'none' {
+export function applyPwaUpdate(): "applied" | "deferred" | "none" {
   const worker = waitingWorker ?? deferredWorker;
-  if (!worker) return 'none';
+  if (!worker) return "none";
 
   if (blockReload) {
     deferredWorker = worker;
     waitingWorker = null;
-    return 'deferred';
+    return "deferred";
   }
 
   waitingWorker = null;
   deferredWorker = null;
-  worker.postMessage({ type: 'SKIP_WAITING' });
-  return 'applied';
+  worker.postMessage({ type: "SKIP_WAITING" });
+  return "applied";
 }
 
 function tryFlushDeferredUpdate(): void {
@@ -49,8 +49,8 @@ function tryFlushDeferredUpdate(): void {
   if (!worker) return;
   deferredWorker = null;
   waitingWorker = null;
-  worker.postMessage({ type: 'SKIP_WAITING' });
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('pwa:update-applied'));
+  worker.postMessage({ type: "SKIP_WAITING" });
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("pwa:update-applied"));
   }
 }

@@ -1,131 +1,123 @@
-/**
- * Favorite Order hook - manages user's favorite order
- */
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/features/auth/hooks/useAuth';
-import { useCart } from '@/lib/cart-store';
-import { getProfile, getOrCreateProfile } from '@/integrations/supabase/services/profile.service';
+import { useCallback, useEffect, useState } from "react";
+import { useAuth } from "@/features/auth/hooks/useAuth";
 import {
-  getFavoriteOrder,
-  saveFavoriteOrder,
   deleteFavoriteOrder,
-} from '@/integrations/supabase/services/favorite.service';
-import type { CartItem } from '@/lib/cart-store';
+  type FavoriteOrderRecord,
+} from "@/integrations/supabase/services/favorite.service";
+import { resolveAccountProfileId } from "../lib/account-profile-cache";
+import {
+  clearFavoriteOrderCache,
+  fetchCachedFavoriteOrder,
+  subscribeFavoriteOrderCache,
+  getFavoriteOrderCache,
+} from "../lib/favorite-order-cache";
+import type { CartItem } from "@/lib/cart-store";
+
+function parseFavoriteItems(record: FavoriteOrderRecord | null): CartItem[] | null {
+  if (!record?.items) return null;
+  const items = record.items as unknown as CartItem[];
+  return items.length > 0 ? items : null;
+}
 
 export function useFavoriteOrder() {
   const { user } = useAuth();
-  const items = useCart((s) => s.items);
-  const clear = useCart((s) => s.clear);
-  const add = useCart((s) => s.add);
-  const [favorite, setFavorite] = useState<CartItem[] | null>(null);
+  const [favoriteRecord, setFavoriteRecord] = useState<FavoriteOrderRecord | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function loadFavorite() {
-      if (!user) {
-        setFavorite(null);
+  const favorite = parseFavoriteItems(favoriteRecord);
+
+  const loadFavorite = useCallback(async () => {
+    if (!user) {
+      setFavoriteRecord(null);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const profileId = await resolveAccountProfileId(
+        user.id,
+        user.email,
+        user.user_metadata?.full_name || user.user_metadata?.name,
+      );
+
+      if (!profileId) {
+        setFavoriteRecord(null);
         return;
       }
 
-      try {
-        setLoading(true);
-        setError(null);
-        // Use getOrCreateProfile to ensure profile exists
-        const profile = await getOrCreateProfile(user.id, user.email, user.user_metadata?.full_name || user.user_metadata?.name);
-        const data = await getFavoriteOrder(profile.id);
-        setFavorite((data?.items as unknown as CartItem[]) || null);
-      } catch (err) {
-        console.error('Failed to load favorite order:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load favorite order');
-      } finally {
-        setLoading(false);
+      const data = await fetchCachedFavoriteOrder(user.id, profileId);
+      setFavoriteRecord(data);
+    } catch (err) {
+      console.error("Failed to load favorite order:", err);
+      setError(err instanceof Error ? err.message : "Αποτυχία φόρτωσης συνήθους παραγγελίας");
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    void loadFavorite();
+  }, [loadFavorite]);
+
+  useEffect(() => {
+    return subscribeFavoriteOrderCache(() => {
+      if (!user) return;
+      const cached = getFavoriteOrderCache(user.id);
+      if (cached !== undefined) {
+        setFavoriteRecord(cached);
+        return;
       }
-    }
+      void loadFavorite();
+    });
+  }, [loadFavorite, user]);
 
-    loadFavorite();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
-
-  const save = async () => {
-    if (!user || items.length === 0) {
-      setError('Cannot save empty cart');
-      return { success: false };
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-      // Use getOrCreateProfile to ensure profile exists
-      const profile = await getOrCreateProfile(user.id, user.email, user.user_metadata?.full_name || user.user_metadata?.name);
-      await saveFavoriteOrder(profile.id, items);
-      setFavorite(items);
-      return { success: true };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to save favorite order';
-      setError(message);
-      return { success: false, error: message };
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const remove = async () => {
+  const remove = useCallback(async () => {
     if (!user) {
-      setError('User not authenticated');
-      return { success: false };
+      setError("Απαιτείται σύνδεση");
+      return { success: false as const };
     }
 
     try {
       setLoading(true);
       setError(null);
-      // Use getOrCreateProfile to ensure profile exists
-      const profile = await getOrCreateProfile(user.id, user.email, user.user_metadata?.full_name || user.user_metadata?.name);
-      await deleteFavoriteOrder(profile.id);
-      setFavorite(null);
-      return { success: true };
+
+      const profileId = await resolveAccountProfileId(
+        user.id,
+        user.email,
+        user.user_metadata?.full_name || user.user_metadata?.name,
+      );
+
+      if (!profileId) {
+        throw new Error("Δεν βρέθηκε προφίλ χρήστη");
+      }
+
+      await deleteFavoriteOrder(profileId);
+      clearFavoriteOrderCache(user.id);
+      setFavoriteRecord(null);
+      return { success: true as const };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to delete favorite order';
+      const message =
+        err instanceof Error ? err.message : "Αποτυχία διαγραφής συνήθους παραγγελίας";
       setError(message);
-      return { success: false, error: message };
+      return { success: false as const, error: message };
     } finally {
       setLoading(false);
     }
-  };
-
-  const loadToCart = async () => {
-    if (!favorite || favorite.length === 0) {
-      return { success: false };
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-      clear();
-      favorite.forEach((item) => {
-        add({
-          name: item.name,
-          price: item.price,
-          category: item.category,
-        });
-      });
-      return { success: true };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load favorite order';
-      setError(message);
-      return { success: false, error: message };
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [user]);
 
   return {
     favorite,
+    favoriteRecord,
+    hasFavorite: Boolean(favorite?.length),
+    updatedAt: favoriteRecord?.updated_at ?? null,
     loading,
     error,
-    save,
     remove,
-    loadToCart,
+    refresh: loadFavorite,
   };
 }

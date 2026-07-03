@@ -3,26 +3,26 @@
  * Live delivery tracking experience similar to Wolt/Uber Eats
  */
 
-'use client';
+"use client";
 
-import { useEffect, useMemo, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { EspressoBackground } from '@/components/EspressoBackground';
-import { useETA } from '@/features/delivery/hooks/useETA';
-import { formatETA, formatDistance } from '@/features/delivery/services/eta.service';
-import { CustomerDeliveryTimelineUI } from '@/features/tracking/components/CustomerDeliveryTimelineUI';
-import { useCustomerTrackingSync } from '@/features/tracking/hooks/useCustomerTrackingSync';
-import { useTrackingSession } from '@/features/tracking/hooks/useTrackingSession';
-import { isTrackingSessionEnabled } from '@/features/tracking/config/tracking-session-flag';
-import { orderCoordinates } from '@/shared/utils/order-fields';
-import { useDeliveryState } from '@/features/delivery/hooks/useDeliveryState';
-import { speedFromKmh } from '@/features/delivery/services/speed.service';
-import { MapPin, Package, AlertCircle } from 'lucide-react';
-import { V2TrackingSection } from '@/features/live-tracking-v2';
-import type { CustomerTrackingDebugSnapshot } from '@/features/live-tracking-v2/types/customer-tracking-debug.types';
-import { isTerminalOrder } from '@/features/tracking/core/terminal-order';
-import type { CustomerOrderStep } from '@/shared/utils/customer-status';
-import type { TrackingOrder } from '@/features/tracking/hooks/useCustomerTrackingSync';
+import { useEffect, useMemo, useRef } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { EspressoBackground } from "@/components/EspressoBackground";
+import { useETA } from "@/features/delivery/hooks/useETA";
+import { formatETA, formatDistance } from "@/features/delivery/services/eta.service";
+import { CustomerDeliveryTimelineUI } from "@/features/tracking/components/CustomerDeliveryTimelineUI";
+import { useCustomerTrackingSync } from "@/features/tracking/hooks/useCustomerTrackingSync";
+import { useTrackingSession } from "@/features/tracking/hooks/useTrackingSession";
+import { isTrackingSessionEnabled } from "@/features/tracking/config/tracking-session-flag";
+import { orderCoordinates } from "@/shared/utils/order-fields";
+import { useDeliveryState } from "@/features/delivery/hooks/useDeliveryState";
+import { speedFromKmh } from "@/features/delivery/services/speed.service";
+import { MapPin, Package, AlertCircle } from "lucide-react";
+import { V2TrackingSection } from "@/features/live-tracking-v2";
+import type { CustomerTrackingDebugSnapshot } from "@/features/live-tracking-v2/types/customer-tracking-debug.types";
+import { isTerminalOrder } from "@/features/tracking/core/terminal-order";
+import type { CustomerOrderStep } from "@/shared/utils/customer-status";
+import type { TrackingOrder } from "@/features/tracking/hooks/useCustomerTrackingSync";
 
 const FALLBACK_ETA_SPEED_MS = speedFromKmh(25);
 
@@ -33,12 +33,12 @@ function TrackPageLegacy({ orderId }: { orderId: string }) {
   const { deliveryState, locationDebug } = useDeliveryState({
     order,
     assignment: delivery,
-    role: 'customer',
+    role: "customer",
   });
 
   const customerDebug = useMemo(
     (): CustomerTrackingDebugSnapshot => ({
-      connectionState: error ? 'error' : loading ? 'idle' : 'polling',
+      connectionState: error ? "error" : loading ? "idle" : "polling",
       trackingSessionEnabled: false,
       gpsPointsLoaded: locationDebug.locationCount,
       lastGpsTimestamp: deliveryState.driverPosition?.recordedAt ?? null,
@@ -91,9 +91,7 @@ function TrackPageSession({ orderId }: { orderId: string }) {
       connectionState: session.connectionState,
       locationLoading: session.loading,
       locationError: session.error,
-      lastUpdatedAt:
-        driverPosition?.recordedAt ??
-        session.lastPollAt,
+      lastUpdatedAt: driverPosition?.recordedAt ?? session.lastPollAt,
     }),
     [
       session.latestLocation,
@@ -119,7 +117,7 @@ function TrackPageSession({ orderId }: { orderId: string }) {
       isTerminal: session.isTerminal,
       eta: session.eta,
       etaLastUpdated: session.lastPollAt,
-      pollingActive: session.connectionState === 'polling',
+      pollingActive: session.connectionState === "polling",
     }),
     [
       session.connectionState,
@@ -180,10 +178,10 @@ function TrackPageShell({
   customerStep: CustomerOrderStep;
   deliveryStatus: string;
   driverPosition: { lat: number; lng: number; heading?: number; recordedAt?: string } | null;
-  etaFromSession?: ReturnType<typeof useTrackingSession>['eta'];
-  v2Session?: React.ComponentProps<typeof V2TrackingSection>['session'];
+  etaFromSession?: ReturnType<typeof useTrackingSession>["eta"];
+  v2Session?: React.ComponentProps<typeof V2TrackingSection>["session"];
   customerDebug?: CustomerTrackingDebugSnapshot;
-  routePoints?: React.ComponentProps<typeof V2TrackingSection>['routePoints'];
+  routePoints?: React.ComponentProps<typeof V2TrackingSection>["routePoints"];
   showDriverTrail?: boolean;
 }) {
   const destinationCacheRef = useRef<{ lat: number; lng: number } | null>(null);
@@ -199,12 +197,7 @@ function TrackPageShell({
     }
     destinationCacheRef.current = next;
     return next;
-  }, [
-    order?.lat,
-    order?.lng,
-    order?.coords?.lat,
-    order?.coords?.lng,
-  ]);
+  }, [order?.lat, order?.lng, order?.coords?.lat, order?.coords?.lng]);
 
   const driverLocation = useMemo(
     () =>
@@ -218,7 +211,7 @@ function TrackPageShell({
     [driverPosition?.lat, driverPosition?.lng, driverPosition?.heading],
   );
 
-  const showDriverOnMap = customerStep === 'on_the_way';
+  const showDriverOnMap = customerStep === "on_the_way";
 
   const etaResult = useETA({
     currentLocation:
@@ -247,22 +240,20 @@ function TrackPageShell({
   const v2CustomerDebug = useMemo((): CustomerTrackingDebugSnapshot | undefined => {
     if (!customerDebug) return undefined;
     const eta =
-      customerDebug.eta ??
-      (showDriverOnMap && etaResult.etaResult ? etaResult.etaResult : null);
+      customerDebug.eta ?? (showDriverOnMap && etaResult.etaResult ? etaResult.etaResult : null);
     return {
       ...customerDebug,
       eta,
-      etaLastUpdated:
-        customerDebug.etaLastUpdated ?? driverPosition?.recordedAt ?? null,
+      etaLastUpdated: customerDebug.etaLastUpdated ?? driverPosition?.recordedAt ?? null,
     };
   }, [customerDebug, showDriverOnMap, etaResult.etaResult, driverPosition?.recordedAt]);
 
   useEffect(() => {
-    if (process.env.NODE_ENV !== 'development') return;
-    console.log('[TrackPage] driver coordinates changed', {
+    if (process.env.NODE_ENV !== "development") return;
+    console.log("[TrackPage] driver coordinates changed", {
       driverLat: driverPosition?.lat,
       driverLng: driverPosition?.lng,
-      mode: v2Session != null ? 'session' : 'legacy',
+      mode: v2Session != null ? "session" : "legacy",
     });
   }, [driverPosition?.lat, driverPosition?.lng]);
 
@@ -288,10 +279,10 @@ function TrackPageShell({
             <AlertCircle className="mx-auto mb-4 h-16 w-16 text-red-400" />
             <h1 className="mb-2 text-2xl font-bold text-white">Παραγγελία δεν βρέθηκε</h1>
             <p className="mb-6 text-white/70">
-              {error || 'Η παραγγελία δεν υπάρχει ή έχει διαγραφεί.'}
+              {error || "Η παραγγελία δεν υπάρχει ή έχει διαγραφεί."}
             </p>
             <button
-              onClick={() => router.push('/')}
+              onClick={() => router.push("/")}
               className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] transition hover:bg-primary/90"
             >
               Επιστροφή στην αρχική

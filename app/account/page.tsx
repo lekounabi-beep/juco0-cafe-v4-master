@@ -2,15 +2,15 @@
  * Account page
  */
 
-'use client';
+"use client";
 
-import { AccountDashboard } from '@/features/account/components/AccountDashboard';
-import { EspressoBackground } from '@/components/EspressoBackground';
-import { useAuth } from '@/features/auth/hooks/useAuth';
-import { useRouter } from 'next/navigation';
-import { Loader2, ArrowLeft } from 'lucide-react';
-import { useEffect } from 'react';
-import Link from 'next/link';
+import { AccountDashboard } from "@/features/account/components/AccountDashboard";
+import { EspressoBackground } from "@/components/EspressoBackground";
+import { useAuth } from "@/features/auth/hooks/useAuth";
+import { useRouter } from "next/navigation";
+import { Loader2, ArrowLeft } from "lucide-react";
+import { useEffect } from "react";
+import Link from "next/link";
 
 export default function AccountPage() {
   const { loading, user } = useAuth();
@@ -18,7 +18,7 @@ export default function AccountPage() {
 
   useEffect(() => {
     if (!loading && !user) {
-      router.push('/login');
+      router.push("/login");
     }
   }, [loading, user, router]);
 

@@ -2,18 +2,24 @@
  * Resolves valid map destination coordinates for an order (sync + geocode fallback).
  */
 
-import { useEffect, useState } from 'react';
-import { resolveOrderDestination, resolveOrderDestinationSync } from '../services/order-destination.service';
-import { isValidLatLng } from '@/shared/utils/coordinates';
-import type { Coordinates } from '@/shared/types/common.types';
+import { useEffect, useState } from "react";
+import {
+  resolveOrderDestination,
+  resolveOrderDestinationSync,
+} from "../services/order-destination.service";
+import { isValidLatLng } from "@/shared/utils/coordinates";
+import type { Coordinates } from "@/shared/types/common.types";
 
-type OrderForDestination = {
-  id?: string;
-  address?: string | null;
-  lat?: number | string | null;
-  lng?: number | string | null;
-  coords?: { lat?: number | string; lng?: number | string } | Coordinates | null;
-} | null | undefined;
+type OrderForDestination =
+  | {
+      id?: string;
+      address?: string | null;
+      lat?: number | string | null;
+      lng?: number | string | null;
+      coords?: { lat?: number | string; lng?: number | string } | Coordinates | null;
+    }
+  | null
+  | undefined;
 
 export function useOrderDestination(order: OrderForDestination) {
   const [destination, setDestination] = useState<Coordinates | null>(() => {

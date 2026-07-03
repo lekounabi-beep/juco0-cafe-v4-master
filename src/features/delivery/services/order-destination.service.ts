@@ -3,12 +3,12 @@
  * Sync: lat/lng → coords JSONB. Async: geocode address once with cache.
  */
 
-import { googleMapsLoader } from '@/integrations/google-maps/loader';
-import { orderCoordinates } from '@/shared/utils/order-fields';
-import { isValidLatLng, normalizeCoordinates } from '@/shared/utils/coordinates';
-import type { Coordinates } from '@/shared/types/common.types';
+import { googleMapsLoader } from "@/integrations/google-maps/loader";
+import { orderCoordinates } from "@/shared/utils/order-fields";
+import { isValidLatLng, normalizeCoordinates } from "@/shared/utils/coordinates";
+import type { Coordinates } from "@/shared/types/common.types";
 
-const GEOCODE_CACHE_KEY = 'juco_order_geocode_cache_v1';
+const GEOCODE_CACHE_KEY = "juco_order_geocode_cache_v1";
 
 type OrderForDestination = {
   id?: string;
@@ -21,7 +21,7 @@ type OrderForDestination = {
 const memoryCache = new Map<string, Coordinates>();
 
 function readPersistentCache(): Record<string, Coordinates> {
-  if (typeof window === 'undefined') return {};
+  if (typeof window === "undefined") return {};
   try {
     const raw = localStorage.getItem(GEOCODE_CACHE_KEY);
     return raw ? (JSON.parse(raw) as Record<string, Coordinates>) : {};
@@ -31,7 +31,7 @@ function readPersistentCache(): Record<string, Coordinates> {
 }
 
 function writePersistentCache(entry: Record<string, Coordinates>) {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
   try {
     localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify(entry));
   } catch {
@@ -42,17 +42,17 @@ function writePersistentCache(entry: Record<string, Coordinates>) {
 function cacheKey(order: OrderForDestination): string {
   if (order.id) return `order:${order.id}`;
   if (order.address) return `addr:${order.address.trim().toLowerCase()}`;
-  return '';
+  return "";
 }
 
 export function resolveOrderDestinationSync(
-  order: OrderForDestination | null | undefined
+  order: OrderForDestination | null | undefined,
 ): Coordinates | null {
   return orderCoordinates(order);
 }
 
 export async function geocodeOrderAddressCached(
-  order: OrderForDestination
+  order: OrderForDestination,
 ): Promise<Coordinates | null> {
   const key = cacheKey(order);
   if (!key || !order.address?.trim()) return null;
@@ -89,7 +89,7 @@ export async function geocodeOrderAddressCached(
 }
 
 export async function resolveOrderDestination(
-  order: OrderForDestination | null | undefined
+  order: OrderForDestination | null | undefined,
 ): Promise<Coordinates | null> {
   if (!order) return null;
 

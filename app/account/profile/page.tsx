@@ -2,11 +2,11 @@
  * Account Profile page
  */
 
-import { ProfileSection } from '@/features/account/components/ProfileSection';
-import { NotificationSettingsSection } from '@/features/notifications/components/NotificationSettingsSection';
-import { EspressoBackground } from '@/components/EspressoBackground';
-import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
+import { ProfileSection } from "@/features/account/components/ProfileSection";
+import { NotificationSettingsSection } from "@/features/notifications/components/NotificationSettingsSection";
+import { EspressoBackground } from "@/components/EspressoBackground";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 
 export default function ProfilePage() {
   return (
@@ -15,7 +15,10 @@ export default function ProfilePage() {
 
       <header className="sticky top-0 z-30 border-b border-white/10 bg-black/40 backdrop-blur-md">
         <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
-          <Link href="/account" className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white hover:bg-white/15">
+          <Link
+            href="/account"
+            className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white hover:bg-white/15"
+          >
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <h1 className="font-display text-lg font-semibold text-white">Προφίλ</h1>

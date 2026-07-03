@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { Loader2, Power } from 'lucide-react';
-import { DriverAvailableOrders } from '../DriverAvailableOrders';
-import { DRIVER_AVAILABILITY } from '../../types/delivery.types';
-import type { DriverOrderDetails } from '../../types/driver-order.types';
+import { Loader2, Power } from "lucide-react";
+import { DriverAvailableOrders } from "../DriverAvailableOrders";
+import { DRIVER_AVAILABILITY } from "../../types/delivery.types";
+import type { DriverOrderDetails } from "../../types/driver-order.types";
 
 interface OnlineWaitingViewProps {
   availableOrders: DriverOrderDetails[];

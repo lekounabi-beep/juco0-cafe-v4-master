@@ -1,25 +1,23 @@
-import type { ComputedDeliveryState, DeliveryLocationRow } from '@/features/delivery/core/delivery-state.types';
-import type { CustomerOrderStep } from '@/shared/utils/customer-status';
-import type { ETAResult } from '@/features/delivery/services/eta.service';
+import type {
+  ComputedDeliveryState,
+  DeliveryLocationRow,
+} from "@/features/delivery/core/delivery-state.types";
+import type { CustomerOrderStep } from "@/shared/utils/customer-status";
+import type { ETAResult } from "@/features/delivery/services/eta.service";
 import type {
   TrackingAssignment,
   TrackingDriver,
   TrackingOrder,
-} from '@/features/tracking/hooks/useCustomerTrackingSync';
+} from "@/features/tracking/hooks/useCustomerTrackingSync";
 
-export type TrackingConnectionState =
-  | 'idle'
-  | 'polling'
-  | 'paused'
-  | 'stopped'
-  | 'error';
+export type TrackingConnectionState = "idle" | "polling" | "paused" | "stopped" | "error";
 
-export type TrackingSessionGpsMode = 'none' | 'bootstrap' | 'latest';
+export type TrackingSessionGpsMode = "none" | "bootstrap" | "latest";
 
 export type TrackingSessionGpsPayload = {
   mode: TrackingSessionGpsMode;
-  latest: import('@app/actions/tracking-delivery').TrackingLocationRow | null;
-  trail: import('@app/actions/tracking-delivery').TrackingLocationRow[];
+  latest: import("@app/actions/tracking-delivery").TrackingLocationRow | null;
+  trail: import("@app/actions/tracking-delivery").TrackingLocationRow[];
   serverTime: string;
 };
 
@@ -43,7 +41,7 @@ export type UseTrackingSessionResult = {
   locations: DeliveryLocationRow[];
   latestLocation: { lat: number; lng: number } | null;
   deliveryState: ComputedDeliveryState;
-  routePoints: ComputedDeliveryState['routePoints'];
+  routePoints: ComputedDeliveryState["routePoints"];
   eta: ETAResult | null;
   timeline: TrackingSessionTimeline;
   connectionState: TrackingConnectionState;

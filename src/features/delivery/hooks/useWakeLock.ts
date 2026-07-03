@@ -3,7 +3,7 @@
  * Manages screen wake lock for active deliveries
  */
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from "react";
 
 interface UseWakeLockReturn {
   isWakeLockActive: boolean;
@@ -27,8 +27,8 @@ export function useWakeLock(isOnDelivery: boolean): UseWakeLockReturn {
 
     const requestWakeLock = async () => {
       try {
-        if ('wakeLock' in navigator) {
-          const lock = await navigator.wakeLock.request('screen');
+        if ("wakeLock" in navigator) {
+          const lock = await navigator.wakeLock.request("screen");
           if (cancelled) {
             void lock.release();
             return;

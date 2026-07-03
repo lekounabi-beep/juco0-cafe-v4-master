@@ -8,5 +8,7 @@ export function SuperAdminContentContainer({
   children: ReactNode;
   className?: string;
 }) {
-  return <div className={cn("mx-auto w-full max-w-[1600px] px-4 lg:px-6", className)}>{children}</div>;
+  return (
+    <div className={cn("mx-auto w-full max-w-[1600px] px-4 lg:px-6", className)}>{children}</div>
+  );
 }

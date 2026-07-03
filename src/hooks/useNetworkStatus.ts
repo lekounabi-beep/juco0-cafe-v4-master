@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from "react";
 
-export const NETWORK_ONLINE_EVENT = 'juco:network-online';
+export const NETWORK_ONLINE_EVENT = "juco:network-online";
 
 type NetworkConnection = {
   effectiveType?: string;
@@ -12,7 +12,7 @@ type NetworkConnection = {
 };
 
 function readConnectionType(): string | null {
-  if (typeof navigator === 'undefined') return null;
+  if (typeof navigator === "undefined") return null;
   const connection = (navigator as Navigator & { connection?: NetworkConnection }).connection;
   return connection?.effectiveType ?? connection?.type ?? null;
 }
@@ -51,16 +51,16 @@ export function useNetworkStatus() {
       setConnectionType(readConnectionType());
     };
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
 
     const connection = (navigator as Navigator & { connection?: NetworkConnection }).connection;
-    connection?.addEventListener?.('change', refresh);
+    connection?.addEventListener?.("change", refresh);
 
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-      connection?.removeEventListener?.('change', refresh);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      connection?.removeEventListener?.("change", refresh);
     };
   }, [refresh, wasOffline]);
 

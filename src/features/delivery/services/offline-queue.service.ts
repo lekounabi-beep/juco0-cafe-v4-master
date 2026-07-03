@@ -3,21 +3,16 @@
  * Delivery actions are never queued while online; GPS is buffered only offline/on failure.
  */
 
-import { recordDriverLocationSafe } from './record-driver-location';
-import { syncAcceptOrder, syncDeliveryTransition } from './driver-offline-sync';
-import { clearOptimisticDelivery } from './driver-offline-state';
-import type { DeliveryStatus, OrderStatus } from '../types/delivery.types';
-import type { GPSLocationUpdate } from '../types/delivery.types';
-import { NETWORK_ONLINE_EVENT } from '@/hooks/useNetworkStatus';
-import { shouldDriverCoordinatorHandleOnline } from '@/lib/network/driver-network';
+import { recordDriverLocationSafe } from "./record-driver-location";
+import { syncAcceptOrder, syncDeliveryTransition } from "./driver-offline-sync";
+import { clearOptimisticDelivery } from "./driver-offline-state";
+import type { DeliveryStatus, OrderStatus } from "../types/delivery.types";
+import type { GPSLocationUpdate } from "../types/delivery.types";
+import { NETWORK_ONLINE_EVENT } from "@/hooks/useNetworkStatus";
+import { shouldDriverCoordinatorHandleOnline } from "@/lib/network/driver-network";
 
 export type OfflineActionType =
-  | 'ACCEPT_ORDER'
-  | 'PICKED_UP'
-  | 'IN_TRANSIT'
-  | 'ARRIVED'
-  | 'DELIVERED'
-  | 'GPS_UPDATE';
+  "ACCEPT_ORDER" | "PICKED_UP" | "IN_TRANSIT" | "ARRIVED" | "DELIVERED" | "GPS_UPDATE";
 
 export type OfflineQueueItem = {
   id: string;
@@ -28,8 +23,8 @@ export type OfflineQueueItem = {
   failed?: boolean;
 };
 
-const QUEUE_KEY = 'driver_offline_queue';
-const GPS_BUFFER_KEY = 'offline_gps_buffer';
+const QUEUE_KEY = "driver_offline_queue";
+const GPS_BUFFER_KEY = "offline_gps_buffer";
 const MAX_RETRIES = 5;
 const GPS_BATCH_SIZE = 5;
 /** Hard caps — localStorage is ~5MB; GPS batches must stay small. */
@@ -39,11 +34,11 @@ const MAX_GPS_POINTS_PER_ITEM = 40;
 const MAX_FAILED_ITEMS = 8;
 
 const DELIVERY_TYPES = new Set<OfflineActionType>([
-  'ACCEPT_ORDER',
-  'PICKED_UP',
-  'IN_TRANSIT',
-  'ARRIVED',
-  'DELIVERED',
+  "ACCEPT_ORDER",
+  "PICKED_UP",
+  "IN_TRANSIT",
+  "ARRIVED",
+  "DELIVERED",
 ]);
 
 type SyncListener = (state: SyncState) => void;
@@ -70,11 +65,11 @@ function isDeliveryAction(type: OfflineActionType): boolean {
 
 function isQuotaError(err: unknown): boolean {
   if (!(err instanceof DOMException)) return false;
-  return err.name === 'QuotaExceededError' || err.code === 22;
+  return err.name === "QuotaExceededError" || err.code === 22;
 }
 
 function safeSetItem(key: string, value: string): boolean {
-  if (typeof window === 'undefined') return false;
+  if (typeof window === "undefined") return false;
   try {
     localStorage.setItem(key, value);
     return true;
@@ -102,7 +97,7 @@ function compactGpsPayload(payload: Record<string, unknown>): Record<string, unk
 function pruneQueue(queue: OfflineQueueItem[]): OfflineQueueItem[] {
   const delivery = queue.filter((item) => isDeliveryAction(item.type));
   const gps = queue
-    .filter((item) => item.type === 'GPS_UPDATE')
+    .filter((item) => item.type === "GPS_UPDATE")
     .map((item) => ({
       ...item,
       payload: compactGpsPayload(item.payload),
@@ -112,7 +107,7 @@ function pruneQueue(queue: OfflineQueueItem[]): OfflineQueueItem[] {
   const deliveryCap = Math.min(delivery.length, 20);
   const trimmedDelivery = delivery.slice(-deliveryCap);
 
-  let gpsBudget = Math.max(0, MAX_QUEUE_ITEMS - trimmedDelivery.length - failed.length);
+  const gpsBudget = Math.max(0, MAX_QUEUE_ITEMS - trimmedDelivery.length - failed.length);
   const trimmedGps = gps.slice(-gpsBudget);
 
   const merged = [...trimmedDelivery, ...trimmedGps, ...failed];
@@ -134,8 +129,8 @@ function getDeliveryPendingCount(): number {
 
 function sortQueueByPriority(queue: OfflineQueueItem[]): OfflineQueueItem[] {
   return [...queue].sort((a, b) => {
-    const aGps = a.type === 'GPS_UPDATE' ? 1 : 0;
-    const bGps = b.type === 'GPS_UPDATE' ? 1 : 0;
+    const aGps = a.type === "GPS_UPDATE" ? 1 : 0;
+    const bGps = b.type === "GPS_UPDATE" ? 1 : 0;
     if (aGps !== bGps) return aGps - bGps;
     return a.timestamp - b.timestamp;
   });
@@ -164,24 +159,24 @@ export function getSyncState(): SyncState {
 }
 
 export function isNetworkOnline(): boolean {
-  return typeof navigator !== 'undefined' ? navigator.onLine : true;
+  return typeof navigator !== "undefined" ? navigator.onLine : true;
 }
 
 function saveQueue(queue: OfflineQueueItem[]) {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
 
   let pruned = pruneQueue(queue);
   let json = JSON.stringify(pruned);
 
   if (!safeSetItem(QUEUE_KEY, json)) {
-    pruned = pruneQueue(pruned.filter((item) => item.type !== 'GPS_UPDATE'));
+    pruned = pruneQueue(pruned.filter((item) => item.type !== "GPS_UPDATE"));
     json = JSON.stringify(pruned);
     if (!safeSetItem(QUEUE_KEY, json)) {
       const deliveryOnly = pruned.filter((item) => isDeliveryAction(item.type)).slice(-10);
       safeSetItem(QUEUE_KEY, JSON.stringify(deliveryOnly));
-      console.warn('[offline-queue] storage full — kept delivery actions only');
+      console.warn("[offline-queue] storage full — kept delivery actions only");
     } else {
-      console.warn('[offline-queue] storage full — dropped GPS queue items');
+      console.warn("[offline-queue] storage full — dropped GPS queue items");
     }
   }
 
@@ -189,7 +184,7 @@ function saveQueue(queue: OfflineQueueItem[]) {
 }
 
 export function getQueue(): OfflineQueueItem[] {
-  if (typeof window === 'undefined') return [];
+  if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(QUEUE_KEY);
     return raw ? (JSON.parse(raw) as OfflineQueueItem[]) : [];
@@ -198,10 +193,7 @@ export function getQueue(): OfflineQueueItem[] {
   }
 }
 
-function updateQueueItem(
-  id: string,
-  updater: (item: OfflineQueueItem) => OfflineQueueItem
-): void {
+function updateQueueItem(id: string, updater: (item: OfflineQueueItem) => OfflineQueueItem): void {
   const queue = getQueue();
   const index = queue.findIndex((item) => item.id === id);
   if (index === -1) return;
@@ -212,14 +204,14 @@ function updateQueueItem(
 function findMergeableGpsItem(
   queue: OfflineQueueItem[],
   assignmentId: string,
-  driverId: string
+  driverId: string,
 ): OfflineQueueItem | undefined {
   return queue.find(
     (item) =>
-      item.type === 'GPS_UPDATE' &&
+      item.type === "GPS_UPDATE" &&
       !item.failed &&
       item.payload.assignmentId === assignmentId &&
-      item.payload.driverId === driverId
+      item.payload.driverId === driverId,
   );
 }
 
@@ -250,7 +242,7 @@ function enqueueGpsPoints(points: GpsBufferPoint[]): void {
 
   const item: OfflineQueueItem = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-    type: 'GPS_UPDATE',
+    type: "GPS_UPDATE",
     payload: {
       assignmentId,
       driverId,
@@ -265,18 +257,15 @@ function enqueueGpsPoints(points: GpsBufferPoint[]): void {
 }
 
 /** Enqueue a fallback action. Callers must only use when offline or after request failure. */
-export function enqueue(
-  type: OfflineActionType,
-  payload: Record<string, unknown>
-): string {
-  if (type === 'GPS_UPDATE') {
+export function enqueue(type: OfflineActionType, payload: Record<string, unknown>): string {
+  if (type === "GPS_UPDATE") {
     const points = payload.points as GpsBufferPoint[] | undefined;
     if (Array.isArray(points) && points.length > 0) {
       enqueueGpsPoints(points);
       if (isNetworkOnline()) {
         void syncOfflineQueue();
       }
-      return 'gps-batch';
+      return "gps-batch";
     }
   }
 
@@ -304,27 +293,24 @@ export function removeItem(id: string) {
 }
 
 function loadGpsBuffer(): GpsBufferPoint[] {
-  if (typeof window === 'undefined') return [];
+  if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(GPS_BUFFER_KEY);
     const parsed = raw ? (JSON.parse(raw) as GpsBufferPoint[]) : [];
-    return parsed.length > MAX_GPS_BUFFER_POINTS
-      ? parsed.slice(-MAX_GPS_BUFFER_POINTS)
-      : parsed;
+    return parsed.length > MAX_GPS_BUFFER_POINTS ? parsed.slice(-MAX_GPS_BUFFER_POINTS) : parsed;
   } catch {
     return [];
   }
 }
 
 function saveGpsBuffer(points: GpsBufferPoint[]) {
-  if (typeof window === 'undefined') return;
-  const trimmed = points.length > MAX_GPS_BUFFER_POINTS
-    ? points.slice(-MAX_GPS_BUFFER_POINTS)
-    : points;
+  if (typeof window === "undefined") return;
+  const trimmed =
+    points.length > MAX_GPS_BUFFER_POINTS ? points.slice(-MAX_GPS_BUFFER_POINTS) : points;
   if (!safeSetItem(GPS_BUFFER_KEY, JSON.stringify(trimmed))) {
     const minimal = trimmed.slice(-20);
     safeSetItem(GPS_BUFFER_KEY, JSON.stringify(minimal));
-    console.warn('[offline-queue] GPS buffer trimmed due to storage quota');
+    console.warn("[offline-queue] GPS buffer trimmed due to storage quota");
   }
 }
 
@@ -332,7 +318,7 @@ function saveGpsBuffer(points: GpsBufferPoint[]) {
 export function addOfflineGpsPoint(
   assignmentId: string,
   driverId: string,
-  location: GPSLocationUpdate
+  location: GPSLocationUpdate,
 ) {
   const buffer = loadGpsBuffer();
   buffer.push({ ...location, assignmentId, driverId });
@@ -377,10 +363,10 @@ async function processAcceptOrder(payload: Record<string, unknown>): Promise<boo
 async function processDeliveryTransition(
   payload: Record<string, unknown>,
   deliveryStatus: DeliveryStatus,
-  orderStatus: OrderStatus
+  orderStatus: OrderStatus,
 ): Promise<boolean> {
   const ok = await syncDeliveryTransition(payload, deliveryStatus, orderStatus);
-  if (ok && deliveryStatus === 'delivered') {
+  if (ok && deliveryStatus === "delivered") {
     const driverId = payload.driverId as string;
     if (driverId) clearOptimisticDelivery(driverId);
   }
@@ -403,7 +389,7 @@ async function processGpsUpdate(payload: Record<string, unknown>): Promise<boole
         heading: point.heading,
         timestamp: point.timestamp,
       },
-      { suppressOfflineQueue: true }
+      { suppressOfflineQueue: true },
     );
 
     if (!result.success) {
@@ -415,17 +401,17 @@ async function processGpsUpdate(payload: Record<string, unknown>): Promise<boole
 
 async function processItem(item: OfflineQueueItem): Promise<boolean> {
   switch (item.type) {
-    case 'ACCEPT_ORDER':
+    case "ACCEPT_ORDER":
       return processAcceptOrder(item.payload);
-    case 'PICKED_UP':
-      return processDeliveryTransition(item.payload, 'picked_up', 'picked_up');
-    case 'IN_TRANSIT':
-      return processDeliveryTransition(item.payload, 'in_transit', 'in_transit');
-    case 'ARRIVED':
-      return processDeliveryTransition(item.payload, 'arrived', 'arrived');
-    case 'DELIVERED':
-      return processDeliveryTransition(item.payload, 'delivered', 'delivered');
-    case 'GPS_UPDATE':
+    case "PICKED_UP":
+      return processDeliveryTransition(item.payload, "picked_up", "picked_up");
+    case "IN_TRANSIT":
+      return processDeliveryTransition(item.payload, "in_transit", "in_transit");
+    case "ARRIVED":
+      return processDeliveryTransition(item.payload, "arrived", "arrived");
+    case "DELIVERED":
+      return processDeliveryTransition(item.payload, "delivered", "delivered");
+    case "GPS_UPDATE":
       return processGpsUpdate(item.payload);
     default:
       return false;
@@ -435,9 +421,9 @@ async function processItem(item: OfflineQueueItem): Promise<boolean> {
 function handleItemFailure(item: OfflineQueueItem): void {
   const nextRetry = item.retryCount + 1;
 
-  if (item.type === 'GPS_UPDATE' && nextRetry >= 2) {
+  if (item.type === "GPS_UPDATE" && nextRetry >= 2) {
     removeItem(item.id);
-    console.warn('[offline-queue] dropped GPS batch after repeated failures');
+    console.warn("[offline-queue] dropped GPS batch after repeated failures");
     return;
   }
 
@@ -462,9 +448,7 @@ function handleItemFailure(item: OfflineQueueItem): void {
 async function runSyncPass(): Promise<void> {
   const pendingBefore = getPendingQueue().length;
   const deliveryBefore = getDeliveryPendingCount();
-  console.log(
-    `[offline-queue] sync start, pending=${pendingBefore}, delivery=${deliveryBefore}`
-  );
+  console.log(`[offline-queue] sync start, pending=${pendingBefore}, delivery=${deliveryBefore}`);
 
   flushRemainingGpsBuffer();
 
@@ -489,9 +473,7 @@ async function runSyncPass(): Promise<void> {
 
   const pendingAfter = getPendingQueue().length;
   const deliveryAfter = getDeliveryPendingCount();
-  console.log(
-    `[offline-queue] sync end, pending=${pendingAfter}, delivery=${deliveryAfter}`
-  );
+  console.log(`[offline-queue] sync end, pending=${pendingAfter}, delivery=${deliveryAfter}`);
 }
 
 async function runSync(): Promise<void> {
@@ -538,12 +520,12 @@ export function resetOfflineQueueSync(): void {
 
 /** Emergency trim — call on app boot if storage was corrupted/full. */
 export function repairOfflineQueueStorage(): void {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
   saveQueue(getQueue());
   saveGpsBuffer(loadGpsBuffer());
 }
 
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   repairOfflineQueueStorage();
 
   window.addEventListener(NETWORK_ONLINE_EVENT, () => {

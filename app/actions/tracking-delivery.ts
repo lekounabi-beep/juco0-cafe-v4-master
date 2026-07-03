@@ -51,10 +51,9 @@ export async function getAssignmentForTrackingServer(
     return null;
   }
 
-  const { data, error } = await (supabaseAdmin as { rpc: Function }).rpc(
-    "get_delivery_assignment_for_order",
-    { p_order_id: orderId },
-  );
+  const { data, error } = await supabaseAdmin.rpc("get_delivery_assignment_for_order", {
+    p_order_id: orderId,
+  });
 
   if (error || !data) return null;
 
@@ -73,10 +72,9 @@ export async function getLatestLocationForTrackingServer(
 
   if (!isUUID(assignmentId)) return null;
 
-  const { data, error } = await (supabaseAdmin as { rpc: Function }).rpc(
-    "get_latest_delivery_location",
-    { p_assignment_id: assignmentId },
-  );
+  const { data, error } = await supabaseAdmin.rpc("get_latest_delivery_location", {
+    p_assignment_id: assignmentId,
+  });
 
   if (error || !data) return null;
 
@@ -95,10 +93,9 @@ export async function getLocationHistoryForTrackingServer(
 
   if (!isUUID(assignmentId)) return [];
 
-  const { data, error } = await (supabaseAdmin as { rpc: Function }).rpc(
-    "get_delivery_location_history",
-    { p_assignment_id: assignmentId },
-  );
+  const { data, error } = await supabaseAdmin.rpc("get_delivery_location_history", {
+    p_assignment_id: assignmentId,
+  });
 
   if (error || !data) return [];
 
@@ -118,7 +115,7 @@ export async function getDriverForTrackingServer(
   if (!isUUID(driverId)) return null;
 
   const { data, error } = await supabaseAdmin
-    .from("drivers" as never)
+    .from("drivers")
     .select("id, full_name, vehicle_type, phone, availability_status")
     .eq("id", driverId)
     .maybeSingle();
@@ -136,14 +133,14 @@ export async function getLocationHistoryForDriverServer(
   if (!isUUID(assignmentId)) return [];
 
   const { data: assignment, error: assignmentError } = await supabaseAdmin
-    .from("delivery_assignments" as never)
+    .from("delivery_assignments")
     .select("driver_id")
     .eq("id", assignmentId)
     .maybeSingle();
 
   if (assignmentError || !assignment) return [];
 
-  if ((assignment as { driver_id: string }).driver_id !== session.driverId) {
+  if (assignment.driver_id !== session.driverId) {
     serverLog.warn("tracking.access.denied", {
       driverId: session.driverId,
       resource: "driver_location_history",
@@ -151,10 +148,9 @@ export async function getLocationHistoryForDriverServer(
     return [];
   }
 
-  const { data, error } = await (supabaseAdmin as { rpc: Function }).rpc(
-    "get_delivery_location_history",
-    { p_assignment_id: assignmentId },
-  );
+  const { data, error } = await supabaseAdmin.rpc("get_delivery_location_history", {
+    p_assignment_id: assignmentId,
+  });
 
   if (error || !data) return [];
 

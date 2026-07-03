@@ -2,14 +2,14 @@
  * Favorite Orders page
  */
 
-'use client';
+"use client";
 
-import { FavoriteSection } from '@/features/account/components/FavoriteSection';
-import { EspressoBackground } from '@/components/EspressoBackground';
-import { useAuth } from '@/features/auth/hooks/useAuth';
-import { useRouter } from 'next/navigation';
-import { Loader2, ArrowLeft } from 'lucide-react';
-import Link from 'next/link';
+import { FavoriteSection } from "@/features/account/components/FavoriteSection";
+import { EspressoBackground } from "@/components/EspressoBackground";
+import { useAuth } from "@/features/auth/hooks/useAuth";
+import { useRouter } from "next/navigation";
+import { Loader2, ArrowLeft } from "lucide-react";
+import Link from "next/link";
 
 export default function FavoritesPage() {
   const { loading, user } = useAuth();
@@ -29,7 +29,7 @@ export default function FavoritesPage() {
   }
 
   if (!user) {
-    router.push('/login');
+    router.push("/login");
     return null;
   }
 
@@ -45,7 +45,7 @@ export default function FavoritesPage() {
           >
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <h1 className="font-display text-lg font-semibold text-white">Αγαπημένη Παραγγελία</h1>
+          <h1 className="font-display text-lg font-semibold text-white">Συνήθης Παραγγελία</h1>
         </div>
       </header>
 

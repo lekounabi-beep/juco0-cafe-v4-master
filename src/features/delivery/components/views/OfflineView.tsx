@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { Loader2, Power } from 'lucide-react';
-import { DRIVER_AVAILABILITY } from '../../types/delivery.types';
+import { Loader2, Power } from "lucide-react";
+import { DRIVER_AVAILABILITY } from "../../types/delivery.types";
 
 interface OfflineViewProps {
   availabilityLoading: boolean;

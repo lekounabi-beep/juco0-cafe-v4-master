@@ -7,9 +7,9 @@ export type TrailPoint = {
 export const TRAIL_GAP_SECONDS = 60;
 
 export type DriverTrailGeoJson = {
-  type: 'Feature';
+  type: "Feature";
   geometry: {
-    type: 'MultiLineString';
+    type: "MultiLineString";
     coordinates: [number, number][][];
   };
   properties: Record<string, never>;
@@ -17,9 +17,9 @@ export type DriverTrailGeoJson = {
 
 export function emptyDriverTrailGeoJson(): DriverTrailGeoJson {
   return {
-    type: 'Feature',
+    type: "Feature",
     geometry: {
-      type: 'MultiLineString',
+      type: "MultiLineString",
       coordinates: [],
     },
     properties: {},
@@ -59,11 +59,11 @@ export function segmentTrailCoordinates(points: TrailPoint[]): [number, number][
 
 /** Compact fingerprint for poll-stable comparisons — no JSON.stringify. */
 export function trailPointsSignature(points: TrailPoint[]): string {
-  if (points.length === 0) return '0';
+  if (points.length === 0) return "0";
 
   const last = points[points.length - 1]!;
   const segments = segmentTrailCoordinates(points);
-  const lastRecordedAt = last.recordedAt ?? '';
+  const lastRecordedAt = last.recordedAt ?? "";
 
   return `${points.length}|${lastRecordedAt}|${last.lat}|${last.lng}|${segments.length}`;
 }
@@ -77,26 +77,20 @@ export function toDriverTrailGeoJson(points: TrailPoint[]): DriverTrailGeoJson {
   }
 
   return {
-    type: 'Feature',
+    type: "Feature",
     geometry: {
-      type: 'MultiLineString',
+      type: "MultiLineString",
       coordinates,
     },
     properties: {},
   };
 }
 
-export function isTrailRenderable(
-  showDriverTrail: boolean,
-  points: TrailPoint[],
-): boolean {
+export function isTrailRenderable(showDriverTrail: boolean, points: TrailPoint[]): boolean {
   if (!showDriverTrail || points.length < 2) return false;
   return segmentTrailCoordinates(points).length > 0;
 }
 
-export function trailLayerDataKey(
-  points: TrailPoint[],
-  visible: boolean,
-): string {
-  return `${visible ? '1' : '0'}:${trailPointsSignature(points)}`;
+export function trailLayerDataKey(points: TrailPoint[], visible: boolean): string {
+  return `${visible ? "1" : "0"}:${trailPointsSignature(points)}`;
 }

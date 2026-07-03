@@ -1,17 +1,22 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import type { AddressSearchResult } from '../types/address';
-import { searchAddresses } from '../services/mapbox-search';
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { AddressSearchResult } from "../types/address";
+import { searchAddresses } from "../services/mapbox-search";
+
+const ADDRESS_SEARCH_DEBOUNCE_MS = 400;
+const MIN_QUERY_LENGTH = 3;
 
 export function useAddressSearch(query: string, enabled: boolean) {
   const normalizedQuery = useMemo(() => query.trim(), [query]);
   const [results, setResults] = useState<AddressSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestSeqRef = useRef(0);
 
   useEffect(() => {
-    if (!enabled || normalizedQuery.length < 2) {
+    if (!enabled || normalizedQuery.length < MIN_QUERY_LENGTH) {
+      requestSeqRef.current += 1;
       setResults([]);
       setLoading(false);
       setError(null);
@@ -19,24 +24,32 @@ export function useAddressSearch(query: string, enabled: boolean) {
     }
 
     const controller = new AbortController();
-    const timer = window.setTimeout(() => {
+    const debounceTimer = window.setTimeout(() => {
+      const requestSeq = ++requestSeqRef.current;
+
       setLoading(true);
       setError(null);
+
       searchAddresses(normalizedQuery, controller.signal)
-        .then(setResults)
+        .then((nextResults) => {
+          if (controller.signal.aborted || requestSeq !== requestSeqRef.current) return;
+          setResults(nextResults);
+        })
         .catch((err) => {
-          if (controller.signal.aborted) return;
+          if (controller.signal.aborted || requestSeq !== requestSeqRef.current) return;
           setResults([]);
-          setError(err instanceof Error ? err.message : 'Address search failed');
+          setError(err instanceof Error ? err.message : "Address search failed");
         })
         .finally(() => {
-          if (!controller.signal.aborted) setLoading(false);
+          if (controller.signal.aborted || requestSeq !== requestSeqRef.current) return;
+          setLoading(false);
         });
-    }, 250);
+    }, ADDRESS_SEARCH_DEBOUNCE_MS);
 
     return () => {
       controller.abort();
-      window.clearTimeout(timer);
+      window.clearTimeout(debounceTimer);
+      requestSeqRef.current += 1;
     };
   }, [enabled, normalizedQuery]);
 

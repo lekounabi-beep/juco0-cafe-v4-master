@@ -16,6 +16,7 @@ export function AddressStep({ onOpenAddressPicker, error, actionRef }: AddressSt
   const zoneAvailable = deliveryAddress?.deliveryZone?.isAvailable === true;
   const zoneUnavailable = deliveryAddress?.deliveryZone?.isAvailable === false;
   const hasNumber = !!deliveryAddress?.number?.trim();
+  const preferences = deliveryAddress?.deliveryPreferences?.join(" · ") ?? "";
 
   return (
     <section className="space-y-3 rounded-3xl glass p-4">
@@ -49,6 +50,16 @@ export function AddressStep({ onOpenAddressPicker, error, actionRef }: AddressSt
                 <p className={hasNumber ? "text-white/65" : "text-amber-200"}>
                   Αριθμός οδού: {hasNumber ? deliveryAddress.number : "Δεν εντοπίστηκε"}
                 </p>
+                {deliveryAddress?.floor && (
+                  <p className="text-white/65">Όροφος: {deliveryAddress.floor}</p>
+                )}
+                {deliveryAddress?.bell && (
+                  <p className="text-white/65">Κουδούνι: {deliveryAddress.bell}</p>
+                )}
+                {preferences && <p className="text-white/65">Παράδοση: {preferences}</p>}
+                {deliveryAddress?.notes && (
+                  <p className="line-clamp-2 text-white/65">Οδηγίες: {deliveryAddress.notes}</p>
+                )}
                 {!hasNumber && deliveryAddress.manualPinConfirmed && (
                   <p className="text-amber-100">
                     Έχεις επιβεβαιώσει ότι η καρφίτσα στον χάρτη είναι ακριβής.

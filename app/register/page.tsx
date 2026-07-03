@@ -2,13 +2,13 @@
  * Register page
  */
 
-'use client';
+"use client";
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { RegisterForm } from '@/features/auth/components/RegisterForm';
-import { GoogleButton } from '@/features/auth/components/GoogleButton';
-import { useAuth } from '@/features/auth/hooks/useAuth';
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { RegisterForm } from "@/features/auth/components/RegisterForm";
+import { GoogleButton } from "@/features/auth/components/GoogleButton";
+import { useAuth } from "@/features/auth/hooks/useAuth";
 
 export default function RegisterPage() {
   const { isAuthenticated, loading } = useAuth();
@@ -16,7 +16,7 @@ export default function RegisterPage() {
 
   useEffect(() => {
     if (!loading && isAuthenticated) {
-      router.push('/account');
+      router.push("/account");
     }
   }, [isAuthenticated, loading, router]);
 

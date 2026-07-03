@@ -1,6 +1,6 @@
 /** Dev-only logging — silent in production builds. */
 
-const isDev = process.env.NODE_ENV === 'development';
+const isDev = process.env.NODE_ENV === "development";
 
 export const devLog = {
   log: (...args: unknown[]) => {

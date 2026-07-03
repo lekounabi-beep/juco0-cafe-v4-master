@@ -2,17 +2,17 @@
  * Addresses hook - manages user addresses
  */
 
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/features/auth/hooks/useAuth';
-import { getProfile } from '@/integrations/supabase/services/profile.service';
+import { useState, useEffect } from "react";
+import { useAuth } from "@/features/auth/hooks/useAuth";
+import { getProfile } from "@/integrations/supabase/services/profile.service";
 import {
   getAddresses,
   createAddress,
   updateAddress,
   deleteAddress,
   setDefaultAddress,
-} from '@/integrations/supabase/services/address.service';
-import type { Address, AddressCreate, AddressUpdate } from '@/features/account/types/account.types';
+} from "@/integrations/supabase/services/address.service";
+import type { Address, AddressCreate, AddressUpdate } from "@/features/account/types/account.types";
 
 export function useAddresses() {
   const { user } = useAuth();
@@ -38,7 +38,7 @@ export function useAddresses() {
         const data = await getAddresses(profile.id);
         setAddresses(data);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load addresses');
+        setError(err instanceof Error ? err.message : "Failed to load addresses");
       } finally {
         setLoading(false);
       }
@@ -47,9 +47,9 @@ export function useAddresses() {
     loadAddresses();
   }, [user]);
 
-  const create = async (data: AddressCreate) => {
+  const create = async (data: Omit<AddressCreate, "user_id">) => {
     if (!user) {
-      setError('User not authenticated');
+      setError("User not authenticated");
       return { success: false };
     }
 
@@ -58,14 +58,14 @@ export function useAddresses() {
       setError(null);
       const profile = await getProfile(user.id);
       if (!profile) {
-        setError('Profile not found');
+        setError("Profile not found");
         return { success: false };
       }
       const newAddress = await createAddress({ ...data, user_id: profile.id });
       setAddresses((prev) => [newAddress, ...prev]);
       return { success: true };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to create address';
+      const message = err instanceof Error ? err.message : "Failed to create address";
       setError(message);
       return { success: false, error: message };
     } finally {
@@ -81,7 +81,7 @@ export function useAddresses() {
       setAddresses((prev) => prev.map((addr) => (addr.id === addressId ? updated : addr)));
       return { success: true };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to update address';
+      const message = err instanceof Error ? err.message : "Failed to update address";
       setError(message);
       return { success: false, error: message };
     } finally {
@@ -97,7 +97,7 @@ export function useAddresses() {
       setAddresses((prev) => prev.filter((addr) => addr.id !== addressId));
       return { success: true };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to delete address';
+      const message = err instanceof Error ? err.message : "Failed to delete address";
       setError(message);
       return { success: false, error: message };
     } finally {
@@ -114,11 +114,11 @@ export function useAddresses() {
         prev.map((addr) => ({
           ...addr,
           is_default: addr.id === addressId,
-        }))
+        })),
       );
       return { success: true };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to set default address';
+      const message = err instanceof Error ? err.message : "Failed to set default address";
       setError(message);
       return { success: false, error: message };
     } finally {

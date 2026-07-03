@@ -9,20 +9,20 @@ import type {
   NotificationSettings,
   NotificationSoundStatus,
   PlayNotificationOptions,
-} from '../types/notification-settings';
-import type { NotificationSoundType } from '../types/notification-sound';
+} from "../types/notification-settings";
+import type { NotificationSoundType } from "../types/notification-sound";
 
-export type { NotificationSoundType } from '../types/notification-sound';
+export type { NotificationSoundType } from "../types/notification-sound";
 export type { NotificationSettings, PlayNotificationOptions, NotificationSoundStatus };
 
-const SOUND_URL = '/notification.mp3';
-const STORAGE_KEY = 'juco-notification-settings';
+const SOUND_URL = "/notification.mp3";
+const STORAGE_KEY = "juco-notification-settings";
 const MIN_ASSET_BYTES = 100;
 const THROTTLE_MS = 800;
 const DEDUP_TTL_MS = 5000;
 const SYSTEM_NOTIFICATION_GRACE_MS = 4000;
 
-const DEV = process.env.NODE_ENV === 'development';
+const DEV = process.env.NODE_ENV === "development";
 
 const DEFAULT_SETTINGS: NotificationSettings = {
   notificationSoundEnabled: true,
@@ -30,22 +30,18 @@ const DEFAULT_SETTINGS: NotificationSettings = {
 };
 
 const DEV_WARN_EMPTY =
-  '[NotificationSound] public/notification.mp3 is missing or empty. ' +
-  'Add a short soft ding (0.2–0.6s, <50KB) to /public/notification.mp3.';
+  "[NotificationSound] public/notification.mp3 is missing or empty. " +
+  "Add a short soft ding (0.2–0.6s, <50KB) to /public/notification.mp3.";
 
 type DedupEntry = { key: string; timestamp: number };
 
 function isBenignPlayError(err: unknown): boolean {
   if (!(err instanceof DOMException)) return false;
-  return (
-    err.name === 'NotAllowedError' ||
-    err.name === 'AbortError' ||
-    err.name === 'NetworkError'
-  );
+  return err.name === "NotAllowedError" || err.name === "AbortError" || err.name === "NetworkError";
 }
 
 function readSettings(): NotificationSettings {
-  if (typeof window === 'undefined') return { ...DEFAULT_SETTINGS };
+  if (typeof window === "undefined") return { ...DEFAULT_SETTINGS };
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...DEFAULT_SETTINGS };
@@ -53,7 +49,9 @@ function readSettings(): NotificationSettings {
     return {
       notificationSoundEnabled:
         parsed.notificationSoundEnabled ?? DEFAULT_SETTINGS.notificationSoundEnabled,
-      notificationVolume: clampVolume(parsed.notificationVolume ?? DEFAULT_SETTINGS.notificationVolume),
+      notificationVolume: clampVolume(
+        parsed.notificationVolume ?? DEFAULT_SETTINGS.notificationVolume,
+      ),
     };
   } catch {
     return { ...DEFAULT_SETTINGS };
@@ -61,7 +59,7 @@ function readSettings(): NotificationSettings {
 }
 
 function writeSettings(settings: NotificationSettings): void {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
 }
 
@@ -97,7 +95,7 @@ class NotificationSoundService {
   private boundBlur = () => this.onBlur();
   private boundAudioError = () => {
     this.assetValid = false;
-    this.warnEmptyAsset('decode error');
+    this.warnEmptyAsset("decode error");
   };
 
   static getInstance(): NotificationSoundService {
@@ -108,15 +106,15 @@ class NotificationSoundService {
   }
 
   private constructor() {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       this.settings = readSettings();
       this.hidden = document.hidden;
     }
   }
 
   private emitSettingsChange(): void {
-    if (typeof window === 'undefined') return;
-    window.dispatchEvent(new CustomEvent('notification-settings-changed'));
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(new CustomEvent("notification-settings-changed"));
   }
 
   private warnEmptyAsset(reason: string): void {
@@ -130,7 +128,7 @@ class NotificationSoundService {
   }
 
   private startDedupCleanup(): void {
-    if (this.dedupCleanupTimer || typeof window === 'undefined') return;
+    if (this.dedupCleanupTimer || typeof window === "undefined") return;
     this.dedupCleanupTimer = setInterval(() => this.pruneDedupCache(), 10_000);
   }
 
@@ -145,7 +143,7 @@ class NotificationSoundService {
 
   private isDuplicateEvent(options?: PlayNotificationOptions): boolean {
     if (!options?.eventId && !options?.orderId) return false;
-    const key = `${options.eventId ?? ''}:${options.orderId ?? ''}`;
+    const key = `${options.eventId ?? ""}:${options.orderId ?? ""}`;
     const existing = this.dedupCache.get(key);
     if (existing && Date.now() - existing.timestamp < DEDUP_TTL_MS) {
       return true;
@@ -220,9 +218,9 @@ class NotificationSoundService {
   }
 
   subscribeSettings(listener: () => void): () => void {
-    if (typeof window === 'undefined') return () => undefined;
-    window.addEventListener('notification-settings-changed', listener);
-    return () => window.removeEventListener('notification-settings-changed', listener);
+    if (typeof window === "undefined") return () => undefined;
+    window.addEventListener("notification-settings-changed", listener);
+    return () => window.removeEventListener("notification-settings-changed", listener);
   }
 
   status(): NotificationSoundStatus {
@@ -240,7 +238,7 @@ class NotificationSoundService {
   }
 
   preload(): void {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
     if (!this.settings.notificationSoundEnabled) return;
     if (this.isPreloaded) return;
 
@@ -252,9 +250,9 @@ class NotificationSoundService {
 
     if (!this.audio) {
       this.audio = new Audio(SOUND_URL);
-      this.audio.preload = 'auto';
+      this.audio.preload = "auto";
       this.audio.volume = this.settings.notificationVolume;
-      this.audio.addEventListener('error', this.boundAudioError);
+      this.audio.addEventListener("error", this.boundAudioError);
     }
 
     this.attachUnlockListeners();
@@ -274,14 +272,14 @@ class NotificationSoundService {
     if (this.validationPromise) return this.validationPromise;
 
     this.validationPromise = (async () => {
-      if (typeof window === 'undefined') {
+      if (typeof window === "undefined") {
         this.assetChecked = true;
         return false;
       }
 
       try {
-        const res = await fetch(SOUND_URL, { method: 'HEAD', cache: 'no-store' });
-        const length = Number(res.headers.get('content-length') ?? 0);
+        const res = await fetch(SOUND_URL, { method: "HEAD", cache: "no-store" });
+        const length = Number(res.headers.get("content-length") ?? 0);
 
         if (!res.ok || length < MIN_ASSET_BYTES) {
           this.assetValid = false;
@@ -292,7 +290,7 @@ class NotificationSoundService {
         }
       } catch {
         this.assetValid = false;
-        this.warnEmptyAsset('HEAD request failed');
+        this.warnEmptyAsset("HEAD request failed");
       }
 
       this.assetChecked = true;
@@ -304,39 +302,39 @@ class NotificationSoundService {
   }
 
   private attachUnlockListeners(): void {
-    if (this.unlockListenersAttached || typeof window === 'undefined') return;
+    if (this.unlockListenersAttached || typeof window === "undefined") return;
     this.unlockListenersAttached = true;
 
     const onGesture = () => {
       void this.unlock();
-      window.removeEventListener('pointerdown', onGesture);
-      window.removeEventListener('touchstart', onGesture);
-      window.removeEventListener('keydown', onGesture);
+      window.removeEventListener("pointerdown", onGesture);
+      window.removeEventListener("touchstart", onGesture);
+      window.removeEventListener("keydown", onGesture);
     };
 
-    window.addEventListener('pointerdown', onGesture, { passive: true });
-    window.addEventListener('touchstart', onGesture, { passive: true });
-    window.addEventListener('keydown', onGesture);
+    window.addEventListener("pointerdown", onGesture, { passive: true });
+    window.addEventListener("touchstart", onGesture, { passive: true });
+    window.addEventListener("keydown", onGesture);
   }
 
   private attachLifecycleListeners(): void {
-    if (this.lifecycleAttached || typeof window === 'undefined') return;
+    if (this.lifecycleAttached || typeof window === "undefined") return;
     this.lifecycleAttached = true;
 
-    document.addEventListener('visibilitychange', this.boundVisibility);
-    window.addEventListener('pageshow', this.boundPageShow);
-    window.addEventListener('pagehide', this.boundPageHide);
-    window.addEventListener('focus', this.boundFocus);
-    window.addEventListener('blur', this.boundBlur);
+    document.addEventListener("visibilitychange", this.boundVisibility);
+    window.addEventListener("pageshow", this.boundPageShow);
+    window.addEventListener("pagehide", this.boundPageHide);
+    window.addEventListener("focus", this.boundFocus);
+    window.addEventListener("blur", this.boundBlur);
   }
 
   private removeLifecycleListeners(): void {
-    if (!this.lifecycleAttached || typeof window === 'undefined') return;
-    document.removeEventListener('visibilitychange', this.boundVisibility);
-    window.removeEventListener('pageshow', this.boundPageShow);
-    window.removeEventListener('pagehide', this.boundPageHide);
-    window.removeEventListener('focus', this.boundFocus);
-    window.removeEventListener('blur', this.boundBlur);
+    if (!this.lifecycleAttached || typeof window === "undefined") return;
+    document.removeEventListener("visibilitychange", this.boundVisibility);
+    window.removeEventListener("pageshow", this.boundPageShow);
+    window.removeEventListener("pagehide", this.boundPageHide);
+    window.removeEventListener("focus", this.boundFocus);
+    window.removeEventListener("blur", this.boundBlur);
     this.lifecycleAttached = false;
   }
 
@@ -378,16 +376,16 @@ class NotificationSoundService {
       this.isUnlocked = true;
     } catch (err) {
       if (DEV && !isBenignPlayError(err)) {
-        console.debug('[NotificationSound] unlock failed', err);
+        console.debug("[NotificationSound] unlock failed", err);
       }
     }
   }
 
   async play(
-    _type: NotificationSoundType = 'default',
-    options?: PlayNotificationOptions
+    _type: NotificationSoundType = "default",
+    options?: PlayNotificationOptions,
   ): Promise<void> {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
 
     this.settings = readSettings();
     if (!this.isEnabled()) return;
@@ -415,16 +413,16 @@ class NotificationSoundService {
     } catch (err) {
       if (DEV) {
         if (isBenignPlayError(err)) {
-          console.debug('[NotificationSound] play blocked (gesture required)');
+          console.debug("[NotificationSound] play blocked (gesture required)");
         } else {
-          console.debug('[NotificationSound] play error', err);
+          console.debug("[NotificationSound] play error", err);
         }
       }
     }
   }
 
   private attachDevTools(): void {
-    if (!DEV || typeof window === 'undefined') return;
+    if (!DEV || typeof window === "undefined") return;
     const w = window as Window & { notificationSoundDebug?: unknown };
     if (w.notificationSoundDebug) return;
 
@@ -433,7 +431,8 @@ class NotificationSoundService {
       mute: () => this.mute(),
       unmute: () => this.unmute(),
       status: () => this.status(),
-      volume: (v?: number) => (v !== undefined ? this.setVolume(v) : this.settings.notificationVolume),
+      volume: (v?: number) =>
+        v !== undefined ? this.setVolume(v) : this.settings.notificationVolume,
       unlock: () => this.unlock(),
       enable: () => this.enable(),
       disable: () => this.disable(),
@@ -451,9 +450,9 @@ class NotificationSoundService {
     this.dedupCache.clear();
 
     if (this.audio) {
-      this.audio.removeEventListener('error', this.boundAudioError);
+      this.audio.removeEventListener("error", this.boundAudioError);
       this.audio.pause();
-      this.audio.removeAttribute('src');
+      this.audio.removeAttribute("src");
       this.audio.load();
       this.audio = null;
     }
@@ -468,7 +467,7 @@ class NotificationSoundService {
     this.warnedEmpty = false;
     this.sessionMuted = false;
 
-    if (DEV && typeof window !== 'undefined') {
+    if (DEV && typeof window !== "undefined") {
       delete (window as Window & { notificationSoundDebug?: unknown }).notificationSoundDebug;
     }
 
@@ -480,7 +479,7 @@ export const notificationSoundService = NotificationSoundService.getInstance();
 
 export function playNotificationSound(
   type?: NotificationSoundType,
-  options?: PlayNotificationOptions
+  options?: PlayNotificationOptions,
 ): Promise<void> {
   return notificationSoundService.play(type, options);
 }

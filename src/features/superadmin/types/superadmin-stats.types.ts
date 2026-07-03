@@ -140,5 +140,4 @@ export type SuperAdminPlatformStats = {
 };
 
 export type SuperAdminStatsResult =
-  | { success: true; stats: SuperAdminPlatformStats }
-  | { success: false; error: string };
+  { success: true; stats: SuperAdminPlatformStats } | { success: false; error: string };

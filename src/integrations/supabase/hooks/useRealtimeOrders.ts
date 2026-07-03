@@ -2,23 +2,23 @@
  * Realtime hook for order subscriptions
  */
 
-import { useEffect, useRef, useCallback } from 'react';
-import { realtimeService } from '../services/realtime.service';
+import { useEffect, useRef, useCallback } from "react";
+import { realtimeService, type RealtimeChangePayload } from "../services/realtime.service";
 
 export function useRealtimeOrders(
-  callback: (payload: any) => void,
-  filter?: { event?: 'INSERT' | 'UPDATE' | 'DELETE'; filter?: string }
+  callback: (payload: RealtimeChangePayload) => void,
+  filter?: { event?: "INSERT" | "UPDATE" | "DELETE"; filter?: string },
 ) {
   const subscriptionIdRef = useRef<string | null>(null);
   const callbackRef = useRef(callback);
   callbackRef.current = callback;
 
-  const filterKey = filter ? `${filter.event ?? '*'}:${filter.filter ?? ''}` : '*';
+  const filterKey = filter ? `${filter.event ?? "*"}:${filter.filter ?? ""}` : "*";
 
   useEffect(() => {
     subscriptionIdRef.current = realtimeService.subscribeToOrders(
       (payload) => callbackRef.current(payload),
-      filter
+      filter,
     );
 
     return () => {
@@ -42,7 +42,7 @@ export function useRealtimeOrders(
  */
 export function useRealtimeOrder(
   orderId: string,
-  callback: (payload: any) => void
+  callback: (payload: RealtimeChangePayload) => void,
 ) {
   const subscriptionIdRef = useRef<string | null>(null);
   const callbackRef = useRef(callback);
@@ -52,7 +52,7 @@ export function useRealtimeOrder(
     if (!orderId) return;
 
     subscriptionIdRef.current = realtimeService.subscribeToOrder(orderId, (payload) =>
-      callbackRef.current(payload)
+      callbackRef.current(payload),
     );
 
     return () => {

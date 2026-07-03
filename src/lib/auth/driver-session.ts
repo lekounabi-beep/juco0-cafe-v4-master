@@ -1,8 +1,8 @@
-import { isUUID } from '@/shared/utils/uuid';
+import { isUUID } from "@/shared/utils/uuid";
 
-export const DRIVER_SESSION_KEY = 'driver_session';
+export const DRIVER_SESSION_KEY = "driver_session";
 /** Cookie mirror so middleware can redirect /driver without client JS (mobile/PWA). */
-export const DRIVER_AUTH_COOKIE = 'driver_auth';
+export const DRIVER_AUTH_COOKIE = "driver_auth";
 
 const COOKIE_MAX_AGE_SEC = 60 * 60 * 24 * 30;
 
@@ -12,7 +12,7 @@ export type DriverSession = {
 };
 
 function safeLocalStorageGet(key: string): string | null {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === "undefined") return null;
   try {
     return localStorage.getItem(key);
   } catch {
@@ -21,7 +21,7 @@ function safeLocalStorageGet(key: string): string | null {
 }
 
 function safeLocalStorageSet(key: string, value: string): void {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
   try {
     localStorage.setItem(key, value);
   } catch {
@@ -30,7 +30,7 @@ function safeLocalStorageSet(key: string, value: string): void {
 }
 
 function safeLocalStorageRemove(key: string): void {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
   try {
     localStorage.removeItem(key);
   } catch {
@@ -43,7 +43,7 @@ export function setDriverAuthCookie(): void {
 }
 
 export function clearDriverAuthCookie(): void {
-  if (typeof document === 'undefined') return;
+  if (typeof document === "undefined") return;
   document.cookie = `${DRIVER_AUTH_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
 }
 
@@ -68,7 +68,7 @@ export function getDriverSession(): DriverSession | null {
 
 export function setDriverSession(session: DriverSession): void {
   if (!isUUID(session.driver_id)) {
-    throw new Error('driver_id must be a valid UUID');
+    throw new Error("driver_id must be a valid UUID");
   }
   safeLocalStorageSet(DRIVER_SESSION_KEY, JSON.stringify(session));
 }

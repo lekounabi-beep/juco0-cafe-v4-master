@@ -1,6 +1,6 @@
 /** Pickup / permission orchestration (local to driver page). */
 
-export type DriverDeliveryPermission = 'pending' | 'granted' | 'denied';
+export type DriverDeliveryPermission = "pending" | "granted" | "denied";
 
 export type DriverDeliveryState = {
   permission: DriverDeliveryPermission;
@@ -9,7 +9,7 @@ export type DriverDeliveryState = {
 };
 
 export const INITIAL_DRIVER_DELIVERY_STATE: DriverDeliveryState = {
-  permission: 'pending',
+  permission: "pending",
   gpsReady: false,
   isPickingUp: false,
 };

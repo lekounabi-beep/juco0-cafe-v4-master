@@ -6,7 +6,10 @@ import { SuperAdminPageHeader } from "@/features/superadmin/components/SuperAdmi
 import { PlatformHealthBanner } from "@/features/superadmin/components/overview/PlatformHealthBanner";
 import { OperationalAlertsPanel } from "@/features/superadmin/components/overview/OperationalAlertsPanel";
 import { OrderDurationMonitor } from "@/features/superadmin/components/overview/OperationalAlertsPanel";
-import { OperationsCard, OperationsStatRow } from "@/features/superadmin/components/overview/OperationsCards";
+import {
+  OperationsCard,
+  OperationsStatRow,
+} from "@/features/superadmin/components/overview/OperationsCards";
 import { useSuperAdminStats } from "@/features/superadmin/hooks/useSuperAdminStats";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSuperAdminT } from "@/features/superadmin/i18n/SuperAdminLocaleProvider";
@@ -50,22 +53,44 @@ export default function SuperAdminMonitoringPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <OperationsCard title={t("page.monitoring.gps")} href="/superadmin/drivers" loading={loading}>
+        <OperationsCard
+          title={t("page.monitoring.gps")}
+          href="/superadmin/drivers"
+          loading={loading}
+        >
           <div className="space-y-2">
-            <OperationsStatRow label={t("fleet.gpsStale")} value={stats?.fleetHealth.gpsStale ?? 0} tone="warning" />
+            <OperationsStatRow
+              label={t("fleet.gpsStale")}
+              value={stats?.fleetHealth.gpsStale ?? 0}
+              tone="warning"
+            />
             <OperationsStatRow
               label={t("fleet.lastGps")}
               value={localeDateTimeString(locale, stats?.fleetHealth.lastGpsReceived)}
             />
-            <OperationsStatRow label={t("page.monitoring.driverAlerts")} value={driverAlerts.length} />
+            <OperationsStatRow
+              label={t("page.monitoring.driverAlerts")}
+              value={driverAlerts.length}
+            />
           </div>
         </OperationsCard>
 
         <OperationsCard title={t("nav.payments")} href="/superadmin/payments" loading={loading}>
           <div className="space-y-2">
-            <OperationsStatRow label={t("page.monitoring.failedPayments")} value={stats?.payments.failed ?? 0} tone="danger" />
-            <OperationsStatRow label={t("page.monitoring.pendingPayments")} value={stats?.payments.pending ?? 0} tone="warning" />
-            <OperationsStatRow label={t("page.monitoring.paymentAlerts")} value={paymentAlerts.length} />
+            <OperationsStatRow
+              label={t("page.monitoring.failedPayments")}
+              value={stats?.payments.failed ?? 0}
+              tone="danger"
+            />
+            <OperationsStatRow
+              label={t("page.monitoring.pendingPayments")}
+              value={stats?.payments.pending ?? 0}
+              tone="warning"
+            />
+            <OperationsStatRow
+              label={t("page.monitoring.paymentAlerts")}
+              value={paymentAlerts.length}
+            />
           </div>
         </OperationsCard>
 
@@ -75,7 +100,10 @@ export default function SuperAdminMonitoringPage() {
               label={t("page.monitoring.supabaseConfigured")}
               value={stats?.integrations.supabase ? t("common.yes") : t("common.no")}
             />
-            <OperationsStatRow label={t("page.monitoring.realtimeStatus")} value={stats?.system.realtime ?? "unknown"} />
+            <OperationsStatRow
+              label={t("page.monitoring.realtimeStatus")}
+              value={stats?.system.realtime ?? "unknown"}
+            />
             <p className="text-xs text-zinc-500">{t("page.monitoring.realtimeNote")}</p>
           </div>
         </OperationsCard>
@@ -83,7 +111,9 @@ export default function SuperAdminMonitoringPage() {
 
       <Card className="border-zinc-800 bg-zinc-900/50 shadow-none">
         <CardHeader>
-          <CardTitle className="text-base text-white">{t("page.monitoring.unavailableSources")}</CardTitle>
+          <CardTitle className="text-base text-white">
+            {t("page.monitoring.unavailableSources")}
+          </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-2 text-sm text-zinc-500 sm:grid-cols-2">
           <p>{t("page.monitoring.unavailable.errors")}</p>

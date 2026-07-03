@@ -4,19 +4,23 @@ import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SuperAdminPageHeader } from "@/features/superadmin/components/SuperAdminPageHeader";
 import { MetricCard } from "@/features/superadmin/components/overview/MetricCard";
-import { OperationsCard, OperationsStatRow } from "@/features/superadmin/components/overview/OperationsCards";
+import {
+  OperationsCard,
+  OperationsStatRow,
+} from "@/features/superadmin/components/overview/OperationsCards";
 import { OrderDurationMonitor } from "@/features/superadmin/components/overview/OperationalAlertsPanel";
 import { useSuperAdminOrdersLiveSync } from "@/features/superadmin/hooks/useSuperAdminOrdersLiveSync";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useSuperAdminT } from "@/features/superadmin/i18n/SuperAdminLocaleProvider";
-import { getMessage, localeDateTimeString, type SuperAdminMessageKey } from "@/features/superadmin/i18n/messages";
+import {
+  getMessage,
+  localeDateTimeString,
+  type SuperAdminMessageKey,
+} from "@/features/superadmin/i18n/messages";
 import type { SuperAdminOperationalAlert } from "@/features/superadmin/types/superadmin-stats.types";
 
-function alertTitle(
-  locale: "en" | "el",
-  alert: SuperAdminOperationalAlert,
-): string {
+function alertTitle(locale: "en" | "el", alert: SuperAdminOperationalAlert): string {
   return getMessage(locale, alert.titleKey as SuperAdminMessageKey, alert.messageValues);
 }
 
@@ -44,12 +48,32 @@ export default function SuperAdminOrdersPage() {
       />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <MetricCard label={t("orders.pending")} value={stats?.liveOrders.pending} loading={loading} />
-        <MetricCard label={t("orders.preparing")} value={stats?.liveOrders.preparing} loading={loading} />
+        <MetricCard
+          label={t("orders.pending")}
+          value={stats?.liveOrders.pending}
+          loading={loading}
+        />
+        <MetricCard
+          label={t("orders.preparing")}
+          value={stats?.liveOrders.preparing}
+          loading={loading}
+        />
         <MetricCard label={t("orders.ready")} value={stats?.liveOrders.ready} loading={loading} />
-        <MetricCard label={t("orders.delivering")} value={stats?.liveOrders.delivering} loading={loading} />
-        <MetricCard label={t("orders.completedToday")} value={stats?.liveOrders.completedToday} loading={loading} />
-        <MetricCard label={t("orders.cancelledToday")} value={stats?.liveOrders.cancelledToday} loading={loading} />
+        <MetricCard
+          label={t("orders.delivering")}
+          value={stats?.liveOrders.delivering}
+          loading={loading}
+        />
+        <MetricCard
+          label={t("orders.completedToday")}
+          value={stats?.liveOrders.completedToday}
+          loading={loading}
+        />
+        <MetricCard
+          label={t("orders.cancelledToday")}
+          value={stats?.liveOrders.cancelledToday}
+          loading={loading}
+        />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">

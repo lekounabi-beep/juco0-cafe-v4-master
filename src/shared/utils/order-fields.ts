@@ -2,8 +2,8 @@
  * Normalize order/delivery fields to match Supabase schema.
  */
 
-import type { Coordinates } from '@/shared/types/common.types';
-import { isValidLatLng, normalizeCoordinates } from '@/shared/utils/coordinates';
+import type { Coordinates } from "@/shared/types/common.types";
+import { isValidLatLng, normalizeCoordinates } from "@/shared/utils/coordinates";
 
 type OrderLocationFields = {
   lat?: number | string | null;
@@ -23,7 +23,9 @@ type AssignmentTimestamps = {
 };
 
 /** Read customer destination from orders.lat/lng (primary) or legacy orders.coords JSONB. */
-export function orderCoordinates(order: OrderLocationFields | null | undefined): Coordinates | null {
+export function orderCoordinates(
+  order: OrderLocationFields | null | undefined,
+): Coordinates | null {
   if (!order) return null;
 
   if (order.lat != null && order.lng != null) {
@@ -44,14 +46,14 @@ export { isValidLatLng };
 
 /** Derive delivery status from delivery_assignments timestamp columns (no status column in DB). */
 export function assignmentStatusFromTimestamps(
-  assignment: AssignmentTimestamps | null | undefined
+  assignment: AssignmentTimestamps | null | undefined,
 ): string {
-  if (!assignment) return 'pending';
-  if (assignment.delivered_at) return 'delivered';
-  if (assignment.arrived_at) return 'arrived';
-  if (assignment.started_delivery_at) return 'in_transit';
-  if (assignment.picked_up_at) return 'picked_up';
-  if (assignment.accepted_at || assignment.assigned_at) return 'assigned';
-  if (assignment.cancelled_at) return 'cancelled';
-  return 'pending';
+  if (!assignment) return "pending";
+  if (assignment.delivered_at) return "delivered";
+  if (assignment.arrived_at) return "arrived";
+  if (assignment.started_delivery_at) return "in_transit";
+  if (assignment.picked_up_at) return "picked_up";
+  if (assignment.accepted_at || assignment.assigned_at) return "assigned";
+  if (assignment.cancelled_at) return "cancelled";
+  return "pending";
 }

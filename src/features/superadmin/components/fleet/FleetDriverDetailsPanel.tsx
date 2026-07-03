@@ -74,7 +74,10 @@ export function FleetDriverDetailsPanel({
         <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
           <Detail label={t("fleet.vehicle")} value={driver.vehicle_type ?? "—"} />
           <Detail label={t("fleet.phone")} value={driver.phone ?? "—"} />
-          <Detail label={t("fleet.status")} value={adminDriverStateLabel(driver.operational_state)} />
+          <Detail
+            label={t("fleet.status")}
+            value={adminDriverStateLabel(driver.operational_state)}
+          />
           <Detail label={t("fleet.availability")} value={driver.availability_status} />
           <Detail
             label={t("fleet.lastGps")}
@@ -113,7 +116,10 @@ export function FleetDriverDetailsPanel({
             }
           />
           <Detail label={t("fleet.speed")} value={formatSpeed(driver.location?.speed ?? null)} />
-          <Detail label={t("fleet.heading")} value={formatHeading(driver.location?.heading ?? null)} />
+          <Detail
+            label={t("fleet.heading")}
+            value={formatHeading(driver.location?.heading ?? null)}
+          />
         </CardContent>
       </Card>
 
@@ -125,13 +131,20 @@ export function FleetDriverDetailsPanel({
           <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
             <Detail label={t("fleet.order")} value={`#${driver.active_delivery.order_number}`} />
             <Detail label={t("fleet.customer")} value={driver.active_delivery.customer_name} />
-            <Detail label={t("fleet.address")} value={driver.active_delivery.address} className="sm:col-span-2" />
+            <Detail
+              label={t("fleet.address")}
+              value={driver.active_delivery.address}
+              className="sm:col-span-2"
+            />
             <Detail label={t("fleet.deliveryStage")} value={driver.active_delivery.status} />
             <Detail
               label={t("fleet.orderStatus")}
               value={driver.active_delivery.order_delivery_status ?? "—"}
             />
-            <Detail label={t("fleet.payment")} value={formatPayment(driver.active_delivery.payment_method)} />
+            <Detail
+              label={t("fleet.payment")}
+              value={formatPayment(driver.active_delivery.payment_method)}
+            />
             <Detail
               label={t("fleet.eta")}
               value={
@@ -153,15 +166,7 @@ export function FleetDriverDetailsPanel({
   );
 }
 
-function Detail({
-  label,
-  value,
-  className,
-}: {
-  label: string;
-  value: string;
-  className?: string;
-}) {
+function Detail({ label, value, className }: { label: string; value: string; className?: string }) {
   return (
     <div className={className}>
       <p className="text-xs uppercase tracking-wide text-zinc-600">{label}</p>

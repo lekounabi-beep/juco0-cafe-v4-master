@@ -1,13 +1,13 @@
-'use server';
+"use server";
 
-import { supabaseAdmin } from '@/integrations/supabase/client.server';
-import { requireDriverSession } from './driver-login';
-import { isUUID } from '@/shared/utils/uuid';
-import { assignmentStatusFromTimestamps } from '@/shared/utils/order-fields';
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { requireDriverSession } from "./driver-login";
+import { isUUID } from "@/shared/utils/uuid";
+import { assignmentStatusFromTimestamps } from "@/shared/utils/order-fields";
 import {
   DRIVER_ORDER_SELECT,
   type DriverOrderDetails,
-} from '@/features/delivery/types/driver-order.types';
+} from "@/features/delivery/types/driver-order.types";
 
 export type DriverActiveDeliveryPayload = {
   id: string;
@@ -32,7 +32,7 @@ export type FetchDriverActiveDeliveryResult = {
 };
 
 function formatDbError(error: { message?: string; details?: string; hint?: string }): string {
-  return [error.message, error.details, error.hint].filter(Boolean).join(' — ') || 'Database error';
+  return [error.message, error.details, error.hint].filter(Boolean).join(" — ") || "Database error";
 }
 
 /**
@@ -40,24 +40,24 @@ function formatDbError(error: { message?: string; details?: string; hint?: strin
  * Device-login drivers have no Supabase auth session — client RLS queries return empty.
  */
 export async function fetchDriverActiveDelivery(
-  driverId: string
+  driverId: string,
 ): Promise<FetchDriverActiveDeliveryResult> {
   const session = await requireDriverSession().catch(() => null);
   if (!session || session.driverId !== driverId) {
-    return { success: false, assignment: null, error: 'Unauthorized' };
+    return { success: false, assignment: null, error: "Unauthorized" };
   }
 
   if (!isUUID(driverId)) {
-    return { success: false, assignment: null, error: 'Invalid driver_id: UUID required' };
+    return { success: false, assignment: null, error: "Invalid driver_id: UUID required" };
   }
 
   const { data: rows, error } = await supabaseAdmin
-    .from('delivery_assignments' as any)
-    .select('*')
-    .eq('driver_id', driverId)
-    .is('delivered_at', null)
-    .is('cancelled_at', null)
-    .order('assigned_at', { ascending: false })
+    .from("delivery_assignments")
+    .select("*")
+    .eq("driver_id", driverId)
+    .is("delivered_at", null)
+    .is("cancelled_at", null)
+    .order("assigned_at", { ascending: false })
     .limit(1);
 
   if (error) {
@@ -73,9 +73,9 @@ export async function fetchDriverActiveDelivery(
   const orderId = row.order_id as string;
 
   const { data: orderData, error: orderError } = await supabaseAdmin
-    .from('orders' as any)
+    .from("orders")
     .select(DRIVER_ORDER_SELECT)
-    .eq('id', orderId)
+    .eq("id", orderId)
     .single();
 
   if (orderError) {
@@ -84,12 +84,14 @@ export async function fetchDriverActiveDelivery(
 
   const order = orderData as DriverOrderDetails;
   if (order.driver_id && order.driver_id !== driverId) {
-    return { success: false, assignment: null, error: 'Unauthorized' };
+    return { success: false, assignment: null, error: "Unauthorized" };
   }
 
   const assignment: DriverActiveDeliveryPayload = {
     ...(row as DriverActiveDeliveryPayload),
-    status: assignmentStatusFromTimestamps(row as Parameters<typeof assignmentStatusFromTimestamps>[0]),
+    status: assignmentStatusFromTimestamps(
+      row as Parameters<typeof assignmentStatusFromTimestamps>[0],
+    ),
     order,
   };
 

@@ -16,14 +16,24 @@ import {
   isValidCheckoutAddress,
 } from "@/features/location/services/address-parser";
 import { normalizeGreekPhone, validators } from "@/shared/utils/validation";
+import { captureException } from "@/lib/monitoring";
 import type { CheckoutSubmitState } from "../types/checkout.types";
 
-function buildDeliveryNotes(floor: string, bell: string, instructions: string) {
+const CHECKOUT_TOKEN_BACKUP_KEY = "juco_checkout_token";
+const CARD_ORDER_ID_KEY = "juco_card_order_id";
+
+function buildDeliveryNotes(address: {
+  floor?: string;
+  bell?: string;
+  deliveryPreferences?: string[];
+  notes?: string;
+}) {
   return (
     [
-      floor.trim() ? `Όροφος: ${floor.trim()}` : null,
-      bell.trim() ? `Κουδούνι: ${bell.trim()}` : null,
-      instructions.trim() ? instructions.trim() : null,
+      address.floor?.trim() ? `Όροφος: ${address.floor.trim()}` : null,
+      address.bell?.trim() ? `Κουδούνι: ${address.bell.trim()}` : null,
+      address.deliveryPreferences?.length ? address.deliveryPreferences.join(", ") : null,
+      address.notes?.trim() ? address.notes.trim() : null,
     ]
       .filter(Boolean)
       .join(" · ") || null
@@ -74,9 +84,6 @@ export function useCheckoutSubmit() {
     name,
     phone,
     deliveryAddress,
-    floor,
-    bell,
-    deliveryInstructions,
     notes,
     payment,
     userId,
@@ -101,7 +108,8 @@ export function useCheckoutSubmit() {
 
     try {
       const isPickup = fulfillment === "pickup";
-      const deliveryNotes = isPickup ? null : buildDeliveryNotes(floor, bell, deliveryInstructions);
+      const deliveryNotes =
+        isPickup || !deliveryAddress ? null : buildDeliveryNotes(deliveryAddress);
       const normalizedPhone = normalizeGreekPhone(phone);
 
       if (items.length === 0) {
@@ -161,15 +169,16 @@ export function useCheckoutSubmit() {
       };
 
       if (payment === "card") {
-        const { checkoutToken, orderCode } = await Promise.race([
+        const { checkoutToken, orderCode, orderId } = await Promise.race([
           initiateCardCheckoutServer(checkoutInput, clientRequestId),
           new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("Viva Wallet API timeout")), 15000),
+            setTimeout(() => reject(new Error("Viva Wallet API timeout")), 30000),
           ),
         ]);
 
         sessionStorage.setItem("checkoutToken", checkoutToken);
-        localStorage.setItem("juco_checkout_token", checkoutToken);
+        localStorage.setItem(CHECKOUT_TOKEN_BACKUP_KEY, checkoutToken);
+        localStorage.setItem(CARD_ORDER_ID_KEY, orderId);
         sessionStorage.removeItem("pendingOrder");
 
         setSubmitting(false);
@@ -201,7 +210,7 @@ export function useCheckoutSubmit() {
       releaseSubmitLock = false;
       window.location.href = `/track/${data.id}`;
     } catch (e) {
-      console.error("Order submission error:", e);
+      captureException(e, { scope: "checkout.submit" });
       setError(customerSafeError(e, payment));
     } finally {
       if (releaseSubmitLock) {
@@ -215,9 +224,6 @@ export function useCheckoutSubmit() {
     name,
     phone,
     deliveryAddress,
-    floor,
-    bell,
-    deliveryInstructions,
     notes,
     payment,
     userId,

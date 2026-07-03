@@ -33,7 +33,11 @@ export function OperationalAlertsPanel({
   const { t } = useSuperAdminT();
 
   return (
-    <OperationsCard title={t("overview.operationalAlerts")} href="/superadmin/monitoring" loading={loading}>
+    <OperationsCard
+      title={t("overview.operationalAlerts")}
+      href="/superadmin/monitoring"
+      loading={loading}
+    >
       {alerts.length === 0 ? (
         <p className="text-sm text-zinc-500">{t("overview.noAlerts")}</p>
       ) : (
@@ -45,7 +49,10 @@ export function OperationalAlertsPanel({
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     {alert.href ? (
-                      <Link href={alert.href} className="text-sm font-medium text-white hover:underline">
+                      <Link
+                        href={alert.href}
+                        className="text-sm font-medium text-white hover:underline"
+                      >
                         {copy.title}
                       </Link>
                     ) : (
@@ -82,10 +89,7 @@ export function OrderDurationMonitor({
       ) : (
         <ul className="space-y-2">
           {alerts.slice(0, 8).map((alert) => (
-            <li
-              key={alert.orderId}
-              className="flex items-center justify-between gap-3 text-sm"
-            >
+            <li key={alert.orderId} className="flex items-center justify-between gap-3 text-sm">
               <span className="text-zinc-300">
                 #{alert.orderNumber} · {t(`duration.stage.${alert.stage}` as SuperAdminMessageKey)}
               </span>

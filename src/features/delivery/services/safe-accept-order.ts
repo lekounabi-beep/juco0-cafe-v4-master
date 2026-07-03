@@ -3,6 +3,7 @@
  */
 
 import { driverAcceptOrder } from "../../../../app/actions/create-delivery-assignment";
+import { devLog } from "@/shared/utils/dev-log";
 import { isUUID } from "@/shared/utils/uuid";
 import { enqueue, isNetworkOnline } from "./offline-queue.service";
 import type { OptimisticOrder } from "./driver-offline-state";
@@ -10,8 +11,7 @@ import type { OptimisticOrder } from "./driver-offline-state";
 export const ACCEPT_FLOW_TIMEOUT_MS = 8_000;
 
 export type AcceptResult =
-  | { ok: true; state: "success"; assignmentId: string }
-  | { ok: false; reason: string };
+  { ok: true; state: "success"; assignmentId: string } | { ok: false; reason: string };
 
 export async function withAcceptTimeout<T>(
   label: string,
@@ -44,39 +44,39 @@ export async function safeAcceptOrder(
   driverId: string,
   orderSnapshot: OptimisticOrder,
 ): Promise<AcceptResult> {
-  console.log("[ACCEPT_FLOW_START]", { orderId, driverId });
+  devLog.log("[ACCEPT_FLOW_START]", { orderId, driverId });
 
   if (!isUUID(orderId)) {
     const reason = "Invalid order_id: UUID required";
-    console.log("[ACCEPT_RESULT]", { ok: false, reason });
+    devLog.log("[ACCEPT_RESULT]", { ok: false, reason });
     return { ok: false, reason };
   }
 
   if (!isUUID(driverId)) {
     const reason = "Invalid driver_id: UUID required (use drivers.id from profile)";
-    console.log("[ACCEPT_RESULT]", { ok: false, reason });
+    devLog.log("[ACCEPT_RESULT]", { ok: false, reason });
     return { ok: false, reason };
   }
 
   if (!isNetworkOnline()) {
-    console.log("[ACCEPT_BEFORE_API]", { mode: "offline_queue" });
+    devLog.log("[ACCEPT_BEFORE_API]", { mode: "offline_queue" });
     enqueue("ACCEPT_ORDER", { orderId, driverId, orderSnapshot });
-    console.log("[ACCEPT_AFTER_API]", { mode: "offline_queue" });
+    devLog.log("[ACCEPT_AFTER_API]", { mode: "offline_queue" });
     const result: AcceptResult = {
       ok: false,
       reason: "Offline — connect to accept orders",
     };
-    console.log("[ACCEPT_RESULT]", result);
+    devLog.log("[ACCEPT_RESULT]", result);
     return result;
   }
 
   try {
-    console.log("[ACCEPT_BEFORE_API]", { mode: "driverAcceptOrder" });
+    devLog.log("[ACCEPT_BEFORE_API]", { mode: "driverAcceptOrder" });
     const apiResult = await withAcceptTimeout(
       "driverAcceptOrder",
       driverAcceptOrder(orderId, driverId),
     );
-    console.log("[ACCEPT_AFTER_API]", apiResult);
+    devLog.log("[ACCEPT_AFTER_API]", apiResult);
 
     if (apiResult.success && apiResult.assignment) {
       const result: AcceptResult = {
@@ -84,7 +84,7 @@ export async function safeAcceptOrder(
         state: "success",
         assignmentId: apiResult.assignment.id,
       };
-      console.log("[ACCEPT_RESULT]", result);
+      devLog.log("[ACCEPT_RESULT]", result);
       return result;
     }
 
@@ -92,17 +92,17 @@ export async function safeAcceptOrder(
       ok: false,
       reason: apiResult.error || "Failed to accept order",
     };
-    console.log("[ACCEPT_RESULT]", result);
+    devLog.log("[ACCEPT_RESULT]", result);
     return result;
   } catch (err) {
-    console.log("[ACCEPT_CATCH_ERROR]", err);
+    devLog.log("[ACCEPT_CATCH_ERROR]", err);
     const result: AcceptResult = {
       ok: false,
       reason: err instanceof Error ? err.message : "Failed to accept order",
     };
-    console.log("[ACCEPT_RESULT]", result);
+    devLog.log("[ACCEPT_RESULT]", result);
     return result;
   } finally {
-    console.log("[ACCEPT_FINALLY]");
+    devLog.log("[ACCEPT_FINALLY]");
   }
 }

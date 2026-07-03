@@ -1,29 +1,29 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
-import { Download, Share, X } from 'lucide-react';
-import { useIsStandalone } from '@/hooks/useIsStandalone';
+import { useCallback, useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
+import { Download, Share, X } from "lucide-react";
+import { useIsStandalone } from "@/hooks/useIsStandalone";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
-const DISMISS_KEY_CUSTOMER = 'pwa_install_dismissed_customer';
-const DISMISS_KEY_DRIVER = 'pwa_install_dismissed_driver';
+const DISMISS_KEY_CUSTOMER = "pwa_install_dismissed_customer";
+const DISMISS_KEY_DRIVER = "pwa_install_dismissed_driver";
 
 function isIos(): boolean {
-  if (typeof navigator === 'undefined') return false;
+  if (typeof navigator === "undefined") return false;
   return /iphone|ipad|ipod/i.test(navigator.userAgent);
 }
 
 function isDriverRoute(pathname: string): boolean {
-  return pathname === '/driver' || pathname.startsWith('/driver/');
+  return pathname === "/driver" || pathname.startsWith("/driver/");
 }
 
 function isAdminRoute(pathname: string): boolean {
-  return pathname === '/admin' || pathname.startsWith('/admin/');
+  return pathname === "/admin" || pathname.startsWith("/admin/");
 }
 
 function dismissKeyForPath(pathname: string): string {
@@ -44,7 +44,7 @@ export function PwaInstallBanner() {
     if (isStandalone || isAdmin) return;
 
     const dismissKey = dismissKeyForPath(pathname);
-    if (sessionStorage.getItem(dismissKey) === '1') {
+    if (sessionStorage.getItem(dismissKey) === "1") {
       setDismissed(true);
       return;
     }
@@ -54,25 +54,31 @@ export function PwaInstallBanner() {
 
     const onInstallPrompt = (event: Event) => {
       event.preventDefault();
-      console.log('[PWA] beforeinstallprompt fired', { route: pathname, variant: isDriver ? 'driver' : 'customer' });
+      console.log("[PWA] beforeinstallprompt fired", {
+        route: pathname,
+        variant: isDriver ? "driver" : "customer",
+      });
       setDeferred(event as BeforeInstallPromptEvent);
     };
 
     const onAppInstalled = () => {
-      console.log('[PWA] appinstalled', { route: pathname, variant: isDriver ? 'driver' : 'customer' });
+      console.log("[PWA] appinstalled", {
+        route: pathname,
+        variant: isDriver ? "driver" : "customer",
+      });
       setDeferred(null);
     };
 
-    window.addEventListener('beforeinstallprompt', onInstallPrompt);
-    window.addEventListener('appinstalled', onAppInstalled);
+    window.addEventListener("beforeinstallprompt", onInstallPrompt);
+    window.addEventListener("appinstalled", onAppInstalled);
     return () => {
-      window.removeEventListener('beforeinstallprompt', onInstallPrompt);
-      window.removeEventListener('appinstalled', onAppInstalled);
+      window.removeEventListener("beforeinstallprompt", onInstallPrompt);
+      window.removeEventListener("appinstalled", onAppInstalled);
     };
   }, [isStandalone, isAdmin, pathname, isDriver]);
 
   const dismiss = useCallback(() => {
-    sessionStorage.setItem(dismissKeyForPath(pathname), '1');
+    sessionStorage.setItem(dismissKeyForPath(pathname), "1");
     setDismissed(true);
   }, [pathname]);
 
@@ -86,10 +92,10 @@ export function PwaInstallBanner() {
   if (isStandalone || dismissed || isAdmin) return null;
   if (!deferred && !showIos) return null;
 
-  const title = isDriver ? 'Install Juco Driver' : 'Install Juco';
+  const title = isDriver ? "Install Juco Driver" : "Install Juco";
   const androidHint = isDriver
-    ? 'Add the driver app to your home screen.'
-    : 'Add Juco to your home screen for faster ordering.';
+    ? "Add the driver app to your home screen."
+    : "Add Juco to your home screen for faster ordering.";
 
   return (
     <div className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-md">

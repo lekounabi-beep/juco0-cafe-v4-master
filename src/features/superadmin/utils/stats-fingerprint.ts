@@ -8,9 +8,7 @@ export function superAdminStatsFingerprint(stats: SuperAdminPlatformStats): stri
     fleetHealth: stats.fleetHealth,
     platformHealth: stats.platformHealth,
     alerts: stats.alerts.map((a) => `${a.id}:${a.severity}:${a.titleKey}`),
-    durationAlerts: stats.durationAlerts.map(
-      (a) => `${a.orderId}:${a.stage}:${a.durationMinutes}`,
-    ),
+    durationAlerts: stats.durationAlerts.map((a) => `${a.orderId}:${a.stage}:${a.durationMinutes}`),
     insights: stats.insights,
     drivers: stats.drivers,
     totalOrders: stats.totalOrders,

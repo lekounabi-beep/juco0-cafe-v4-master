@@ -1,6 +1,7 @@
 // Browser Supabase client — uses cookies (via @supabase/ssr) for middleware-compatible sessions.
-import { createBrowserClient } from '@supabase/ssr';
-import type { Database } from './types';
+import { createBrowserClient } from "@supabase/ssr";
+import { captureMessage } from "@/lib/monitoring";
+import type { Database } from "./types";
 
 function createSupabaseClient() {
   const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -9,13 +10,11 @@ function createSupabaseClient() {
 
   if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
     const missing = [
-      ...(!SUPABASE_URL ? ['SUPABASE_URL'] : []),
-      ...(!SUPABASE_PUBLISHABLE_KEY ? ['SUPABASE_PUBLISHABLE_KEY'] : []),
+      ...(!SUPABASE_URL ? ["SUPABASE_URL"] : []),
+      ...(!SUPABASE_PUBLISHABLE_KEY ? ["SUPABASE_PUBLISHABLE_KEY"] : []),
     ];
-    console.error(
-      `[Supabase] Missing Supabase environment variable(s): ${missing.join(', ')}.`
-    );
-    return createBrowserClient<Database>('https://mock.supabase.co', 'mock-key');
+    captureMessage("supabase.config.missing", { missing });
+    return createBrowserClient<Database>("https://mock.supabase.co", "mock-key");
   }
 
   return createBrowserClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);

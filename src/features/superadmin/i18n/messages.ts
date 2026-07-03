@@ -163,8 +163,7 @@ const en = {
   "page.orders.recentSample": "Recent Order Status Sample",
   "page.orders.sampleNote":
     "Derived from the latest {count} orders. Full paginated explorer is not persisted as a separate backend yet.",
-  "page.payments.description":
-    "Read-only payment method and status overview from recent orders.",
+  "page.payments.description": "Read-only payment method and status overview from recent orders.",
   "page.payments.vivaIntegration": "Viva Integration",
   "page.payments.configured": "Configured",
   "page.payments.notConfigured": "Not configured",
@@ -544,7 +543,8 @@ const el: Record<keyof typeof en, string> = {
   "metrics.hint.profiles": "Εγγεγραμμένα προφίλ",
   "metrics.hint.peakHour": "Από πρόσφατο δείγμα παραγγελιών",
   "metrics.hint.topProduct": "Από πρόσφατο δείγμα παραγγελιών",
-  "healthGrid.unavailable": "Η υγεία συστήματος δεν είναι διαθέσιμη — ελέγξτε την πρόσβαση SuperAdmin.",
+  "healthGrid.unavailable":
+    "Η υγεία συστήματος δεν είναι διαθέσιμη — ελέγξτε την πρόσβαση SuperAdmin.",
   "healthGrid.api": "API",
   "healthGrid.database": "Βάση δεδομένων",
   "healthGrid.realtime": "Realtime",
@@ -583,10 +583,7 @@ const catalogs: Record<SuperAdminLocale, Record<SuperAdminMessageKey, string>> =
   el,
 };
 
-export function formatMessage(
-  template: string,
-  values?: MessageValues,
-): string {
+export function formatMessage(template: string, values?: MessageValues): string {
   if (!values) return template;
   return template.replace(/\{(\w+)\}/g, (_, key: string) =>
     values[key] != null ? String(values[key]) : `{${key}}`,
@@ -610,10 +607,7 @@ export function localeDateTimeString(
   return new Date(iso).toLocaleString(locale === "el" ? "el-GR" : "en-GB");
 }
 
-export function localeTimeString(
-  locale: SuperAdminLocale,
-  iso: string | null | undefined,
-): string {
+export function localeTimeString(locale: SuperAdminLocale, iso: string | null | undefined): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleTimeString(locale === "el" ? "el-GR" : "en-GB");
 }

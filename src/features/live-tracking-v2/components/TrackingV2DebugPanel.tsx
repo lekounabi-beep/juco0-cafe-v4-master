@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ENABLE_TRACKING_V2_DEBUG } from '../config/debug';
-import type { CustomerTrackingDebugSnapshot } from '../types/customer-tracking-debug.types';
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { ENABLE_TRACKING_V2_DEBUG } from "../config/debug";
+import type { CustomerTrackingDebugSnapshot } from "../types/customer-tracking-debug.types";
 import {
   ageSeconds,
   formatAgeSeconds,
@@ -13,8 +13,8 @@ import {
   gpsFreshnessFromAge,
   gpsFreshnessLabel,
   type GpsFreshness,
-} from '../utils/tracking-debug-format';
-import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+} from "../utils/tracking-debug-format";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 
 export type TrackingV2DebugPanelProps = {
   assignmentId?: string | null;
@@ -23,38 +23,46 @@ export type TrackingV2DebugPanelProps = {
   lastGpsAt?: string | null;
   driverLocation?: { lat: number; lng: number } | null;
   destination?: { lat: number; lng: number } | null;
-  mapStatus?: 'loading' | 'ready' | 'error' | string;
+  mapStatus?: "loading" | "ready" | "error" | string;
   lastRenderTime?: string | null;
   locationError?: string | null;
   renderCount?: number;
-  surface?: 'customer' | 'driver';
+  surface?: "customer" | "driver";
   /** Rich customer tracking snapshot (session or legacy path). */
   customerDebug?: CustomerTrackingDebugSnapshot;
 };
 
 function yesNo(value: boolean | null | undefined): string {
-  if (value == null) return '—';
-  return value ? 'yes' : 'no';
+  if (value == null) return "—";
+  return value ? "yes" : "no";
 }
 
 function freshnessClass(freshness: GpsFreshness): string {
   switch (freshness) {
-    case 'fresh':
-      return 'text-emerald-400';
-    case 'stale':
-      return 'text-amber-400';
-    case 'critical':
-      return 'text-red-400';
+    case "fresh":
+      return "text-emerald-400";
+    case "stale":
+      return "text-amber-400";
+    case "critical":
+      return "text-red-400";
     default:
-      return 'text-amber-100/70';
+      return "text-amber-100/70";
   }
 }
 
-function DebugRow({ label, value, valueClassName }: { label: string; value: string; valueClassName?: string }) {
+function DebugRow({
+  label,
+  value,
+  valueClassName,
+}: {
+  label: string;
+  value: string;
+  valueClassName?: string;
+}) {
   return (
     <div className="flex items-baseline justify-between gap-3">
       <dt className="shrink-0 text-amber-200/50">{label}</dt>
-      <dd className={`truncate text-right ${valueClassName ?? 'text-amber-100/90'}`}>{value}</dd>
+      <dd className={`truncate text-right ${valueClassName ?? "text-amber-100/90"}`}>{value}</dd>
     </div>
   );
 }
@@ -104,42 +112,32 @@ function CustomerDebugPanel({
   const driverCoords = formatCoordAxis(driverLocation);
   const destCoords = formatCoordAxis(destination);
 
-  const isTerminal =
-    debug.isTerminal === true || connectionState === 'stopped';
+  const isTerminal = debug.isTerminal === true || connectionState === "stopped";
 
   const pollingActive =
     debug.pollingActive ??
-    (connectionState === 'polling' ||
-      (connectionState == null && connected === true && !loading));
+    (connectionState === "polling" || (connectionState == null && connected === true && !loading));
 
-  const shouldPoll =
-    !isTerminal && pageVisible && isOnline && connectionState !== 'error';
+  const shouldPoll = !isTerminal && pageVisible && isOnline && connectionState !== "error";
 
   const alerts = useMemo(() => {
     const items: string[] = [];
     if (gpsAgeSec != null && gpsAgeSec > 30) {
-      items.push('⚠ Driver GPS stale');
+      items.push("⚠ Driver GPS stale");
     }
     if (
       !isTerminal &&
       lastPollAgeSec != null &&
       lastPollAgeSec > 10 &&
-      connectionState !== 'paused'
+      connectionState !== "paused"
     ) {
-      items.push('⚠ Polling appears stalled');
+      items.push("⚠ Polling appears stalled");
     }
     if (assignmentId && driverLocation == null) {
-      items.push('⚠ No driver location available');
+      items.push("⚠ No driver location available");
     }
     return items;
-  }, [
-    gpsAgeSec,
-    isTerminal,
-    lastPollAgeSec,
-    connectionState,
-    assignmentId,
-    driverLocation,
-  ]);
+  }, [gpsAgeSec, isTerminal, lastPollAgeSec, connectionState, assignmentId, driverLocation]);
 
   const eta = debug.eta;
   const hasEta = eta != null && eta.eta != null && !eta.isArrived;
@@ -161,15 +159,12 @@ function CustomerDebugPanel({
 
       <div className="space-y-2.5">
         <DebugSection title="Session">
-          <DebugRow label="Assignment ID" value={assignmentId ?? '—'} />
+          <DebugRow label="Assignment ID" value={assignmentId ?? "—"} />
           <DebugRow label="Connection State" value={connectionLabel} />
-          <DebugRow
-            label="Tracking Session Enabled"
-            value={yesNo(debug.trackingSessionEnabled)}
-          />
+          <DebugRow label="Tracking Session Enabled" value={yesNo(debug.trackingSessionEnabled)} />
           <DebugRow
             label="Poll Count"
-            value={debug.pollCount != null ? String(debug.pollCount) : '—'}
+            value={debug.pollCount != null ? String(debug.pollCount) : "—"}
           />
           <DebugRow label="Last Poll At" value={formatDebugTime(lastPollAt)} />
           <DebugRow label="Seconds Since Last Poll" value={formatAgeSeconds(lastPollAgeSec)} />
@@ -184,7 +179,7 @@ function CustomerDebugPanel({
           <DebugRow label="Destination Longitude" value={destCoords.lng} />
           <DebugRow
             label="GPS Points Loaded"
-            value={debug.gpsPointsLoaded != null ? String(debug.gpsPointsLoaded) : '—'}
+            value={debug.gpsPointsLoaded != null ? String(debug.gpsPointsLoaded) : "—"}
           />
           <DebugRow label="Last GPS Timestamp" value={formatDebugTime(lastGpsTimestamp)} />
           <DebugRow label="GPS Age Seconds" value={formatAgeSeconds(gpsAgeSec)} />
@@ -196,24 +191,21 @@ function CustomerDebugPanel({
         </DebugSection>
 
         <DebugSection title="Delivery State">
-          <DebugRow label="Order Status" value={debug.orderStatus ?? '—'} />
-          <DebugRow label="Assignment Status" value={debug.assignmentStatus ?? '—'} />
-          <DebugRow label="Customer Step" value={debug.customerStep ?? '—'} />
+          <DebugRow label="Order Status" value={debug.orderStatus ?? "—"} />
+          <DebugRow label="Assignment Status" value={debug.assignmentStatus ?? "—"} />
+          <DebugRow label="Customer Step" value={debug.customerStep ?? "—"} />
           <DebugRow label="Is Terminal" value={yesNo(isTerminal)} />
         </DebugSection>
 
         <DebugSection title="ETA">
           {hasEta && eta ? (
             <>
+              <DebugRow label="ETA Minutes Remaining" value={formatEtaMinutes(eta.remainingTime)} />
               <DebugRow
-                label="ETA Minutes Remaining"
-                value={formatEtaMinutes(eta.remainingTime)}
+                label="Estimated Arrival Time"
+                value={formatDebugTime(eta.eta?.toISOString())}
               />
-              <DebugRow label="Estimated Arrival Time" value={formatDebugTime(eta.eta?.toISOString())} />
-              <DebugRow
-                label="ETA Last Updated"
-                value={formatDebugTime(debug.etaLastUpdated)}
-              />
+              <DebugRow label="ETA Last Updated" value={formatDebugTime(debug.etaLastUpdated)} />
             </>
           ) : (
             <DebugRow label="ETA" value="unavailable" valueClassName="text-amber-200/60" />
@@ -228,31 +220,30 @@ function CustomerDebugPanel({
         </DebugSection>
 
         <DebugSection title="Rendering">
-          <DebugRow label="Map Status" value={mapStatus ?? '—'} />
+          <DebugRow label="Map Status" value={mapStatus ?? "—"} />
           <DebugRow label="Last Render Time" value={formatDebugTime(lastRenderTime)} />
-          <DebugRow
-            label="Render Count"
-            value={renderCount != null ? String(renderCount) : '—'}
-          />
+          <DebugRow label="Render Count" value={renderCount != null ? String(renderCount) : "—"} />
           <DebugRow label="Trail Visible" value={yesNo(debug.trailVisible)} />
           <DebugRow
             label="Trail Points"
-            value={debug.trailPoints != null ? String(debug.trailPoints) : '—'}
+            value={debug.trailPoints != null ? String(debug.trailPoints) : "—"}
           />
           <DebugRow
             label="Trail Source"
-            value={debug.trailSourceReady == null ? '—' : debug.trailSourceReady ? 'ready' : 'missing'}
+            value={
+              debug.trailSourceReady == null ? "—" : debug.trailSourceReady ? "ready" : "missing"
+            }
           />
           <DebugRow
             label="Trail Layer"
-            value={debug.trailLayerReady == null ? '—' : debug.trailLayerReady ? 'ready' : 'missing'}
+            value={
+              debug.trailLayerReady == null ? "—" : debug.trailLayerReady ? "ready" : "missing"
+            }
           />
         </DebugSection>
       </div>
 
-      {locationError && (
-        <p className="mt-2 text-[10px] text-red-300/90">Error: {locationError}</p>
-      )}
+      {locationError && <p className="mt-2 text-[10px] text-red-300/90">Error: {locationError}</p>}
     </>
   );
 }
@@ -276,15 +267,15 @@ function DriverDebugPanel({
       <dl className="grid grid-cols-1 gap-0.5 sm:grid-cols-2">
         <div>
           <dt className="text-amber-200/50">Assignment ID</dt>
-          <dd className="truncate">{assignmentId ?? '—'}</dd>
+          <dd className="truncate">{assignmentId ?? "—"}</dd>
         </div>
         <div>
           <dt className="text-amber-200/50">Connected</dt>
-          <dd>{connected == null ? '—' : connected ? 'yes' : 'no'}</dd>
+          <dd>{connected == null ? "—" : connected ? "yes" : "no"}</dd>
         </div>
         <div>
           <dt className="text-amber-200/50">Loading</dt>
-          <dd>{loading == null ? '—' : loading ? 'yes' : 'no'}</dd>
+          <dd>{loading == null ? "—" : loading ? "yes" : "no"}</dd>
         </div>
         <div>
           <dt className="text-amber-200/50">Last GPS</dt>
@@ -300,22 +291,20 @@ function DriverDebugPanel({
         </div>
         <div>
           <dt className="text-amber-200/50">Map status</dt>
-          <dd>{mapStatus ?? '—'}</dd>
+          <dd>{mapStatus ?? "—"}</dd>
         </div>
         <div>
           <dt className="text-amber-200/50">Last render</dt>
           <dd>{formatDebugTime(lastRenderTime)}</dd>
         </div>
       </dl>
-      {locationError && (
-        <p className="mt-1 text-amber-300/80">Error: {locationError}</p>
-      )}
+      {locationError && <p className="mt-1 text-amber-300/80">Error: {locationError}</p>}
     </>
   );
 }
 
 export function TrackingV2DebugPanel(props: TrackingV2DebugPanelProps) {
-  const { surface = 'customer' } = props;
+  const { surface = "customer" } = props;
 
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [pageVisible, setPageVisible] = useState(true);
@@ -327,10 +316,10 @@ export function TrackingV2DebugPanel(props: TrackingV2DebugPanelProps) {
   }, []);
 
   useEffect(() => {
-    const update = () => setPageVisible(document.visibilityState === 'visible');
+    const update = () => setPageVisible(document.visibilityState === "visible");
     update();
-    document.addEventListener('visibilitychange', update);
-    return () => document.removeEventListener('visibilitychange', update);
+    document.addEventListener("visibilitychange", update);
+    return () => document.removeEventListener("visibilitychange", update);
   }, []);
 
   if (!ENABLE_TRACKING_V2_DEBUG) return null;
@@ -341,7 +330,7 @@ export function TrackingV2DebugPanel(props: TrackingV2DebugPanelProps) {
         Tracking V2 Debug ({surface})
       </p>
 
-      {surface === 'customer' ? (
+      {surface === "customer" ? (
         <CustomerDebugPanel
           {...props}
           nowMs={nowMs}

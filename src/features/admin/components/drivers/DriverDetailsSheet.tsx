@@ -1,10 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { ArrowLeft, Loader2, MapPin, RefreshCw, X } from "lucide-react";
 import { getAdminDriverDetails } from "@app/actions/admin-drivers";
 import type { AdminDriverDetails } from "@/features/admin/types/admin-driver.types";
-import { DriverLiveMap } from "@/features/live-tracking-v2/components/DriverLiveMap";
+import { MapDynamicLoading } from "@/features/maps/components/MapDynamicLoading";
+
+const DriverLiveMap = dynamic(
+  () => import("@/features/live-tracking-v2/components/DriverLiveMap").then((m) => m.DriverLiveMap),
+  {
+    ssr: false,
+    loading: () => <MapDynamicLoading className="h-[min(52vh,420px)] min-h-[280px] w-full" />,
+  },
+);
 import { cn } from "@/lib/utils";
 import { DriverStateBadge } from "./DriverStateBadge";
 

@@ -52,8 +52,7 @@ export type AdminDriversListResult =
   | { success: false; error: string };
 
 export type AdminDriverDetailsResult =
-  | { success: true; driver: AdminDriverDetails }
-  | { success: false; error: string };
+  { success: true; driver: AdminDriverDetails } | { success: false; error: string };
 
 export type AdminDriverMutationResult = { success: true } | { success: false; error: string };
 

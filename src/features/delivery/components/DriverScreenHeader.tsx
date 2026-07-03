@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { DriverProfileMenu } from '@/features/driver/components/DriverProfileMenu';
-import { DRIVER_UI_STATE, type DriverUiState } from '../utils/derive-driver-ui-state';
-import { DRIVER_AVAILABILITY } from '../types/delivery.types';
+import { DriverProfileMenu } from "@/features/driver/components/DriverProfileMenu";
+import { DRIVER_UI_STATE, type DriverUiState } from "../utils/derive-driver-ui-state";
+import { DRIVER_AVAILABILITY } from "../types/delivery.types";
 
 type DriverProfile = {
   full_name: string;
@@ -42,12 +42,9 @@ export function DriverScreenHeader({
   availabilityStatus,
   orderNumber,
 }: DriverScreenHeaderProps) {
-  const driverName = driverProfile?.full_name || 'Οδηγός';
+  const driverName = driverProfile?.full_name || "Οδηγός";
   const isOnDelivery = uiState === DRIVER_UI_STATE.ACTIVE_DELIVERY;
-  const title =
-    isOnDelivery && orderNumber != null
-      ? `Παραγγελία #${orderNumber}`
-      : driverName;
+  const title = isOnDelivery && orderNumber != null ? `Παραγγελία #${orderNumber}` : driverName;
 
   return (
     <header className="sticky top-0 z-30 border-b border-white/10 bg-black/40 backdrop-blur-md">
@@ -56,9 +53,7 @@ export function DriverScreenHeader({
           <DriverProfileMenu
             driverProfile={driverProfile}
             isOnDelivery={isOnDelivery}
-            availabilityStatus={
-              isOnDelivery ? DRIVER_AVAILABILITY.BUSY : availabilityStatus
-            }
+            availabilityStatus={isOnDelivery ? DRIVER_AVAILABILITY.BUSY : availabilityStatus}
             hideStatusBadge
             minimal
           />

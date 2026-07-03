@@ -27,8 +27,5 @@ export const env = {
   NEXT_PUBLIC_SUPABASE_ANON_KEY: getEnvVar("NEXT_PUBLIC_SUPABASE_ANON_KEY", ""),
 
   // App (optional - has default)
-  NEXT_PUBLIC_BASE_URL: getEnvVar(
-    "NEXT_PUBLIC_BASE_URL",
-    "https://nixk-server.shares.zrok.io",
-  ),
+  NEXT_PUBLIC_BASE_URL: getEnvVar("NEXT_PUBLIC_BASE_URL", "https://nixk-server.shares.zrok.io"),
 } as const;

@@ -13,7 +13,7 @@ Watch console for `[TrackingV2]` and `[TrackingV2] realtime_*` events.
 
 - [ ] **Order created** — V2 section visible when `ENABLE_TRACKING_V2=true`; map mounts with destination marker.
 - [ ] **Assignment created** — `assignmentId` appears in debug panel; `useLiveDriverLocation` starts.
-- [ ] **No GPS yet** — Map shows destination only; message: *Ο διανομέας δεν έχει ξεκινήσει ακόμη.*
+- [ ] **No GPS yet** — Map shows destination only; message: _Ο διανομέας δεν έχει ξεκινήσει ακόμη._
 - [ ] **First GPS point** — `realtime_gps_update_committed` or `realtime_gps_seed_received`; driver marker appears.
 - [ ] **Driver moving** — `driver_updated` + `destination_updated` logs; bounds refit; marker moves smoothly.
 - [ ] **Browser refresh** — History seed + realtime reconnect; no stale assignment data.
@@ -24,15 +24,15 @@ Watch console for `[TrackingV2]` and `[TrackingV2] realtime_*` events.
 
 ### Customer telemetry expected
 
-| Event | When |
-|-------|------|
-| `[TrackingV2] mounted` | V2 section mount |
-| `[TrackingV2] ready` | Map status → ready |
-| `[TrackingV2] resize` | After overlay removed |
-| `[TrackingV2] destination_updated` | Destination coords applied |
-| `[TrackingV2] driver_updated` | Driver coords applied |
-| `realtime_gps_seed_received` | Initial RPC history |
-| `realtime_connected` | Supabase channel SUBSCRIBED |
+| Event                              | When                        |
+| ---------------------------------- | --------------------------- |
+| `[TrackingV2] mounted`             | V2 section mount            |
+| `[TrackingV2] ready`               | Map status → ready          |
+| `[TrackingV2] resize`              | After overlay removed       |
+| `[TrackingV2] destination_updated` | Destination coords applied  |
+| `[TrackingV2] driver_updated`      | Driver coords applied       |
+| `realtime_gps_seed_received`       | Initial RPC history         |
+| `realtime_connected`               | Supabase channel SUBSCRIBED |
 
 ---
 
@@ -51,12 +51,12 @@ Watch console for `[TrackingV2]` and `[TrackingV2] realtime_*` events.
 
 ### Driver telemetry expected
 
-| Event | When |
-|-------|------|
-| `[TrackingV2] mounted` | `surface: driver` |
-| `[TrackingV2] map_load` | Container ready → creating → map_ready |
-| `[TrackingV2] resize` | Post-ready layout |
-| `[TrackingV2] driver_updated` | Device GPS or DB position |
+| Event                         | When                                   |
+| ----------------------------- | -------------------------------------- |
+| `[TrackingV2] mounted`        | `surface: driver`                      |
+| `[TrackingV2] map_load`       | Container ready → creating → map_ready |
+| `[TrackingV2] resize`         | Post-ready layout                      |
+| `[TrackingV2] driver_updated` | Device GPS or DB position              |
 
 ---
 
@@ -81,8 +81,8 @@ Watch console for `[TrackingV2]` and `[TrackingV2] realtime_*` events.
 
 All checkboxes pass on:
 
-1. Chrome desktop  
-2. Mobile Safari or Chrome Android  
-3. At least one real delivery with live GPS  
+1. Chrome desktop
+2. Mobile Safari or Chrome Android
+3. At least one real delivery with live GPS
 
 Record session logs and attach to removal PR.

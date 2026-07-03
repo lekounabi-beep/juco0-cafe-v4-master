@@ -2,9 +2,9 @@
  * Login hook - handles email/password login
  */
 
-import { useState } from 'react';
-import { useAuthStore } from '../store/auth-store';
-import { signInWithEmail } from '@/integrations/supabase/services/auth.service';
+import { useState } from "react";
+import { useAuthStore } from "../store/auth-store";
+import { signInWithEmail } from "@/integrations/supabase/services/auth.service";
 
 export function useLogin() {
   const { setUser, setSession, setError } = useAuthStore();
@@ -20,7 +20,7 @@ export function useLogin() {
       setSession(data.session);
       return { success: true };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Login failed';
+      const message = error instanceof Error ? error.message : "Login failed";
       setError(message);
       return { success: false, error: message };
     } finally {

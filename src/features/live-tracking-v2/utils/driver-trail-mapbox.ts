@@ -1,11 +1,8 @@
-import type mapboxgl from 'mapbox-gl';
-import {
-  emptyDriverTrailGeoJson,
-  type DriverTrailGeoJson,
-} from './driver-trail-geojson';
+import type mapboxgl from "mapbox-gl";
+import { emptyDriverTrailGeoJson, type DriverTrailGeoJson } from "./driver-trail-geojson";
 
-export const TRAIL_SOURCE_ID = 'driver-trail-source';
-export const TRAIL_LAYER_ID = 'driver-trail-layer';
+export const TRAIL_SOURCE_ID = "driver-trail-source";
+export const TRAIL_LAYER_ID = "driver-trail-layer";
 
 let lastAppliedTrailLayerKey: string | null = null;
 
@@ -17,17 +14,14 @@ export function getLastAppliedTrailLayerKey(): string | null {
   return lastAppliedTrailLayerKey;
 }
 
-export function shouldApplyTrailLayerUpdate(
-  previousKey: string | null,
-  nextKey: string,
-): boolean {
+export function shouldApplyTrailLayerUpdate(previousKey: string | null, nextKey: string): boolean {
   return previousKey !== nextKey;
 }
 
 export function ensureDriverTrailLayer(map: mapboxgl.Map): void {
   if (!map.getSource(TRAIL_SOURCE_ID)) {
     map.addSource(TRAIL_SOURCE_ID, {
-      type: 'geojson',
+      type: "geojson",
       data: emptyDriverTrailGeoJson(),
     });
   }
@@ -35,18 +29,18 @@ export function ensureDriverTrailLayer(map: mapboxgl.Map): void {
   if (!map.getLayer(TRAIL_LAYER_ID)) {
     map.addLayer({
       id: TRAIL_LAYER_ID,
-      type: 'line',
+      type: "line",
       source: TRAIL_SOURCE_ID,
       layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-        visibility: 'none',
+        "line-cap": "round",
+        "line-join": "round",
+        visibility: "none",
       },
       paint: {
-        'line-color': '#22c55e',
-        'line-width': 5,
-        'line-opacity': 0.95,
-        'line-blur': 0.3,
+        "line-color": "#22c55e",
+        "line-width": 5,
+        "line-opacity": 0.95,
+        "line-blur": 0.3,
       },
     });
   }
@@ -81,6 +75,6 @@ export function updateDriverTrailLayer(
   }
 
   if (map.getLayer(TRAIL_LAYER_ID)) {
-    map.setLayoutProperty(TRAIL_LAYER_ID, 'visibility', visible ? 'visible' : 'none');
+    map.setLayoutProperty(TRAIL_LAYER_ID, "visibility", visible ? "visible" : "none");
   }
 }

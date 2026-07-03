@@ -3,10 +3,18 @@
  * React hook for GPS tracking during deliveries
  */
 
-import { useEffect, useRef, useCallback, useState } from 'react';
-import { createGPSService, type GPSService, type GPSConfig, type GPSCallbacks, requestGeolocationPermission, type GeolocationPermissionResult, type StartTrackingOptions } from '../services/gps.service';
-import { type LocationUpdate } from '../services/location-filter.service';
-import { isGeolocationSupported } from '../services/gps.service';
+import { useEffect, useRef, useCallback, useState } from "react";
+import {
+  createGPSService,
+  type GPSService,
+  type GPSConfig,
+  type GPSCallbacks,
+  requestGeolocationPermission,
+  type GeolocationPermissionResult,
+  type StartTrackingOptions,
+} from "../services/gps.service";
+import { type LocationUpdate } from "../services/location-filter.service";
+import { isGeolocationSupported } from "../services/gps.service";
 
 export interface UseGPSOptions {
   deliveryId: string | null;
@@ -71,7 +79,7 @@ export function useGPS(options: UseGPSOptions) {
     setIsSupported(isGeolocationSupported());
 
     if (!isGeolocationSupported()) {
-      setError(new Error('Geolocation not supported'));
+      setError(new Error("Geolocation not supported"));
       return;
     }
 
@@ -116,38 +124,44 @@ export function useGPS(options: UseGPSOptions) {
     trackingSessionRef.current = null;
   }, []);
 
-  const startTracking = useCallback(async (options: StartGPSTrackingOptions = {}) => {
-    const resolvedDeliveryId = options.deliveryId ?? deliveryId;
-    const resolvedDriverId = options.driverId ?? driverId;
+  const startTracking = useCallback(
+    async (options: StartGPSTrackingOptions = {}) => {
+      const resolvedDeliveryId = options.deliveryId ?? deliveryId;
+      const resolvedDriverId = options.driverId ?? driverId;
 
-    if (!gpsServiceRef.current || !resolvedDeliveryId || !resolvedDriverId) {
-      return;
-    }
-
-    const sessionKey = `${resolvedDeliveryId}:${resolvedDriverId}`;
-    if (trackingSessionRef.current === sessionKey && gpsServiceRef.current.isCurrentlyTracking()) {
-      return;
-    }
-
-    if (trackingSessionRef.current && trackingSessionRef.current !== sessionKey) {
-      gpsServiceRef.current.stopTracking();
-    }
-
-    await gpsServiceRef.current.startTracking(resolvedDeliveryId, resolvedDriverId, {
-      skipPermissionRequest: options.skipPermissionRequest,
-    });
-    if (gpsServiceRef.current.isCurrentlyTracking()) {
-      trackingSessionRef.current = sessionKey;
-      const immediate = await gpsServiceRef.current.fetchCurrentPosition();
-      if (immediate) {
-        setLastLocation(immediate);
+      if (!gpsServiceRef.current || !resolvedDeliveryId || !resolvedDriverId) {
+        return;
       }
-    }
-  }, [deliveryId, driverId]);
+
+      const sessionKey = `${resolvedDeliveryId}:${resolvedDriverId}`;
+      if (
+        trackingSessionRef.current === sessionKey &&
+        gpsServiceRef.current.isCurrentlyTracking()
+      ) {
+        return;
+      }
+
+      if (trackingSessionRef.current && trackingSessionRef.current !== sessionKey) {
+        gpsServiceRef.current.stopTracking();
+      }
+
+      await gpsServiceRef.current.startTracking(resolvedDeliveryId, resolvedDriverId, {
+        skipPermissionRequest: options.skipPermissionRequest,
+      });
+      if (gpsServiceRef.current.isCurrentlyTracking()) {
+        trackingSessionRef.current = sessionKey;
+        const immediate = await gpsServiceRef.current.fetchCurrentPosition();
+        if (immediate) {
+          setLastLocation(immediate);
+        }
+      }
+    },
+    [deliveryId, driverId],
+  );
 
   const requestPermission = useCallback(async (): Promise<GeolocationPermissionResult> => {
     if (!isGeolocationSupported()) {
-      return 'unsupported';
+      return "unsupported";
     }
     if (gpsServiceRef.current) {
       return gpsServiceRef.current.requestPermission();

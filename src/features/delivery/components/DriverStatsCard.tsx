@@ -22,7 +22,7 @@ export function DriverStatsCard({ driverProfile, isWakeLockActive }: DriverStats
             <p className="text-xs text-white/60">Συνολικές Παραδόσεις</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-bold text-white">{isWakeLockActive ? '✓' : '-'}</p>
+            <p className="text-2xl font-bold text-white">{isWakeLockActive ? "✓" : "-"}</p>
             <p className="text-xs text-white/60">Wake Lock</p>
           </div>
         </div>

@@ -37,7 +37,9 @@ function encodeCheckout(payload: CheckoutTokenPayload): string {
 
 function decodeCheckout(body: string): CheckoutTokenPayload | null {
   try {
-    const parsed = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as CheckoutTokenPayload;
+    const parsed = JSON.parse(
+      Buffer.from(body, "base64url").toString("utf8"),
+    ) as CheckoutTokenPayload;
     if (parsed.kind !== "checkout" || !parsed.clientRequestId || !parsed.total) return null;
     return parsed;
   } catch {
@@ -88,10 +90,7 @@ export function verifyCheckoutToken(token: string | null | undefined): CheckoutT
   return payload;
 }
 
-export function attachVivaOrderCodeToToken(
-  token: string,
-  vivaOrderCode: string,
-): string {
+export function attachVivaOrderCodeToToken(token: string, vivaOrderCode: string): string {
   const payload = verifyCheckoutToken(token);
   if (!payload) throw new Error("Invalid checkout token");
 

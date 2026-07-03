@@ -2,9 +2,9 @@
  * ETA Hook — derived ETA via useMemo (no state, no effects).
  */
 
-import { useMemo } from 'react';
-import { calculateETA, type ETAConfig, type ETAResult } from '../services/eta.service';
-import type { Coordinates } from '@/shared/types/common.types';
+import { useMemo } from "react";
+import { calculateETA, type ETAConfig, type ETAResult } from "../services/eta.service";
+import type { Coordinates } from "@/shared/types/common.types";
 
 export interface UseETAOptions {
   currentLocation: Coordinates | null;
@@ -13,12 +13,7 @@ export interface UseETAOptions {
   config?: Partial<ETAConfig>;
 }
 
-export function useETA({
-  currentLocation,
-  destination,
-  averageSpeedMs,
-  config,
-}: UseETAOptions) {
+export function useETA({ currentLocation, destination, averageSpeedMs, config }: UseETAOptions) {
   const etaResult = useMemo((): ETAResult | null => {
     if (
       currentLocation?.lat == null ||
@@ -33,7 +28,7 @@ export function useETA({
       { lat: currentLocation.lat, lng: currentLocation.lng },
       { lat: destination.lat, lng: destination.lng },
       averageSpeedMs,
-      config
+      config,
     );
   }, [
     currentLocation?.lat,

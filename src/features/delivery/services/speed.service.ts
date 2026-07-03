@@ -3,8 +3,8 @@
  * Calculate and track average speed for ETA calculations
  */
 
-import type { Coordinates } from '@/shared/types/common.types';
-import { calculateDistance } from './distance.service';
+import type { Coordinates } from "@/shared/types/common.types";
+import { calculateDistance } from "./distance.service";
 
 export interface SpeedSample {
   speed: number; // m/s
@@ -60,9 +60,7 @@ export class SpeedTracker {
     }
 
     // Filter out samples below threshold (stopped)
-    const movingSamples = this.samples.filter(
-      (sample) => sample.speed >= this.minSpeedThreshold
-    );
+    const movingSamples = this.samples.filter((sample) => sample.speed >= this.minSpeedThreshold);
 
     if (movingSamples.length === 0) {
       return 0;
@@ -122,11 +120,7 @@ export class SpeedTracker {
 /**
  * Calculate speed between two coordinates with time difference
  */
-export function calculateSpeed(
-  from: Coordinates,
-  to: Coordinates,
-  timeDiffMs: number
-): number {
+export function calculateSpeed(from: Coordinates, to: Coordinates, timeDiffMs: number): number {
   if (timeDiffMs <= 0) {
     return 0;
   }

@@ -2,9 +2,9 @@
  * Google Auth hook - handles Google OAuth
  */
 
-import { useState } from 'react';
-import { useAuthStore } from '../store/auth-store';
-import { signInWithGoogle } from '@/integrations/supabase/services/auth.service';
+import { useState } from "react";
+import { useAuthStore } from "../store/auth-store";
+import { signInWithGoogle } from "@/integrations/supabase/services/auth.service";
 
 export function useGoogleAuth() {
   const { setError } = useAuthStore();
@@ -18,7 +18,7 @@ export function useGoogleAuth() {
       await signInWithGoogle();
       return { success: true };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Google sign-in failed';
+      const message = error instanceof Error ? error.message : "Google sign-in failed";
       setError(message);
       return { success: false, error: message };
     } finally {

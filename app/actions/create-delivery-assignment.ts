@@ -44,7 +44,7 @@ export async function driverAcceptOrder(
     return { success: false, error: "Invalid driver_id: UUID required" };
   }
 
-  const { data, error } = await (supabaseAdmin as any).rpc("accept_delivery_atomic", {
+  const { data, error } = await supabaseAdmin.rpc("accept_delivery_atomic", {
     p_order_id: orderId,
     p_driver_id: driverId,
   });

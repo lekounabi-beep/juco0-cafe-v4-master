@@ -2,7 +2,7 @@
  * Single UI derivation for driver delivery — one selector, no scattered flags.
  */
 
-import type { Coordinates } from '@/shared/types/common.types';
+import type { Coordinates } from "@/shared/types/common.types";
 import {
   getActiveDelivery,
   resolveActiveDeliveryDestination,
@@ -12,14 +12,14 @@ import {
   type ActiveDeliveryView,
   type DeliveryStage,
   type DriverAvailability,
-} from './active-delivery';
+} from "./active-delivery";
 
 export type { ActiveDeliveryView, DeliveryStage, DriverAvailability };
 
 export { getActiveDelivery, resolveActiveDeliveryDestination, reconcileDriverStoreAvailability };
 
 export type PickupState = {
-  permission: 'pending' | 'granted' | 'denied';
+  permission: "pending" | "granted" | "denied";
   gpsReady: boolean;
   isPickingUp: boolean;
 };
@@ -39,7 +39,7 @@ export type DeliveryUiState = {
 export function selectDeliveryUi(
   activeView: ActiveDeliveryView,
   storeAvailability: string,
-  pickup: PickupState
+  pickup: PickupState,
 ): DeliveryUiState {
   const isOnDelivery = activeView.isActive;
   const stage = activeView.stage;
@@ -51,10 +51,10 @@ export function selectDeliveryUi(
     isOnDelivery,
     showMap: isOnDelivery,
     gpsActive,
-    canTrackGps: isOnDelivery && pickup.permission !== 'denied' && !pickup.isPickingUp,
+    canTrackGps: isOnDelivery && pickup.permission !== "denied" && !pickup.isPickingUp,
     destination,
     stage,
-    deliveryStarted: stage !== null && stage !== 'assigned',
+    deliveryStarted: stage !== null && stage !== "assigned",
     availability: resolveEffectiveAvailability(storeAvailability, { isOnDelivery }),
   };
 }

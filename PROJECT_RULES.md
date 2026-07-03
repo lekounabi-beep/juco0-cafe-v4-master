@@ -93,10 +93,10 @@ The admin should always know:
 
 The assignment system must remain **simple**:
 
-| Situation | Action |
-|-----------|--------|
-| Only **one** driver available | Assign **automatically** |
-| **Two** drivers available | Admin chooses one with **one click** |
+| Situation                     | Action                               |
+| ----------------------------- | ------------------------------------ |
+| Only **one** driver available | Assign **automatically**             |
+| **Two** drivers available     | Admin chooses one with **one click** |
 
 **Do not add:**
 
@@ -183,10 +183,10 @@ When auditing or modifying the project:
 
 ## Quick Reference
 
-| Topic | Rule |
-|-------|------|
-| Scope | Single café, not a marketplace |
-| Drivers | 2–3 max, minimal UI |
+| Topic    | Rule                                    |
+| -------- | --------------------------------------- |
+| Scope    | Single café, not a marketplace          |
+| Drivers  | 2–3 max, minimal UI                     |
 | Dispatch | Auto if 1 free driver; admin picks if 2 |
-| Maps | Init once, stable, performant |
-| Changes | Small diffs, don't break what works |
+| Maps     | Init once, stable, performant           |
+| Changes  | Small diffs, don't break what works     |

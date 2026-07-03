@@ -2,17 +2,16 @@
  * Address service for Supabase
  */
 
-// @ts-nocheck - Supabase types don't include new tables yet
-
-import { supabase } from '@/integrations/supabase/client';
-import type { Address, AddressUpdate, AddressCreate } from '@/features/account/types/account.types';
+import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
+import type { Address, AddressUpdate, AddressCreate } from "@/features/account/types/account.types";
 
 export async function getAddresses(userId: string): Promise<Address[]> {
   const { data, error } = await supabase
-    .from('addresses' as any)
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
+    .from("addresses")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
 
   if (error) {
     throw new Error(`Failed to fetch addresses: ${error.message}`);
@@ -22,14 +21,15 @@ export async function getAddresses(userId: string): Promise<Address[]> {
 }
 
 export async function createAddress(createData: AddressCreate): Promise<Address> {
-  // @ts-ignore - Supabase types don't include new tables yet
+  const insertData: TablesInsert<"addresses"> = {
+    ...createData,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
   const { data: address, error } = await supabase
-    .from('addresses' as any)
-    .insert({
-      ...createData,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    } as any)
+    .from("addresses")
+    .insert(insertData)
     .select()
     .single();
 
@@ -40,15 +40,19 @@ export async function createAddress(createData: AddressCreate): Promise<Address>
   return address as Address;
 }
 
-export async function updateAddress(addressId: string, updateData: AddressUpdate): Promise<Address> {
-  // @ts-ignore - Supabase types don't include new tables yet
+export async function updateAddress(
+  addressId: string,
+  updateData: AddressUpdate,
+): Promise<Address> {
+  const patch: TablesUpdate<"addresses"> = {
+    ...updateData,
+    updated_at: new Date().toISOString(),
+  };
+
   const { data, error } = await supabase
-    .from('addresses' as any)
-    .update({
-      ...updateData,
-      updated_at: new Date().toISOString(),
-    } as any)
-    .eq('id', addressId)
+    .from("addresses")
+    .update(patch)
+    .eq("id", addressId)
     .select()
     .single();
 
@@ -60,11 +64,7 @@ export async function updateAddress(addressId: string, updateData: AddressUpdate
 }
 
 export async function deleteAddress(addressId: string): Promise<void> {
-  // @ts-ignore - Supabase types don't include new tables yet
-  const { error } = await supabase
-    .from('addresses' as any)
-    .delete()
-    .eq('id', addressId);
+  const { error } = await supabase.from("addresses").delete().eq("id", addressId);
 
   if (error) {
     throw new Error(`Failed to delete address: ${error.message}`);
@@ -72,14 +72,15 @@ export async function deleteAddress(addressId: string): Promise<void> {
 }
 
 export async function setDefaultAddress(addressId: string): Promise<Address> {
-  // @ts-ignore - Supabase types don't include new tables yet
+  const patch: TablesUpdate<"addresses"> = {
+    is_default: true,
+    updated_at: new Date().toISOString(),
+  };
+
   const { data, error } = await supabase
-    .from('addresses' as any)
-    .update({
-      is_default: true,
-      updated_at: new Date().toISOString(),
-    } as any)
-    .eq('id', addressId)
+    .from("addresses")
+    .update(patch)
+    .eq("id", addressId)
     .select()
     .single();
 

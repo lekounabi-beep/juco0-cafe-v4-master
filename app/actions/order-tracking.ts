@@ -4,7 +4,9 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { FULL_TRACKING_FIELDS, resolveOrderTrackingAccess } from "@/lib/server/order-access.server";
 import { isUUID } from "@/shared/utils/uuid";
 
-export async function getOrderForTrackingServer(orderId: string): Promise<Record<string, unknown> | null> {
+export async function getOrderForTrackingServer(
+  orderId: string,
+): Promise<Record<string, unknown> | null> {
   if (!isUUID(orderId)) return null;
 
   const fullAccess = await resolveOrderTrackingAccess(orderId);
@@ -19,7 +21,7 @@ export async function getOrderForTrackingServer(orderId: string): Promise<Record
     .eq("id", orderId)
     .maybeSingle();
 
-  if (error || !data) return null;
+  if (error || !data || typeof data !== "object") return null;
 
   const row = data as Record<string, unknown>;
 

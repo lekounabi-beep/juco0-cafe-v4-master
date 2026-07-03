@@ -1,5 +1,5 @@
-import type { ETAResult } from '@/features/delivery/services/eta.service';
-import type { TrackingConnectionState } from '@/features/tracking/types/tracking-session.types';
+import type { ETAResult } from "@/features/delivery/services/eta.service";
+import type { TrackingConnectionState } from "@/features/tracking/types/tracking-session.types";
 
 /** Snapshot passed from track page → V2 section → debug panel. */
 export type CustomerTrackingDebugSnapshot = {

@@ -3,8 +3,8 @@
  * Filter and validate GPS location updates
  */
 
-import type { Coordinates } from '@/shared/types/common.types';
-import { calculateDistance, areCoordinatesSame, isObviousJump } from './distance.service';
+import type { Coordinates } from "@/shared/types/common.types";
+import { calculateDistance, areCoordinatesSame, isObviousJump } from "./distance.service";
 
 export interface LocationUpdate {
   coordinates: Coordinates;
@@ -75,7 +75,9 @@ class LocationFilter {
     }
 
     // Check for obvious jump
-    if (isObviousJump(this.lastUpdate.coordinates, update.coordinates, this.config.maxJumpDistance)) {
+    if (
+      isObviousJump(this.lastUpdate.coordinates, update.coordinates, this.config.maxJumpDistance)
+    ) {
       return false;
     }
 
@@ -100,11 +102,7 @@ class LocationFilter {
    */
   private areCoordinatesValid(coordinates: Coordinates): boolean {
     const { lat, lng } = coordinates;
-    return (
-      lat >= -90 && lat <= 90 &&
-      lng >= -180 && lng <= 180 &&
-      !isNaN(lat) && !isNaN(lng)
-    );
+    return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 && !isNaN(lat) && !isNaN(lng);
   }
 
   /**
@@ -175,21 +173,21 @@ export function createLocationFilter(config?: Partial<FilterConfig>): LocationFi
  */
 export function validateLocationUpdate(
   update: LocationUpdate,
-  config: Partial<FilterConfig> = {}
+  config: Partial<FilterConfig> = {},
 ): { valid: boolean; reason?: string } {
   const filterConfig = { ...DEFAULT_FILTER_CONFIG, ...config };
 
   // Check accuracy (lower meters = better; reject only very poor signal)
   if (Number.isFinite(update.accuracy) && update.accuracy > 0) {
     if (update.accuracy > filterConfig.maxAccuracy) {
-      return { valid: false, reason: 'Poor accuracy' };
+      return { valid: false, reason: "Poor accuracy" };
     }
   }
 
   // Check coordinates
   const { lat, lng } = update.coordinates;
   if (lat < -90 || lat > 90 || lng < -180 || lng > 180 || isNaN(lat) || isNaN(lng)) {
-    return { valid: false, reason: 'Invalid coordinates' };
+    return { valid: false, reason: "Invalid coordinates" };
   }
 
   return { valid: true };

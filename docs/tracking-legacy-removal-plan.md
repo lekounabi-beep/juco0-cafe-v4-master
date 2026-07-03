@@ -9,80 +9,80 @@
 
 ### Core legacy pipeline
 
-| File | Role |
-|------|------|
-| `src/features/maps/components/TrackingMap.tsx` | Legacy React map + snapshot loop |
-| `src/features/maps/tracking/tracking-map-renderer-factory.ts` | Google/Mapbox factory |
-| `src/features/maps/core/map-snapshot-engine.ts` | Snapshot builder |
-| `src/features/maps/core/map-snapshot-convergence.ts` | Convergence gates |
-| `src/features/maps/core/map-snapshot.types.ts` | Snapshot types |
-| `src/features/maps/core/map-render-loop.ts` | RAF render loop |
-| `src/features/maps/core/render-map-from-snapshot.ts` | Snapshot → DOM |
-| `src/features/maps/core/stable-camera-renderer.ts` | Camera controller |
-| `src/adapters/mapSnapshotToRenderModel.ts` | Snapshot adapter |
+| File                                                          | Role                             |
+| ------------------------------------------------------------- | -------------------------------- |
+| `src/features/maps/components/TrackingMap.tsx`                | Legacy React map + snapshot loop |
+| `src/features/maps/tracking/tracking-map-renderer-factory.ts` | Google/Mapbox factory            |
+| `src/features/maps/core/map-snapshot-engine.ts`               | Snapshot builder                 |
+| `src/features/maps/core/map-snapshot-convergence.ts`          | Convergence gates                |
+| `src/features/maps/core/map-snapshot.types.ts`                | Snapshot types                   |
+| `src/features/maps/core/map-render-loop.ts`                   | RAF render loop                  |
+| `src/features/maps/core/render-map-from-snapshot.ts`          | Snapshot → DOM                   |
+| `src/features/maps/core/stable-camera-renderer.ts`            | Camera controller                |
+| `src/adapters/mapSnapshotToRenderModel.ts`                    | Snapshot adapter                 |
 
 ### Google legacy
 
-| File | Role |
-|------|------|
-| `src/features/maps/engine/MapEngine.ts` | Singleton Google map |
-| `src/features/maps/engine/MapEvents.ts` | Engine event bus |
-| `src/features/maps/engine/types.ts` | Engine types |
-| `src/providers/google/create-google-tracking-renderer.ts` | Google bootstrap |
-| `src/providers/google/GoogleMapsRenderer.ts` | Google renderer |
+| File                                                         | Role                  |
+| ------------------------------------------------------------ | --------------------- |
+| `src/features/maps/engine/MapEngine.ts`                      | Singleton Google map  |
+| `src/features/maps/engine/MapEvents.ts`                      | Engine event bus      |
+| `src/features/maps/engine/types.ts`                          | Engine types          |
+| `src/providers/google/create-google-tracking-renderer.ts`    | Google bootstrap      |
+| `src/providers/google/GoogleMapsRenderer.ts`                 | Google renderer       |
 | `src/features/driver/components/DriverGoogleMapsPreload.tsx` | Google script preload |
 
 ### Mapbox legacy (tracking renderer)
 
-| File | Role |
-|------|------|
-| `src/providers/mapbox/MapboxRenderer.ts` | Legacy tracking Mapbox renderer |
-| `src/providers/mapbox/mapbox-config.ts` | Legacy mapbox config |
-| `src/providers/mapbox/driver-marker-icon.ts` | Legacy marker assets |
-| `src/providers/mapbox/destination-marker-icon.ts` | Legacy marker assets |
-| `src/providers/mapbox/store-marker-icon.ts` | Legacy marker assets |
+| File                                              | Role                            |
+| ------------------------------------------------- | ------------------------------- |
+| `src/providers/mapbox/MapboxRenderer.ts`          | Legacy tracking Mapbox renderer |
+| `src/providers/mapbox/mapbox-config.ts`           | Legacy mapbox config            |
+| `src/providers/mapbox/driver-marker-icon.ts`      | Legacy marker assets            |
+| `src/providers/mapbox/destination-marker-icon.ts` | Legacy marker assets            |
+| `src/providers/mapbox/store-marker-icon.ts`       | Legacy marker assets            |
 
 ### Debug / forensic (legacy only)
 
-| File | Role |
-|------|------|
-| `src/features/maps/components/DriverMapDebugPanel.tsx` | Legacy driver debug |
-| `src/features/maps/components/MapRenderDebugPanel.tsx` | Legacy render debug |
-| `src/features/maps/debug/map-forensic-logger.ts` | Legacy forensic |
-| `src/features/maps/debug/map-lifecycle-trace.ts` | Legacy lifecycle trace |
-| `src/features/maps/debug/map-data-usage.ts` | Legacy data usage |
+| File                                                   | Role                   |
+| ------------------------------------------------------ | ---------------------- |
+| `src/features/maps/components/DriverMapDebugPanel.tsx` | Legacy driver debug    |
+| `src/features/maps/components/MapRenderDebugPanel.tsx` | Legacy render debug    |
+| `src/features/maps/debug/map-forensic-logger.ts`       | Legacy forensic        |
+| `src/features/maps/debug/map-lifecycle-trace.ts`       | Legacy lifecycle trace |
+| `src/features/maps/debug/map-data-usage.ts`            | Legacy data usage      |
 
 ### Config / UI still on legacy path
 
-| File | Role |
-|------|------|
-| `src/config/map-provider.ts` | `NEXT_PUBLIC_MAP_PROVIDER` flag |
-| `src/features/tracking/components/CustomerDeliveryTimeline.tsx` | Legacy customer timeline + map |
+| File                                                            | Role                            |
+| --------------------------------------------------------------- | ------------------------------- |
+| `src/config/map-provider.ts`                                    | `NEXT_PUBLIC_MAP_PROVIDER` flag |
+| `src/features/tracking/components/CustomerDeliveryTimeline.tsx` | Legacy customer timeline + map  |
 
 ### Keep (not tracking legacy)
 
-| File | Reason |
-|------|--------|
-| `src/features/maps/components/MapTheme.ts` | May reuse styles |
-| `src/features/maps/utils/normalize-coordinates.ts` | Shared utility |
-| `src/integrations/google-maps/*` | Checkout geocoding / order destination |
-| `src/features/location/*` | Checkout Mapbox address picker |
-| `src/features/live-tracking-v2/*` | **Replacement system** |
+| File                                               | Reason                                 |
+| -------------------------------------------------- | -------------------------------------- |
+| `src/features/maps/components/MapTheme.ts`         | May reuse styles                       |
+| `src/features/maps/utils/normalize-coordinates.ts` | Shared utility                         |
+| `src/integrations/google-maps/*`                   | Checkout geocoding / order destination |
+| `src/features/location/*`                          | Checkout Mapbox address picker         |
+| `src/features/live-tracking-v2/*`                  | **Replacement system**                 |
 
 ---
 
 ## Dependencies to verify before deletion
 
-1. **`compute-delivery-state.ts`** — Still uses `TrackingMapSnapshotInput` type from `map-snapshot.types.ts`.  
+1. **`compute-delivery-state.ts`** — Still uses `TrackingMapSnapshotInput` type from `map-snapshot.types.ts`.
    - **Action:** Move minimal types to `delivery-state.types.ts` or `live-tracking-v2` before deleting snapshot types.
 
-2. **`useDriverPage.ts`** — Still computes `mapSnapshotInput` / `mapDebug` for legacy.  
+2. **`useDriverPage.ts`** — Still computes `mapSnapshotInput` / `mapDebug` for legacy.
    - **Action:** Remove unused exports after legacy UI removed.
 
-3. **`app/track/[orderId]/page.tsx`** — Legacy `CustomerDeliveryTimeline` + V2 section coexist.  
+3. **`app/track/[orderId]/page.tsx`** — Legacy `CustomerDeliveryTimeline` + V2 section coexist.
    - **Action:** Remove legacy timeline block when V2 validated; set `ENABLE_TRACKING_V2` permanent.
 
-4. **`map-provider.ts`** — Only used by legacy factory.  
+4. **`map-provider.ts`** — Only used by legacy factory.
    - **Action:** Delete with factory; remove `NEXT_PUBLIC_MAP_PROVIDER` from env docs if unused.
 
 5. **Supabase / GPS** — `useCanonicalDeliveryLocations`, `useLiveDriverLocation` are independent. No DB changes needed.
@@ -124,27 +124,27 @@ flowchart TD
 
 ## Risk assessment
 
-| Risk | Severity | Mitigation |
-|------|----------|------------|
-| Customer legacy still needed | Medium | Complete validation checklist first |
-| Type coupling to snapshot types | Medium | Extract types before phase 3 deletion |
-| Accidental Google Maps removal | Low | Keep `integrations/google-maps` for geocoding |
-| Checkout Mapbox broken | Low | `live-tracking-v2/config/mapbox.ts` is separate from legacy `providers/mapbox` |
-| HMR regressions | Low | V2 self-contained maps already validated |
+| Risk                            | Severity | Mitigation                                                                     |
+| ------------------------------- | -------- | ------------------------------------------------------------------------------ |
+| Customer legacy still needed    | Medium   | Complete validation checklist first                                            |
+| Type coupling to snapshot types | Medium   | Extract types before phase 3 deletion                                          |
+| Accidental Google Maps removal  | Low      | Keep `integrations/google-maps` for geocoding                                  |
+| Checkout Mapbox broken          | Low      | `live-tracking-v2/config/mapbox.ts` is separate from legacy `providers/mapbox` |
+| HMR regressions                 | Low      | V2 self-contained maps already validated                                       |
 
 ---
 
 ## Readiness assessment
 
-| Criterion | Status |
-|-----------|--------|
-| V2 customer map working | ✅ |
-| V2 driver map working | ✅ |
-| Unified telemetry | ✅ |
-| Debug panel (dev) | ✅ |
-| Legacy `@deprecated` markers | ✅ |
-| Validation checklist documented | ✅ |
-| Full manual QA complete | ⏳ **Required before deletion** |
-| Type decoupling from snapshot | ⏳ **Required before phase 3** |
+| Criterion                       | Status                          |
+| ------------------------------- | ------------------------------- |
+| V2 customer map working         | ✅                              |
+| V2 driver map working           | ✅                              |
+| Unified telemetry               | ✅                              |
+| Debug panel (dev)               | ✅                              |
+| Legacy `@deprecated` markers    | ✅                              |
+| Validation checklist documented | ✅                              |
+| Full manual QA complete         | ⏳ **Required before deletion** |
+| Type decoupling from snapshot   | ⏳ **Required before phase 3**  |
 
 **Verdict:** Ready for **validation phase**. Not ready for **legacy deletion** until checklist passes and snapshot types are decoupled from `compute-delivery-state`.

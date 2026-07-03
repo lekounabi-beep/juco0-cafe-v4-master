@@ -1,18 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { Loader2, MapPin } from "lucide-react";
 import type { SuperAdminFleetDriverDetails } from "@/features/superadmin/types/superadmin-fleet.types";
 import { DriverStateBadge } from "@/features/admin/components/drivers/DriverStateBadge";
-import { storeLocation } from "@/config/map-defaults";
 import { isGpsStale } from "@/features/superadmin/utils/operations-derivations";
+import { useFleetMapCoordinates } from "@/features/superadmin/hooks/useFleetMapCoordinates";
 import { cn } from "@/lib/utils";
 import { useSuperAdminT } from "@/features/superadmin/i18n/SuperAdminLocaleProvider";
 
 const DriverLiveMap = dynamic(
-  () =>
-    import("@/features/live-tracking-v2/components/DriverLiveMap").then((m) => m.DriverLiveMap),
+  () => import("@/features/live-tracking-v2/components/DriverLiveMap").then((m) => m.DriverLiveMap),
   {
     ssr: false,
     loading: () => (
@@ -35,41 +34,24 @@ export function FleetMapPanel({
   onToggleCollapsed?: () => void;
 }) {
   const { t } = useSuperAdminT();
-  const driverLocation = driver?.location
-    ? { lat: driver.location.lat, lng: driver.location.lng }
-    : undefined;
-
-  const destination =
-    driver?.active_delivery?.destination_lat != null &&
-    driver.active_delivery.destination_lng != null
-      ? {
-          lat: driver.active_delivery.destination_lat,
-          lng: driver.active_delivery.destination_lng,
-        }
-      : null;
+  const { driverLocation, destination, hasMapContent, destinationResolving } =
+    useFleetMapCoordinates(driver);
 
   const showTrail =
     driver?.active_delivery?.status === "in_transit" ||
     driver?.active_delivery?.status === "picked_up";
 
-  const [mapSession, setMapSession] = useState(0);
-  const wasCollapsedRef = useRef(collapsed ?? false);
+  const [isLgViewport, setIsLgViewport] = useState(false);
 
   useEffect(() => {
-    if (!driver?.id) return;
-    setMapSession((current) => current + 1);
-  }, [driver?.id]);
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const update = () => setIsLgViewport(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
 
-  useEffect(() => {
-    const wasCollapsed = wasCollapsedRef.current;
-    wasCollapsedRef.current = collapsed ?? false;
-
-    if (wasCollapsed && !collapsed && driver?.id) {
-      setMapSession((current) => current + 1);
-    }
-  }, [collapsed, driver?.id]);
-
-  const mapMountKey = driver?.id ? `${driver.id}-${mapSession}` : "no-driver";
+  const shouldMountMap = Boolean(driver && hasMapContent && (!collapsed || isLgViewport));
 
   return (
     <div className="flex min-h-[420px] flex-col overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/40 sm:min-h-[480px] lg:min-h-[560px]">
@@ -101,14 +83,12 @@ export function FleetMapPanel({
           <div className="flex h-full items-center justify-center text-zinc-500">
             <Loader2 className="h-6 w-6 animate-spin" />
           </div>
-        ) : driverLocation ? (
+        ) : driver && hasMapContent && shouldMountMap ? (
           <>
             <DriverLiveMap
-              key={mapMountKey}
               className="h-full w-full"
               driverLocation={driverLocation}
               destination={destination}
-              storeLocation={storeLocation}
               routePoints={showTrail ? driver?.route_points : undefined}
               showDriverTrail={showTrail}
             />
@@ -141,7 +121,9 @@ export function FleetMapPanel({
               {driver
                 ? driver.operational_state === "offline"
                   ? t("map.offlineNoGps")
-                  : t("map.noGps")
+                  : destinationResolving
+                    ? t("map.liveMap")
+                    : t("map.noGps")
                 : t("map.selectPrompt")}
             </p>
           </div>

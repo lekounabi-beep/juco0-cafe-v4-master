@@ -2,15 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useState, useRef, Suspense } from "react";
+import { useRouter } from "next/navigation";
 import { CheckCircle2, Clock, Home, MapPin, Phone, Heart, XCircle } from "lucide-react";
 import { EspressoBackground } from "@/components/EspressoBackground";
 import { formatEur } from "@/shared/utils/currency";
-import {
-  getCardPaymentOrderStatusAction,
-  getCardPaymentOrderStatusByOrderCodeAction,
-  reconcileVivaPaymentByOrderCode,
-  reconcileVivaPaymentReturn,
-} from "../actions/complete-viva-order";
+import { finalizeCardPaymentReturnAction } from "../actions/complete-viva-order";
 import { getOrderById } from "@/integrations/supabase/services/order.service";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { GoogleButton } from "@/features/auth/components/GoogleButton";
@@ -19,8 +15,9 @@ import { useSearchParams } from "next/navigation";
 
 const CHECKOUT_TOKEN_KEY = "checkoutToken";
 const CHECKOUT_TOKEN_BACKUP_KEY = "juco_checkout_token";
-const WEBHOOK_WAIT_ATTEMPTS = 12;
-const WEBHOOK_WAIT_MS = 500;
+const CARD_ORDER_ID_KEY = "juco_card_order_id";
+const POLL_ATTEMPTS = 24;
+const POLL_MS = 500;
 
 const VIVA_EVENT_MESSAGES: Record<string, string> = {
   "2061":
@@ -47,15 +44,20 @@ type Order = {
 function readCheckoutToken(): string | null {
   if (typeof window === "undefined") return null;
   return (
-    sessionStorage.getItem(CHECKOUT_TOKEN_KEY) ||
-    localStorage.getItem(CHECKOUT_TOKEN_BACKUP_KEY)
+    sessionStorage.getItem(CHECKOUT_TOKEN_KEY) || localStorage.getItem(CHECKOUT_TOKEN_BACKUP_KEY)
   );
+}
+
+function readStoredOrderId(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(CARD_ORDER_ID_KEY);
 }
 
 function clearCheckoutTokens(): void {
   sessionStorage.removeItem(CHECKOUT_TOKEN_KEY);
   sessionStorage.removeItem("pendingOrder");
   localStorage.removeItem(CHECKOUT_TOKEN_BACKUP_KEY);
+  localStorage.removeItem(CARD_ORDER_ID_KEY);
 }
 
 function sleep(ms: number): Promise<void> {
@@ -72,61 +74,7 @@ function vivaFailureMessage(eventId: string | undefined): string {
   return "Η πληρωμή δεν ολοκληρώθηκε. Δοκιμάστε ξανά ή επιλέξτε μετρητά στην παράδοση.";
 }
 
-async function resolvePaidCardOrder(
-  transactionId: string,
-  checkoutToken: string | null,
-): Promise<{ id: string; order_number: string } | null> {
-  const immediate = await getCardPaymentOrderStatusAction(transactionId);
-  if (immediate.status === "ready") {
-    return immediate.order;
-  }
-
-  const reconciled = await reconcileVivaPaymentReturn(transactionId, checkoutToken);
-  if (reconciled) {
-    return reconciled;
-  }
-
-  for (let attempt = 0; attempt < WEBHOOK_WAIT_ATTEMPTS; attempt++) {
-    await sleep(WEBHOOK_WAIT_MS);
-    const status = await getCardPaymentOrderStatusAction(transactionId);
-    if (status.status === "ready") {
-      return status.order;
-    }
-  }
-
-  return null;
-}
-
-async function resolvePaidCardOrderByCode(
-  vivaOrderCode: string,
-  transactionId: string | null,
-  checkoutToken: string | null,
-): Promise<{ id: string; order_number: string } | null> {
-  const immediate = await getCardPaymentOrderStatusByOrderCodeAction(vivaOrderCode);
-  if (immediate.status === "ready") {
-    return immediate.order;
-  }
-
-  if (transactionId) {
-    const reconciled = await reconcileVivaPaymentReturn(transactionId, checkoutToken);
-    if (reconciled) return reconciled;
-
-    const byCode = await reconcileVivaPaymentByOrderCode(vivaOrderCode, transactionId);
-    if (byCode) return byCode;
-  }
-
-  for (let attempt = 0; attempt < WEBHOOK_WAIT_ATTEMPTS; attempt++) {
-    await sleep(WEBHOOK_WAIT_MS);
-    const status = await getCardPaymentOrderStatusByOrderCodeAction(vivaOrderCode);
-    if (status.status === "ready") {
-      return status.order;
-    }
-  }
-
-  return null;
-}
-
-function redirectToTrack(orderId: string, clearCheckoutTokens: () => void, clearCart: () => void) {
+function redirectToTrack(orderId: string, clearCart: () => void) {
   clearCheckoutTokens();
   clearCart();
   window.location.replace(`/track/${orderId}`);
@@ -134,6 +82,7 @@ function redirectToTrack(orderId: string, clearCheckoutTokens: () => void, clear
 
 function OrderSuccessContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const id = searchParams.get("id") || undefined;
   const t = searchParams.get("t") || undefined;
   const s = searchParams.get("s") || undefined;
@@ -151,86 +100,78 @@ function OrderSuccessContent() {
     processedRef.current = true;
 
     async function processOrder() {
-      try {
+      const isCardReturn = Boolean(t || s || eventId);
+
+      if (isCardReturn) {
         const checkoutToken = readCheckoutToken();
+        const storedOrderId = readStoredOrderId();
 
-        if (t) {
-          try {
-            const data = await resolvePaidCardOrder(t, checkoutToken);
-            if (data?.id) {
-              redirectToTrack(data.id, clearCheckoutTokens, clearCart);
-              return;
-            }
+        for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt++) {
+          const result = await finalizeCardPaymentReturnAction({
+            transactionId: t ?? null,
+            vivaOrderCode: s ?? null,
+            orderId: storedOrderId,
+            checkoutToken,
+            eventId: eventId ?? null,
+          });
 
-            if (s) {
-              const byCode = await resolvePaidCardOrderByCode(s, t, checkoutToken);
-              if (byCode?.id) {
-                redirectToTrack(byCode.id, clearCheckoutTokens, clearCart);
-                return;
-              }
-            }
+          if (result.status === "track") {
+            redirectToTrack(result.order.id, clearCart);
+            return;
+          }
 
+          if (result.status === "checkout") {
+            clearCheckoutTokens();
+            router.replace(
+              eventId
+                ? `/checkout?eventId=${encodeURIComponent(eventId)}${s ? `&s=${encodeURIComponent(s)}` : ""}`
+                : "/checkout",
+            );
+            return;
+          }
+
+          if (result.status === "error") {
+            setError(eventId ? vivaFailureMessage(eventId) : result.message);
+            setLoading(false);
+            return;
+          }
+
+          if (result.status === "pending" && attempt < POLL_ATTEMPTS - 1) {
+            await sleep(POLL_MS);
+            continue;
+          }
+
+          if (result.status === "pending") {
             setError(
-              "Η πληρωμή μπορεί να έχει ολοκληρωθεί, αλλά δεν μπορέσαμε να επιβεβαιώσουμε την παραγγελία ακόμα. Δοκιμάστε να ανανεώσετε τη σελίδα ή επικοινωνήστε με το κατάστημα.",
+              "Η πληρωμή μπορεί να έχει ολοκληρωθεί, αλλά δεν μπορέσαμε να την επιβεβαιώσουμε ακόμα. Δοκιμάστε να ανανεώσετε τη σελίδα.",
             );
             setLoading(false);
             return;
-          } catch (dbError) {
-            const message = dbError instanceof Error ? dbError.message : "";
-            const safeMessage =
-              message.includes("πληρωμή δεν επαληθεύτηκε") ||
-              message.includes("πληρωμή μπορεί να έχει ολοκληρωθεί")
-                ? message
-                : "Η πληρωμή μπορεί να έχει ολοκληρωθεί, αλλά δεν μπορέσαμε να καταχωρήσουμε την παραγγελία. Επικοινωνήστε με το κατάστημα.";
-            setError(safeMessage);
-            setLoading(false);
-            return;
           }
         }
 
-        if (s) {
-          const data = await resolvePaidCardOrderByCode(s, null, checkoutToken);
-          if (data?.id) {
-            redirectToTrack(data.id, clearCheckoutTokens, clearCart);
-            return;
-          }
+        return;
+      }
 
-          setError(vivaFailureMessage(eventId));
-          setLoading(false);
-          return;
-        }
-
-        if (eventId) {
-          setError(vivaFailureMessage(eventId));
-          setLoading(false);
-          return;
-        }
-
-        if (!id) {
-          setError(
-            "Δεν ολοκληρώθηκε παραγγελία. Αν προσπάθησες να πληρώσεις με κάρτα, δεν έχει επιβεβαιωθεί πληρωμή.",
-          );
-          setLoading(false);
-          return;
-        }
-
-        try {
-          const data = await getOrderById(id);
-          setOrder((data as unknown as Order) ?? null);
-        } catch {
-          setError("Δεν ήταν δυνατή η ανάκτηση της παραγγελίας.");
-        }
-        setLoading(false);
-      } catch {
+      if (!id) {
         setError(
-          "Δεν μπορέσαμε να επιβεβαιώσουμε την παραγγελία. Δοκιμάστε ξανά ή επικοινωνήστε με το κατάστημα.",
+          "Δεν ολοκληρώθηκε παραγγελία. Αν προσπάθησες να πληρώσεις με κάρτα, δεν έχει επιβεβαιωθεί πληρωμή.",
         );
         setLoading(false);
+        return;
       }
+
+      try {
+        const data = await getOrderById(id);
+        setOrder((data as unknown as Order) ?? null);
+      } catch {
+        setError("Δεν ήταν δυνατή η ανάκτηση της παραγγελίας.");
+      }
+      setLoading(false);
     }
 
     void processOrder();
-  }, [clearCart, eventId, id, s, t]);
+  }, [clearCart, eventId, id, router, s, t]);
 
   const isSuccess = !!order && !error;
   const heading = loading

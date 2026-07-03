@@ -2,11 +2,11 @@
 // Autoplays muted+inline so it works on iOS/Safari without user gesture.
 // GPU-accelerated with will-change-transform for smooth 60/120 FPS.
 // CSS breakpoints — never download video on mobile (avoids hydration flash + stalled load bar).
-'use client';
+"use client";
 
 const mediaStyle = {
-  transform: 'translateZ(0)',
-  backfaceVisibility: 'hidden' as const,
+  transform: "translateZ(0)",
+  backfaceVisibility: "hidden" as const,
   perspective: 1000,
 };
 
@@ -28,8 +28,8 @@ export function EspressoBackground() {
         preload="none"
         disablePictureInPicture
         onError={(e) => {
-          console.warn('Video failed to load, using fallback background');
-          (e.target as HTMLVideoElement).style.display = 'none';
+          console.warn("Video failed to load, using fallback background");
+          (e.target as HTMLVideoElement).style.display = "none";
         }}
         className="absolute inset-0 hidden h-full w-full scale-110 object-cover will-change-transform transform-gpu md:block"
         style={mediaStyle}

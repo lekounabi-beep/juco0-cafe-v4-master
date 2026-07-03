@@ -11,10 +11,7 @@ export default function SuperAdminStoresPage() {
 
   return (
     <div>
-      <SuperAdminPageHeader
-        title={t("nav.stores")}
-        description={t("page.stores.description")}
-      />
+      <SuperAdminPageHeader title={t("nav.stores")} description={t("page.stores.description")} />
       <StoresTable stores={stats?.stores ?? []} loading={loading} />
     </div>
   );

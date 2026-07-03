@@ -2,44 +2,44 @@
  * Login Form component
  */
 
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useLogin } from '../hooks/useLogin';
-import { signInWithGoogle } from '@/integrations/supabase/services/auth.service';
-import { EspressoBackground } from '@/components/EspressoBackground';
-import Link from 'next/link';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { useState } from "react";
+import { useLogin } from "../hooks/useLogin";
+import { signInWithGoogle } from "@/integrations/supabase/services/auth.service";
+import { EspressoBackground } from "@/components/EspressoBackground";
+import Link from "next/link";
+import { ArrowLeft, Loader2 } from "lucide-react";
 
 export function LoginForm() {
   const { login, loading } = useLogin();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [googleLoading, setGoogleLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
 
     if (!email || !password) {
-      setError('Παρακαλώ συμπληρώστε όλα τα πεδία');
+      setError("Παρακαλώ συμπληρώστε όλα τα πεδία");
       return;
     }
 
     const result = await login(email, password);
     if (!result.success) {
-      setError(result.error || 'Login failed');
+      setError(result.error || "Login failed");
     }
   };
 
   const handleGoogleSignIn = async () => {
     try {
       setGoogleLoading(true);
-      setError('');
+      setError("");
       await signInWithGoogle();
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Google sign-in failed');
+      setError(error instanceof Error ? error.message : "Google sign-in failed");
     } finally {
       setGoogleLoading(false);
     }
@@ -51,7 +51,10 @@ export function LoginForm() {
 
       <header className="sticky top-0 z-30 border-b border-white/10 bg-black/40 backdrop-blur-md">
         <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
-          <Link href="/" className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white hover:bg-white/15">
+          <Link
+            href="/"
+            className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white hover:bg-white/15"
+          >
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <h1 className="font-display text-lg font-semibold text-white">Σύνδεση</h1>
@@ -91,9 +94,7 @@ export function LoginForm() {
           </div>
 
           {error && (
-            <div className="rounded-lg bg-red-500/20 px-4 py-3 text-sm text-red-200">
-              {error}
-            </div>
+            <div className="rounded-lg bg-red-500/20 px-4 py-3 text-sm text-red-200">{error}</div>
           )}
 
           <button
@@ -107,7 +108,7 @@ export function LoginForm() {
                 Σύνδεση...
               </span>
             ) : (
-              'Σύνδεση'
+              "Σύνδεση"
             )}
           </button>
 
@@ -158,7 +159,7 @@ export function LoginForm() {
 
           <div className="text-center">
             <p className="text-sm text-white/60">
-              Δεν έχετε λογαριασμό;{' '}
+              Δεν έχετε λογαριασμό;{" "}
               <Link href="/register" className="text-primary hover:underline">
                 Εγγραφή
               </Link>

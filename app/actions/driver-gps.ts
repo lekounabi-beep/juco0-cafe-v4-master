@@ -33,19 +33,16 @@ export async function insertDriverLocationServer(
     return { success: false, error: "Invalid assignment_id" };
   }
 
-  const { data, error } = await (supabaseAdmin as any).rpc(
-    "insert_driver_gps_location",
-    {
-      p_assignment_id: payload.delivery_assignment_id,
-      p_driver_id: payload.driver_id,
-      p_lat: payload.lat,
-      p_lng: payload.lng,
-      p_accuracy: payload.accuracy,
-      p_speed: payload.speed,
-      p_heading: payload.heading,
-      p_recorded_at: payload.recorded_at,
-    },
-  );
+  const { data, error } = await supabaseAdmin.rpc("insert_driver_gps_location", {
+    p_assignment_id: payload.delivery_assignment_id,
+    p_driver_id: payload.driver_id,
+    p_lat: payload.lat,
+    p_lng: payload.lng,
+    p_accuracy: payload.accuracy,
+    p_speed: payload.speed,
+    p_heading: payload.heading,
+    p_recorded_at: payload.recorded_at,
+  });
 
   if (error) {
     serverLog.warn("driver.gps.failed", { driverId: payload.driver_id, error: error.message });

@@ -7,6 +7,7 @@ import {
 } from "@/features/admin/utils/admin-driver-state";
 import type { AdminDriverOperationalState } from "@/features/admin/types/admin-driver.types";
 import { isSuperAdminEnabled } from "@/features/superadmin/config/superadmin-flag";
+import { assertSuperAdminAccess } from "@/lib/server/superadmin-access.server";
 import type {
   SuperAdminFeatureFlag,
   SuperAdminFleetHealthOverview,
@@ -62,10 +63,8 @@ type StoreInfoRow = {
   value: unknown;
 };
 
-function assertSuperAdminAccess(): void {
-  if (!isSuperAdminEnabled()) {
-    throw new Error("SuperAdmin is disabled");
-  }
+async function requireSuperAdminAccess(): Promise<void> {
+  await assertSuperAdminAccess();
 }
 
 function buildFeatureFlags(): SuperAdminFeatureFlag[] {
@@ -277,7 +276,9 @@ function toOperationsDrivers(
   }));
 }
 
-async function fetchStores(insights: ReturnType<typeof derivePlatformInsights>): Promise<SuperAdminStoreRow[]> {
+async function fetchStores(
+  insights: ReturnType<typeof derivePlatformInsights>,
+): Promise<SuperAdminStoreRow[]> {
   const { data, error } = await supabaseAdmin
     .from(STORE_SETTINGS_TABLE)
     .select("key, value")
@@ -330,7 +331,7 @@ async function checkDatabaseHealth(): Promise<"healthy" | "unhealthy"> {
 /** Read-only platform snapshot for SuperAdmin — gated by feature flag. */
 export async function getSuperAdminPlatformStats(): Promise<SuperAdminStatsResult> {
   try {
-    assertSuperAdminAccess();
+    await requireSuperAdminAccess();
   } catch {
     return { success: false, error: "SuperAdmin is disabled" };
   }

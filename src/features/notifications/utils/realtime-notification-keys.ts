@@ -10,7 +10,7 @@ export function realtimeNotificationKeys(payload: {
     payload.commit_timestamp ??
       payload.new?.updated_at ??
       payload.new?.created_at ??
-      `${payload.eventType ?? 'event'}-${orderId ?? Date.now()}`
+      `${payload.eventType ?? "event"}-${orderId ?? Date.now()}`,
   );
   return { eventId, orderId };
 }

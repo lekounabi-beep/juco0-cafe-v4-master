@@ -2,18 +2,19 @@
  * Addresses Section component
  */
 
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useAddresses } from '../hooks/useAddresses';
-import { Plus, MapPin, Home, Briefcase, Trash2, Star, Loader2 } from 'lucide-react';
+import { useState } from "react";
+import { useAddresses } from "../hooks/useAddresses";
+import type { AddressCreate } from "../types/account.types";
+import { Plus, MapPin, Home, Briefcase, Trash2, Star, Loader2 } from "lucide-react";
 
 export function AddressesSection() {
   const { addresses, loading, error, create, remove, setDefault } = useAddresses();
   const [showForm, setShowForm] = useState(false);
 
   const handleDelete = async (addressId: string) => {
-    if (!confirm('Είστετε σίγουροι ότι θέλετε να διαγράψετε αυτή τη διεύθυνση;')) {
+    if (!confirm("Είστετε σίγουροι ότι θέλετε να διαγράψετε αυτή τη διεύθυνση;")) {
       return;
     }
     await remove(addressId);
@@ -48,9 +49,7 @@ export function AddressesSection() {
       </div>
 
       {error && (
-        <div className="rounded-lg bg-red-500/20 px-4 py-3 text-sm text-red-200">
-          {error}
-        </div>
+        <div className="rounded-lg bg-red-500/20 px-4 py-3 text-sm text-red-200">{error}</div>
       )}
 
       {showForm && <AddressForm onSubmit={create} onCancel={() => setShowForm(false)} />}
@@ -71,8 +70,8 @@ export function AddressesSection() {
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
-                  {address.label === 'Home' && <Home className="h-4 w-4 text-primary" />}
-                  {address.label === 'Work' && <Briefcase className="h-4 w-4 text-primary" />}
+                  {address.label === "Home" && <Home className="h-4 w-4 text-primary" />}
+                  {address.label === "Work" && <Briefcase className="h-4 w-4 text-primary" />}
                   <span className="font-medium text-white">{address.label}</span>
                   {address.is_default && (
                     <span className="flex items-center gap-1 rounded-full bg-primary/20 px-2 py-0.5 text-xs text-primary">
@@ -82,9 +81,7 @@ export function AddressesSection() {
                   )}
                 </div>
                 <p className="text-sm text-white/80">{address.address}</p>
-                {address.notes && (
-                  <p className="mt-1 text-xs text-white/50">{address.notes}</p>
-                )}
+                {address.notes && <p className="mt-1 text-xs text-white/50">{address.notes}</p>}
               </div>
               <div className="flex gap-2">
                 {!address.is_default && (
@@ -116,12 +113,12 @@ function AddressForm({
   onSubmit,
   onCancel,
 }: {
-  onSubmit: (data: any) => Promise<{ success: boolean }>;
+  onSubmit: (data: Omit<AddressCreate, "user_id">) => Promise<{ success: boolean }>;
   onCancel: () => void;
 }) {
-  const [label, setLabel] = useState('Other');
-  const [address, setAddress] = useState('');
-  const [notes, setNotes] = useState('');
+  const [label, setLabel] = useState("Other");
+  const [address, setAddress] = useState("");
+  const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -129,8 +126,8 @@ function AddressForm({
     setLoading(true);
     const result = await onSubmit({ label, address, notes, is_default: false });
     if (result.success) {
-      setAddress('');
-      setNotes('');
+      setAddress("");
+      setNotes("");
       onCancel();
     }
     setLoading(false);
@@ -167,7 +164,9 @@ function AddressForm({
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-white/80">Σημειώσεις (προαιρετικό)</label>
+          <label className="mb-2 block text-sm font-medium text-white/80">
+            Σημειώσεις (προαιρετικό)
+          </label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
@@ -190,7 +189,7 @@ function AddressForm({
                 Αποθήκευση...
               </span>
             ) : (
-              'Αποθήκευση'
+              "Αποθήκευση"
             )}
           </button>
           <button

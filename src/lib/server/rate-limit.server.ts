@@ -16,9 +16,7 @@ type LockoutRow = {
   locked_until: string | null;
 };
 
-export type RateLimitResult =
-  | { allowed: true }
-  | { allowed: false; retryAfterSec: number };
+export type RateLimitResult = { allowed: true } | { allowed: false; retryAfterSec: number };
 
 function lockoutId(scope: string, identifier: string): string {
   return `${scope}:${identifier}`;
@@ -52,7 +50,10 @@ export async function checkRateLimit(
   if (row?.first_failure_at) {
     const windowStart = new Date(row.first_failure_at).getTime();
     if (now - windowStart > WINDOW_MS) {
-      await supabaseAdmin.from("auth_lockouts" as never).delete().eq("id", id);
+      await supabaseAdmin
+        .from("auth_lockouts" as never)
+        .delete()
+        .eq("id", id);
     } else if (row.failed_count >= MAX_ATTEMPTS) {
       const lockedUntil = new Date(now + LOCKOUT_MS).toISOString();
       await supabaseAdmin
@@ -108,15 +109,18 @@ export async function recordFailedAttempt(
     serverLog.warn("auth.rate_limit.locked", { scope, identifier });
   }
 
-  await supabaseAdmin.from("auth_lockouts" as never).update(update as never).eq("id", id);
+  await supabaseAdmin
+    .from("auth_lockouts" as never)
+    .update(update as never)
+    .eq("id", id);
 }
 
-export async function clearRateLimit(
-  scope: "admin" | "driver",
-  identifier: string,
-): Promise<void> {
+export async function clearRateLimit(scope: "admin" | "driver", identifier: string): Promise<void> {
   const id = lockoutId(scope, identifier);
-  await supabaseAdmin.from("auth_lockouts" as never).delete().eq("id", id);
+  await supabaseAdmin
+    .from("auth_lockouts" as never)
+    .delete()
+    .eq("id", id);
 }
 
 export async function resolveClientIdentifier(): Promise<string> {

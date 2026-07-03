@@ -1,26 +1,42 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
-import { storeLocation } from '@/config/map-defaults';
+import { useCallback, useEffect, useRef, useState } from "react";
+import type mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
+import { storeLocation } from "@/config/map-defaults";
+import { attachJucoCafeMarker } from "@/features/maps/juco-cafe-mapbox-marker";
 
-type MapboxModule = typeof import('mapbox-gl');
+type MapboxModule = typeof import("mapbox-gl");
 
 type UseMapboxOptions = {
   enabled: boolean;
+  onMoveStart?: () => void;
   onMoveEnd: (coords: { lat: number; lng: number }) => void;
+  initialView?: { lat: number; lng: number; zoom: number } | null;
+  onViewChange?: (view: { lat: number; lng: number; zoom: number }) => void;
 };
 
-export function useMapbox({ enabled, onMoveEnd }: UseMapboxOptions) {
+export function useMapbox({
+  enabled,
+  onMoveStart,
+  onMoveEnd,
+  initialView,
+  onViewChange,
+}: UseMapboxOptions) {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const onMoveEndRef = useRef(onMoveEnd);
+  const onMoveStartRef = useRef(onMoveStart);
+  const onViewChangeRef = useRef(onViewChange);
+  const initialViewRef = useRef(initialView);
   const readyRef = useRef(false);
+  const lastViewRef = useRef<{ lat: number; lng: number; zoom: number } | null>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   onMoveEndRef.current = onMoveEnd;
+  onMoveStartRef.current = onMoveStart;
+  onViewChangeRef.current = onViewChange;
 
   const containerRef = useCallback((node: HTMLDivElement | null) => {
     setContainer(node);
@@ -32,6 +48,7 @@ export function useMapbox({ enabled, onMoveEnd }: UseMapboxOptions) {
     let cancelled = false;
     let mapbox: MapboxModule | null = null;
     let map: mapboxgl.Map | null = null;
+    let cafeMarker: mapboxgl.Marker | null = null;
     let rafId: number | null = null;
 
     const waitForContainer = () =>
@@ -46,7 +63,11 @@ export function useMapbox({ enabled, onMoveEnd }: UseMapboxOptions) {
             return;
           }
           if (performance.now() - startedAt > 3000) {
-            reject(new Error(`Map container has no size (${Math.round(rect.width)}x${Math.round(rect.height)})`));
+            reject(
+              new Error(
+                `Map container has no size (${Math.round(rect.width)}x${Math.round(rect.height)})`,
+              ),
+            );
             return;
           }
           rafId = requestAnimationFrame(check);
@@ -58,12 +79,12 @@ export function useMapbox({ enabled, onMoveEnd }: UseMapboxOptions) {
     void (async () => {
       try {
         setError(null);
-        mapbox = await import('mapbox-gl');
+        mapbox = await import("mapbox-gl");
         await waitForContainer();
 
-        const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
+        const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || "";
         if (!token) {
-          throw new Error('NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN is required for checkout location map');
+          throw new Error("NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN is required for checkout location map");
         }
 
         if (cancelled) return;
@@ -71,50 +92,79 @@ export function useMapbox({ enabled, onMoveEnd }: UseMapboxOptions) {
         mapbox.default.accessToken = token;
         map = new mapbox.default.Map({
           container,
-          style: 'mapbox://styles/mapbox/dark-v11',
-          center: [storeLocation.lng, storeLocation.lat],
-          zoom: 15,
+          style: "mapbox://styles/mapbox/dark-v11",
+          center: [
+            initialViewRef.current?.lng ?? storeLocation.lng,
+            initialViewRef.current?.lat ?? storeLocation.lat,
+          ],
+          zoom: initialViewRef.current?.zoom ?? 15,
           attributionControl: false,
           pitchWithRotate: false,
           dragRotate: false,
         });
 
-        map.addControl(new mapbox.default.NavigationControl({ showCompass: false }), 'bottom-right');
+        map.addControl(
+          new mapbox.default.NavigationControl({ showCompass: false }),
+          "bottom-right",
+        );
         mapRef.current = map;
+
+        const handleMoveStart = () => {
+          onMoveStartRef.current?.();
+        };
 
         const handleMoveEnd = () => {
           const center = map?.getCenter();
           if (!center) return;
           onMoveEndRef.current({ lat: center.lat, lng: center.lng });
+          const nextView = {
+            lat: center.lat,
+            lng: center.lng,
+            zoom: map?.getZoom() ?? initialViewRef.current?.zoom ?? 15,
+          };
+          const previousView = lastViewRef.current;
+          const changed =
+            !previousView ||
+            Math.abs(previousView.lat - nextView.lat) > 0.000001 ||
+            Math.abs(previousView.lng - nextView.lng) > 0.000001 ||
+            Math.abs(previousView.zoom - nextView.zoom) > 0.01;
+
+          if (changed) {
+            lastViewRef.current = nextView;
+            onViewChangeRef.current?.(nextView);
+          }
         };
 
         const markReady = () => {
-          if (cancelled || !map) return;
+          if (cancelled || !map || !mapbox || readyRef.current) return;
           map.resize();
+
+          if (!cafeMarker) {
+            cafeMarker = attachJucoCafeMarker(map, mapbox);
+          }
+
           readyRef.current = true;
           setReady(true);
           handleMoveEnd();
         };
 
         requestAnimationFrame(markReady);
-        map.on('load', markReady);
-        map.on('idle', markReady);
-        map.on('styledata', markReady);
-        map.on('render', () => {
-          if (map?.loaded()) {
-            markReady();
-          }
-        });
-        map.on('error', (event) => {
+        if (map.loaded()) {
+          markReady();
+        } else {
+          map.once("load", markReady);
+        }
+        map.on("error", (event) => {
           if (cancelled) return;
           if (!mapRef.current?.loaded() && !readyRef.current) {
-            setError(event.error?.message ?? 'Mapbox map failed to load');
+            setError(event.error?.message ?? "Mapbox map failed to load");
           }
         });
-        map.on('moveend', handleMoveEnd);
+        map.on("movestart", handleMoveStart);
+        map.on("moveend", handleMoveEnd);
       } catch (err) {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : 'Mapbox map failed to load');
+        setError(err instanceof Error ? err.message : "Mapbox map failed to load");
       }
     })();
 
@@ -124,6 +174,7 @@ export function useMapbox({ enabled, onMoveEnd }: UseMapboxOptions) {
         cancelAnimationFrame(rafId);
       }
       if (map) {
+        cafeMarker?.remove();
         map.remove();
       }
       if (mapRef.current === map) {
