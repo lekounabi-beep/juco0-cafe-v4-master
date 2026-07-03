@@ -5,17 +5,17 @@
  * Spec: mono MP3, 48 kHz, 200–450 ms (encoder padding), 1–30 KB.
  * See public/NOTIFICATION_SOUND_LICENSE.txt for source attribution.
  */
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
-import { spawnSync } from 'child_process';
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import { createRequire } from "module";
+import { spawnSync } from "child_process";
 
 const require = createRequire(import.meta.url);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const root = path.join(__dirname, '..');
-const outPath = path.join(root, 'public', 'notification.mp3');
+const root = path.join(__dirname, "..");
+const outPath = path.join(root, "public", "notification.mp3");
 
 const MIN_BYTES = 500;
 const MAX_BYTES = 30 * 1024;
@@ -30,22 +30,20 @@ function fail(message) {
 
 function getFfmpegPath() {
   try {
-    return require('@ffmpeg-installer/ffmpeg').path;
+    return require("@ffmpeg-installer/ffmpeg").path;
   } catch {
     return null;
   }
 }
 
 function probeMp3(ffmpegPath, filePath) {
-  const result = spawnSync(ffmpegPath, ['-hide_banner', '-i', filePath], {
-    stdio: 'pipe',
-    encoding: 'utf8',
+  const result = spawnSync(ffmpegPath, ["-hide_banner", "-i", filePath], {
+    stdio: "pipe",
+    encoding: "utf8",
   });
-  const stderr = result.stderr ?? '';
+  const stderr = result.stderr ?? "";
   const durationMatch = stderr.match(/Duration:\s*(\d+):(\d+):([\d.]+)/);
-  const audioMatch = stderr.match(
-    /Audio:\s*[^,]+,\s*(\d+)\s*Hz,\s*(mono|stereo)/i
-  );
+  const audioMatch = stderr.match(/Audio:\s*[^,]+,\s*(\d+)\s*Hz,\s*(mono|stereo)/i);
   if (!durationMatch || !audioMatch) {
     return null;
   }
@@ -63,7 +61,7 @@ function probeMp3(ffmpegPath, filePath) {
 function main() {
   if (!fs.existsSync(outPath)) {
     fail(
-      'public/notification.mp3 is missing. Add a professional notification MP3 (mono, 48 kHz, 200–400 ms, <30 KB). See public/NOTIFICATION_SOUND_LICENSE.txt.'
+      "public/notification.mp3 is missing. Add a professional notification MP3 (mono, 48 kHz, 200–400 ms, <30 KB). See public/NOTIFICATION_SOUND_LICENSE.txt.",
     );
   }
 
@@ -78,7 +76,7 @@ function main() {
   const ffmpegPath = getFfmpegPath();
   if (!ffmpegPath) {
     console.warn(
-      '[ensure-notification-sound] ffmpeg not available; skipping duration/channel probe.'
+      "[ensure-notification-sound] ffmpeg not available; skipping duration/channel probe.",
     );
     console.log(`[ensure-notification-sound] OK (${size} bytes) ${outPath}`);
     return;
@@ -86,10 +84,10 @@ function main() {
 
   const probe = probeMp3(ffmpegPath, outPath);
   if (!probe) {
-    fail('Could not probe public/notification.mp3 — file may be corrupt or not MP3.');
+    fail("Could not probe public/notification.mp3 — file may be corrupt or not MP3.");
   }
 
-  if (probe.channels !== 'mono') {
+  if (probe.channels !== "mono") {
     fail(`Expected mono MP3, got ${probe.channels}.`);
   }
   if (probe.sampleRate !== REQUIRED_SAMPLE_RATE) {
@@ -97,12 +95,12 @@ function main() {
   }
   if (probe.durationSec < MIN_DURATION_SEC || probe.durationSec > MAX_DURATION_SEC) {
     fail(
-      `Duration ${probe.durationSec.toFixed(2)}s out of range (${MIN_DURATION_SEC}–${MAX_DURATION_SEC}s).`
+      `Duration ${probe.durationSec.toFixed(2)}s out of range (${MIN_DURATION_SEC}–${MAX_DURATION_SEC}s).`,
     );
   }
 
   console.log(
-    `[ensure-notification-sound] OK (${size} bytes, ${probe.durationSec.toFixed(2)}s, mono ${probe.sampleRate} Hz) ${outPath}`
+    `[ensure-notification-sound] OK (${size} bytes, ${probe.durationSec.toFixed(2)}s, mono ${probe.sampleRate} Hz) ${outPath}`,
   );
 }
 

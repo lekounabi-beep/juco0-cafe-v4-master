@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { usePathname } from 'next/navigation';
-import { WifiOff } from 'lucide-react';
-import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { usePathname } from "next/navigation";
+import { WifiOff } from "lucide-react";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 
 function isCustomerRoute(pathname: string): boolean {
-  return !pathname.startsWith('/driver') && !pathname.startsWith('/admin');
+  return !pathname.startsWith("/driver") && !pathname.startsWith("/admin");
 }
 
 export function CustomerOfflineIndicator() {

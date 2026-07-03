@@ -3,9 +3,9 @@
  * Displays available orders for drivers to accept
  */
 
-import { Clock, Package } from 'lucide-react';
-import { OrderCard } from './OrderCard';
-import type { DriverOrderDetails } from '../types/driver-order.types';
+import { Clock, Package } from "lucide-react";
+import { OrderCard } from "./OrderCard";
+import type { DriverOrderDetails } from "../types/driver-order.types";
 
 type Order = DriverOrderDetails;
 
@@ -28,7 +28,7 @@ export function DriverAvailableOrders({
         <Clock className="h-5 w-5 text-primary" />
         Διαθέσιμες Παραγγελίες
       </h3>
-      
+
       {availableOrders.length === 0 ? (
         <div className="rounded-2xl bg-white/5 border border-white/10 p-8 text-center backdrop-blur-sm">
           <Package className="h-12 w-12 text-white/40 mx-auto mb-3" />

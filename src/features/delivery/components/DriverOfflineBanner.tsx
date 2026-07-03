@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useOfflineSync } from '@/features/delivery/hooks/useOfflineSync';
-import { WifiOff, RefreshCw } from 'lucide-react';
+import { useOfflineSync } from "@/features/delivery/hooks/useOfflineSync";
+import { WifiOff, RefreshCw } from "lucide-react";
 
 export function DriverOfflineBanner() {
   const { isOnline, isReconnecting, isSyncing, deliveryPendingCount } = useOfflineSync();

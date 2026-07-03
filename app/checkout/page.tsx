@@ -8,7 +8,6 @@ import { EspressoBackground } from "@/components/EspressoBackground";
 import { FulfillmentStep } from "@/features/checkout/components/FulfillmentStep";
 import { ContactStep } from "@/features/checkout/components/ContactStep";
 import { AddressStep } from "@/features/checkout/components/AddressStep";
-import { DeliveryInstructionsStep } from "@/features/checkout/components/DeliveryInstructionsStep";
 import { PaymentStep } from "@/features/checkout/components/PaymentStep";
 import { ReviewStep } from "@/features/checkout/components/ReviewStep";
 import { StickyCheckoutCta } from "@/features/checkout/components/StickyCheckoutCta";
@@ -19,7 +18,7 @@ import { useCheckoutValidation } from "@/features/checkout/hooks/useCheckoutVali
 import { useCheckoutSubmit } from "@/features/checkout/hooks/useCheckoutSubmit";
 import { useCheckoutStore } from "@/features/checkout/store/checkout-store";
 import { useAuth } from "@/features/auth/hooks/useAuth";
-import { getProfile } from "@/integrations/supabase/services/profile.service";
+import { resolveAccountProfileId } from "@/features/account/lib/account-profile-cache";
 import { useCart } from "@/lib/cart-store";
 import { calcDeliveryFee } from "@/shared/utils/currency";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
@@ -77,8 +76,12 @@ function CheckoutPageBody() {
         return;
       }
       try {
-        const profile = await getProfile(user.id);
-        setUserId(profile?.id ?? null);
+        const profileId = await resolveAccountProfileId(
+          user.id,
+          user.email,
+          user.user_metadata?.full_name || user.user_metadata?.name,
+        );
+        setUserId(profileId ?? null);
       } catch {
         setUserId(null);
       }
@@ -159,9 +162,6 @@ function CheckoutPageBody() {
                   error={addressError}
                   actionRef={addressActionRef}
                 />
-              </div>
-              <div ref={setSectionRef("instructions")}>
-                <DeliveryInstructionsStep />
               </div>
             </>
           )}

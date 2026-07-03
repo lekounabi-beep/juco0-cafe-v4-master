@@ -3,8 +3,8 @@
  * Allows drivers to toggle OFFLINE / ONLINE (BUSY is automatic during delivery)
  */
 
-import { Loader2, Power } from 'lucide-react';
-import { DRIVER_AVAILABILITY } from '../types/delivery.types';
+import { Loader2, Power } from "lucide-react";
+import { DRIVER_AVAILABILITY } from "../types/delivery.types";
 
 interface DriverAvailabilityCardProps {
   isOnDelivery: boolean;
@@ -24,7 +24,9 @@ export function DriverAvailabilityCard({
       <div className="mx-auto max-w-7xl px-4 py-4">
         <div className="rounded-2xl bg-amber-500/10 border border-amber-500/30 p-4 backdrop-blur-sm">
           <p className="font-semibold text-amber-300">BUSY</p>
-          <p className="text-xs text-white/60">Σε ενεργή παράδοση — η διαθεσιμότητα ενημερώνεται αυτόματα</p>
+          <p className="text-xs text-white/60">
+            Σε ενεργή παράδοση — η διαθεσιμότητα ενημερώνεται αυτόματα
+          </p>
         </div>
       </div>
     );
@@ -38,8 +40,8 @@ export function DriverAvailabilityCard({
             <p className="font-semibold text-white">Διαθεσιμότητα</p>
             <p className="text-xs text-white/60">
               {availabilityStatus === DRIVER_AVAILABILITY.ONLINE
-                ? 'Λαμβάνετε παραγγελίες'
-                : 'Δεν λαμβάνετε παραγγελίες'}
+                ? "Λαμβάνετε παραγγελίες"
+                : "Δεν λαμβάνετε παραγγελίες"}
             </p>
           </div>
           <button
@@ -48,13 +50,13 @@ export function DriverAvailabilityCard({
               onAvailabilityChange(
                 availabilityStatus === DRIVER_AVAILABILITY.ONLINE
                   ? DRIVER_AVAILABILITY.OFFLINE
-                  : DRIVER_AVAILABILITY.ONLINE
+                  : DRIVER_AVAILABILITY.ONLINE,
               )
             }
             className={`relative h-12 w-12 rounded-full flex items-center justify-center transition disabled:opacity-60 ${
               availabilityStatus === DRIVER_AVAILABILITY.ONLINE
-                ? 'bg-green-500/20 text-green-400'
-                : 'bg-red-500/20 text-red-400'
+                ? "bg-green-500/20 text-green-400"
+                : "bg-red-500/20 text-red-400"
             }`}
           >
             {availabilityLoading ? (

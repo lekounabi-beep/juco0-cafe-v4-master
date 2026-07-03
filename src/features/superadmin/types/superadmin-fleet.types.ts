@@ -65,7 +65,6 @@ export type SuperAdminFleetListResult =
   | { success: false; error: string };
 
 export type SuperAdminFleetDetailsResult =
-  | { success: true; driver: SuperAdminFleetDriverDetails }
-  | { success: false; error: string };
+  { success: true; driver: SuperAdminFleetDriverDetails } | { success: false; error: string };
 
 export type FleetFilter = "all" | "online" | "delivering" | "offline" | "no_gps";

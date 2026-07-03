@@ -3,7 +3,8 @@
  * Demo Environment Implementation
  */
 
-import type { VivaOrderRequest, VivaOrderResponse } from '../types';
+import { captureException } from "@/lib/monitoring";
+import type { VivaOrderRequest, VivaOrderResponse } from "../types";
 
 /**
  * Creates a Viva Wallet order code for Native Smart Checkout
@@ -11,41 +12,38 @@ import type { VivaOrderRequest, VivaOrderResponse } from '../types';
  */
 export async function createVivaOrderCode(
   amount: number,
-  customerDetails: VivaOrderRequest['customerDetails']
+  customerDetails: VivaOrderRequest["customerDetails"],
 ): Promise<VivaOrderResponse> {
   try {
-    // Call our Next.js API route to avoid CORS issues
-    const response = await fetch('/api/viva', {
-      method: 'POST',
+    const response = await fetch("/api/viva", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({ amount, customerDetails }),
     });
 
-    console.log('Server API Response status:', response.status);
-
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Server API Error:', response.status, errorText);
+      captureException(new Error("viva_api_request_failed"), {
+        status: response.status,
+      });
       return {
-        orderCode: '',
+        orderCode: "",
         errorCode: response.status,
-        errorText: `Server Error (${response.status}): ${errorText}`,
+        errorText: `Server Error (${response.status})`,
       };
     }
 
-    const data = await response.json();
-    console.log('Server API Response:', data);
+    const data = (await response.json()) as { orderCode?: string };
     return {
-      orderCode: data.orderCode,
+      orderCode: data.orderCode ?? "",
     };
   } catch (error) {
-    console.error('Viva Wallet Service Error:', error);
+    captureException(error, { scope: "viva.create_order_code" });
     return {
-      orderCode: '',
+      orderCode: "",
       errorCode: 500,
-      errorText: error instanceof Error ? error.message : 'Network error',
+      errorText: error instanceof Error ? error.message : "Network error",
     };
   }
 }
@@ -55,7 +53,7 @@ export async function createVivaOrderCode(
  */
 export function redirectToVivaPayment(orderCode: string): void {
   const vivaWebBaseUrl =
-    process.env.NEXT_PUBLIC_VIVA_WEB_BASE_URL || 'https://demo.vivapayments.com';
+    process.env.NEXT_PUBLIC_VIVA_WEB_BASE_URL || "https://demo.vivapayments.com";
   const paymentUrl = `${vivaWebBaseUrl}/web/checkout?ref=${orderCode}`;
   window.location.href = paymentUrl;
 }

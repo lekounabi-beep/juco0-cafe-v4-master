@@ -2,31 +2,31 @@
  * Register Form component
  */
 
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRegister } from '../hooks/useRegister';
-import { signInWithGoogle } from '@/integrations/supabase/services/auth.service';
-import { EspressoBackground } from '@/components/EspressoBackground';
-import Link from 'next/link';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { useState } from "react";
+import { useRegister } from "../hooks/useRegister";
+import { signInWithGoogle } from "@/integrations/supabase/services/auth.service";
+import { EspressoBackground } from "@/components/EspressoBackground";
+import Link from "next/link";
+import { ArrowLeft, Loader2 } from "lucide-react";
 
 export function RegisterForm() {
   const { register, loading } = useRegister();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [error, setError] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [error, setError] = useState("");
   const [googleLoading, setGoogleLoading] = useState(false);
 
   const handleGoogleSignUp = async () => {
     try {
       setGoogleLoading(true);
-      setError('');
+      setError("");
       await signInWithGoogle();
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Google sign-up failed');
+      setError(error instanceof Error ? error.message : "Google sign-up failed");
     } finally {
       setGoogleLoading(false);
     }
@@ -34,21 +34,21 @@ export function RegisterForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
 
     if (!email || !password || !fullName) {
-      setError('Παρακαλώ συμπληρώστε όλα τα απαιτούμενα πεδία');
+      setError("Παρακαλώ συμπληρώστε όλα τα απαιτούμενα πεδία");
       return;
     }
 
     if (password.length < 6) {
-      setError('Ο κωδικός πρέπει να έχει τουλάχιστον 6 χαρακτήρες');
+      setError("Ο κωδικός πρέπει να έχει τουλάχιστον 6 χαρακτήρες");
       return;
     }
 
     const result = await register(email, password, fullName, phone || undefined);
     if (!result.success) {
-      setError(result.error || 'Registration failed');
+      setError(result.error || "Registration failed");
     }
   };
 
@@ -58,7 +58,10 @@ export function RegisterForm() {
 
       <header className="sticky top-0 z-30 border-b border-white/10 bg-black/40 backdrop-blur-md">
         <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
-          <Link href="/" className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white hover:bg-white/15">
+          <Link
+            href="/"
+            className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white hover:bg-white/15"
+          >
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <h1 className="font-display text-lg font-semibold text-white">Εγγραφή</h1>
@@ -128,9 +131,7 @@ export function RegisterForm() {
           </div>
 
           {error && (
-            <div className="rounded-lg bg-red-500/20 px-4 py-3 text-sm text-red-200">
-              {error}
-            </div>
+            <div className="rounded-lg bg-red-500/20 px-4 py-3 text-sm text-red-200">{error}</div>
           )}
 
           <button
@@ -144,7 +145,7 @@ export function RegisterForm() {
                 Εγγραφή...
               </span>
             ) : (
-              'Εγγραφή'
+              "Εγγραφή"
             )}
           </button>
 
@@ -195,7 +196,7 @@ export function RegisterForm() {
 
           <div className="text-center">
             <p className="text-sm text-white/60">
-              Έχετε ήδη λογαριασμό;{' '}
+              Έχετε ήδη λογαριασμό;{" "}
               <Link href="/login" className="text-primary hover:underline">
                 Σύνδεση
               </Link>

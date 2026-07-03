@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import { Plus, Minus, ShoppingBag, Edit2, Check, X, Save } from "lucide-react";
 import { menu, type MenuItem } from "@/data/menu";
 import { productImages } from "@/data/productImages";
@@ -6,11 +6,10 @@ import { useCart } from "@/lib/cart-store";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 
-
 // Category-based fallback photos (Unsplash CDN, stable IDs).
 // Used when a Wolt image URL fails to load — keeps the grid visually intact.
 const FALLBACKS: Record<string, string[]> = {
-  "ΚΑΦΕΔΕΣ": [
+  ΚΑΦΕΔΕΣ: [
     "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=600&q=70&auto=format&fit=crop",
     "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=600&q=70&auto=format&fit=crop",
     "https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=600&q=70&auto=format&fit=crop",
@@ -27,25 +26,26 @@ const FALLBACKS: Record<string, string[]> = {
     "https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=600&q=70&auto=format&fit=crop",
     "https://images.unsplash.com/photo-1613478223719-2ab802602423?w=600&q=70&auto=format&fit=crop",
   ],
-  "SMOOTHIES": [
+  SMOOTHIES: [
     "https://images.unsplash.com/photo-1505252585461-04db1eb84625?w=600&q=70&auto=format&fit=crop",
     "https://images.unsplash.com/photo-1623065422902-30a2d299bbe4?w=600&q=70&auto=format&fit=crop",
     "https://images.unsplash.com/photo-1638176067000-9e2ff6a3a8d9?w=600&q=70&auto=format&fit=crop",
     "https://images.unsplash.com/photo-1502741338009-cac2772e18bc?w=600&q=70&auto=format&fit=crop",
   ],
-  "MILKSHAKES": [
+  MILKSHAKES: [
     "https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=600&q=70&auto=format&fit=crop",
     "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&q=70&auto=format&fit=crop",
     "https://images.unsplash.com/photo-1626202378086-7c3e9f0c2f1c?w=600&q=70&auto=format&fit=crop",
   ],
-  "SNACKS": [
+  SNACKS: [
     "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600&q=70&auto=format&fit=crop",
     "https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=600&q=70&auto=format&fit=crop",
     "https://images.unsplash.com/photo-1486427944299-d1955d23e34d?w=600&q=70&auto=format&fit=crop",
     "https://images.unsplash.com/photo-1559620192-032c4bc4674e?w=600&q=70&auto=format&fit=crop",
   ],
 };
-const GENERIC_FALLBACK = "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=600&q=70&auto=format&fit=crop";
+const GENERIC_FALLBACK =
+  "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=600&q=70&auto=format&fit=crop";
 
 function pickFallback(category: string, i: number): string {
   const pool = FALLBACKS[category];
@@ -57,7 +57,17 @@ function formatPrice(p: number) {
   return p > 0 ? `${p.toFixed(2).replace(".", ",")} €` : "—";
 }
 
-function Card({ item, i, editable = false, onEdit }: { item: MenuItem; i: number; editable?: boolean; onEdit?: (index: number, item: MenuItem) => void }) {
+function Card({
+  item,
+  i,
+  editable = false,
+  onEdit,
+}: {
+  item: MenuItem;
+  i: number;
+  editable?: boolean;
+  onEdit?: (index: number, item: MenuItem) => void;
+}) {
   const productPhoto = productImages[item.name];
   const fallback = pickFallback(item.category, i);
   const initial = item.image || productPhoto || fallback;
@@ -65,15 +75,16 @@ function Card({ item, i, editable = false, onEdit }: { item: MenuItem; i: number
   const [triedFallback, setTriedFallback] = useState(initial !== item.image);
   const [imageError, setImageError] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [editValue, setEditValue] = useState('');
-  const [editField, setEditField] = useState<'name' | 'price' | 'description' | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [editField, setEditField] = useState<"name" | "price" | "description" | null>(null);
 
   const qty = useCart((s) => s.items.find((it) => it.name === item.name)?.qty ?? 0);
   const add = useCart((s) => s.add);
   const setQty = useCart((s) => s.setQty);
 
   const disabled = item.price <= 0;
-  const cartImage = productPhoto || (item.image && !item.image.includes("wolt.com") ? item.image : undefined);
+  const cartImage =
+    productPhoto || (item.image && !item.image.includes("wolt.com") ? item.image : undefined);
 
   const handleImageError = () => {
     if (!triedFallback) {
@@ -84,16 +95,16 @@ function Card({ item, i, editable = false, onEdit }: { item: MenuItem; i: number
     }
   };
 
-  const handleEdit = (field: 'name' | 'price' | 'description') => {
+  const handleEdit = (field: "name" | "price" | "description") => {
     setEditField(field);
-    setEditValue(field === 'price' ? item.price.toString() : (item[field] || ''));
+    setEditValue(field === "price" ? item.price.toString() : item[field] || "");
     setEditing(true);
   };
 
   const handleSave = () => {
     if (onEdit && editField) {
       const updatedItem = { ...item };
-      if (editField === 'price') {
+      if (editField === "price") {
         updatedItem.price = parseFloat(editValue);
       } else {
         updatedItem[editField] = editValue;
@@ -102,13 +113,13 @@ function Card({ item, i, editable = false, onEdit }: { item: MenuItem; i: number
     }
     setEditing(false);
     setEditField(null);
-    setEditValue('');
+    setEditValue("");
   };
 
   const handleCancel = () => {
     setEditing(false);
     setEditField(null);
-    setEditValue('');
+    setEditValue("");
   };
 
   return (
@@ -119,7 +130,9 @@ function Card({ item, i, editable = false, onEdit }: { item: MenuItem; i: number
       className="group flex flex-col overflow-hidden rounded-2xl glass shadow-[var(--shadow-soft)] will-change-transform"
       whileHover={{ y: -4, transition: { duration: 0.2 } }}
     >
-      <div className={`relative aspect-[4/3] overflow-hidden ${productPhoto ? "bg-transparent" : "bg-black/40"}`}>
+      <div
+        className={`relative aspect-[4/3] overflow-hidden ${productPhoto ? "bg-transparent" : "bg-black/40"}`}
+      >
         {!imageError ? (
           <motion.div
             whileHover={{ scale: 1.05 }}
@@ -147,7 +160,7 @@ function Card({ item, i, editable = false, onEdit }: { item: MenuItem; i: number
       </div>
       <div className="flex flex-1 flex-col p-4">
         <div className="flex items-start justify-between gap-2">
-          {editable && editing && editField === 'name' ? (
+          {editable && editing && editField === "name" ? (
             <div className="flex-1 flex gap-1">
               <input
                 type="text"
@@ -168,7 +181,7 @@ function Card({ item, i, editable = false, onEdit }: { item: MenuItem; i: number
               <h3 className="text-base font-semibold leading-snug text-white">{item.name}</h3>
               {editable && (
                 <button
-                  onClick={() => handleEdit('name')}
+                  onClick={() => handleEdit("name")}
                   className="p-1 hover:bg-white/10 rounded text-white/50 hover:text-white"
                 >
                   <Edit2 className="h-3 w-3" />
@@ -179,7 +192,7 @@ function Card({ item, i, editable = false, onEdit }: { item: MenuItem; i: number
         </div>
         {item.description && (
           <div className="mt-1">
-            {editable && editing && editField === 'description' ? (
+            {editable && editing && editField === "description" ? (
               <div className="flex gap-1">
                 <input
                   type="text"
@@ -200,7 +213,7 @@ function Card({ item, i, editable = false, onEdit }: { item: MenuItem; i: number
                 <p className="line-clamp-2 text-sm text-white/60">{item.description}</p>
                 {editable && (
                   <button
-                    onClick={() => handleEdit('description')}
+                    onClick={() => handleEdit("description")}
                     className="p-1 hover:bg-white/10 rounded text-white/50 hover:text-white flex-shrink-0"
                   >
                     <Edit2 className="h-3 w-3" />
@@ -226,13 +239,15 @@ function Card({ item, i, editable = false, onEdit }: { item: MenuItem; i: number
                   : "bg-green-500/20 text-green-300 hover:bg-green-500/30"
               }`}
             >
-              {item.is_available === false ? "Μη διαθέσιμο — πάτα για ενεργοποίηση" : "Διαθέσιμο — πάτα για απενεργοποίηση"}
+              {item.is_available === false
+                ? "Μη διαθέσιμο — πάτα για ενεργοποίηση"
+                : "Διαθέσιμο — πάτα για απενεργοποίηση"}
             </button>
           </div>
         )}
         <div className="mt-4">
           {editable ? (
-            editing && editField === 'price' ? (
+            editing && editField === "price" ? (
               <div className="flex gap-1">
                 <input
                   type="number"
@@ -253,7 +268,7 @@ function Card({ item, i, editable = false, onEdit }: { item: MenuItem; i: number
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm text-white/70">{formatPrice(item.price)}</span>
                 <button
-                  onClick={() => handleEdit('price')}
+                  onClick={() => handleEdit("price")}
                   className="p-1 hover:bg-white/10 rounded text-white/50 hover:text-white"
                 >
                   <Edit2 className="h-3 w-3" />
@@ -264,7 +279,14 @@ function Card({ item, i, editable = false, onEdit }: { item: MenuItem; i: number
             <motion.button
               type="button"
               disabled={disabled}
-              onClick={() => add({ name: item.name, price: item.price, image: cartImage, category: item.category })}
+              onClick={() =>
+                add({
+                  name: item.name,
+                  price: item.price,
+                  image: cartImage,
+                  category: item.category,
+                })
+              }
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.95 }}
               className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] disabled:cursor-not-allowed disabled:opacity-50 will-change-transform"
@@ -273,16 +295,16 @@ function Card({ item, i, editable = false, onEdit }: { item: MenuItem; i: number
             </motion.button>
           ) : (
             <div className="flex items-center justify-between gap-2 rounded-xl bg-primary/15 px-2 py-1.5">
-              <motion.button 
-                type="button" 
-                onClick={() => setQty(item.name, qty - 1)} 
+              <motion.button
+                type="button"
+                onClick={() => setQty(item.name, qty - 1)}
                 whileTap={{ scale: 0.9 }}
-                className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-primary-foreground transition hover:opacity-90 will-change-transform" 
+                className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-primary-foreground transition hover:opacity-90 will-change-transform"
                 aria-label="Μείωση"
               >
                 <Minus className="h-4 w-4" />
               </motion.button>
-              <motion.span 
+              <motion.span
                 key={qty}
                 initial={{ scale: 1.2 }}
                 animate={{ scale: 1 }}
@@ -290,11 +312,18 @@ function Card({ item, i, editable = false, onEdit }: { item: MenuItem; i: number
               >
                 {qty}
               </motion.span>
-              <motion.button 
-                type="button" 
-                onClick={() => add({ name: item.name, price: item.price, image: cartImage, category: item.category })} 
+              <motion.button
+                type="button"
+                onClick={() =>
+                  add({
+                    name: item.name,
+                    price: item.price,
+                    image: cartImage,
+                    category: item.category,
+                  })
+                }
                 whileTap={{ scale: 0.9 }}
-                className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-primary-foreground transition hover:opacity-90 will-change-transform" 
+                className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-primary-foreground transition hover:opacity-90 will-change-transform"
                 aria-label="Προσθήκη"
               >
                 <Plus className="h-4 w-4" />
@@ -310,7 +339,7 @@ function Card({ item, i, editable = false, onEdit }: { item: MenuItem; i: number
 export function MenuGrid({
   editable = false,
   onEdit,
-  menuData = menu
+  menuData = menu,
 }: {
   editable?: boolean;
   onEdit?: (index: number, item: MenuItem) => void;
@@ -318,54 +347,60 @@ export function MenuGrid({
 }) {
   const grouped = useMemo(() => {
     const map = new Map<string, MenuItem[]>();
-    
+
     for (const m of menuData) {
       if (!map.has(m.category)) map.set(m.category, []);
       map.get(m.category)!.push(m);
     }
-    
+
     // Don't sort items within categories - preserve database order (as in menu.ts)
-    
+
     // Use the exact category order from the static menu
     const categoryOrder = [
-      'ΚΑΦΕΔΕΣ',
-      'ΡΟΦΗΜΑΤΑ ΣΟΚΟΛΑΤΑΣ',
-      'ΡΟΦΗΜΑΤΑ',
-      'ΦΥΣΙΚΟΙ ΧΥΜΟΙ',
-      'ΦΥΣΙΚΟΙ ΧΥΜΟΙ ΑΝΑΜΕΙΚΤΟΙ',
-      'SMOOTHIES',
-      'MILKSHAKES',
-      'SNACKS',
-      'ΜΠΑΡΕΣ ΠΡΩΤΕΪ́ΝΗΣ',
-      'ΚΑΦΕΚΟΠΤΕΙΟ ESPRESSO',
-      'ΚΑΦΕΚΟΠΤΕΙΟ ΦΙΛΤΡΟΥ',
-      'ΚΑΦΕΚΟΠΤΕΙΟ ΕΛΛΗΝΙΚΟΣ',
-      'ΚΑΦΕΚΟΠΤΕΙΟ ΚΑΨΟΥΛΕΣ NESPRESSO',
-      'ΧΥΜΟΙ',
-      'ICED TEA',
-      'ΑΝΑΨΥΚΤΙΚΑ'
+      "ΚΑΦΕΔΕΣ",
+      "ΡΟΦΗΜΑΤΑ ΣΟΚΟΛΑΤΑΣ",
+      "ΡΟΦΗΜΑΤΑ",
+      "ΦΥΣΙΚΟΙ ΧΥΜΟΙ",
+      "ΦΥΣΙΚΟΙ ΧΥΜΟΙ ΑΝΑΜΕΙΚΤΟΙ",
+      "SMOOTHIES",
+      "MILKSHAKES",
+      "SNACKS",
+      "ΜΠΑΡΕΣ ΠΡΩΤΕΪ́ΝΗΣ",
+      "ΚΑΦΕΚΟΠΤΕΙΟ ESPRESSO",
+      "ΚΑΦΕΚΟΠΤΕΙΟ ΦΙΛΤΡΟΥ",
+      "ΚΑΦΕΚΟΠΤΕΙΟ ΕΛΛΗΝΙΚΟΣ",
+      "ΚΑΦΕΚΟΠΤΕΙΟ ΚΑΨΟΥΛΕΣ NESPRESSO",
+      "ΧΥΜΟΙ",
+      "ICED TEA",
+      "ΑΝΑΨΥΚΤΙΚΑ",
     ];
-    
+
     // Filter to only include categories that exist in the data
-    const sortedCategories = categoryOrder.filter(cat => map.has(cat));
-    
+    const sortedCategories = categoryOrder.filter((cat) => map.has(cat));
+
     // Add any remaining categories that aren't in the predefined order
-    const remainingCategories = Array.from(map.keys()).filter(cat => !categoryOrder.includes(cat));
-    
+    const remainingCategories = Array.from(map.keys()).filter(
+      (cat) => !categoryOrder.includes(cat),
+    );
+
     const finalOrder = [...sortedCategories, ...remainingCategories];
-    
+
     // Return categories in the sorted order
-    const sortedEntries = finalOrder.map(cat => [cat, map.get(cat)!] as [string, MenuItem[]]);
+    const sortedEntries = finalOrder.map((cat) => [cat, map.get(cat)!] as [string, MenuItem[]]);
     return sortedEntries;
   }, [menuData]);
 
-  const [active, setActive] = useState<string>('');
+  const [active, setActive] = useState<string>("");
 
   return (
     <section id="menu" className="mx-auto max-w-7xl px-4 py-16 sm:py-24">
       <div className="mb-10 text-center">
-        <p className="text-xs uppercase tracking-[0.25em] text-white/60">{editable ? 'Admin Menu Editor' : 'Our menu'}</p>
-        <h2 className="mt-2 text-3xl sm:text-5xl font-semibold text-white [text-shadow:0_2px_20px_rgba(0,0,0,0.5)]">{editable ? 'Edit Menu Items' : 'Made fresh, every day'}</h2>
+        <p className="text-xs uppercase tracking-[0.25em] text-white/60">
+          {editable ? "Admin Menu Editor" : "Our menu"}
+        </p>
+        <h2 className="mt-2 text-3xl sm:text-5xl font-semibold text-white [text-shadow:0_2px_20px_rgba(0,0,0,0.5)]">
+          {editable ? "Edit Menu Items" : "Made fresh, every day"}
+        </h2>
       </div>
 
       {/* Category pills - Show in both modes */}
@@ -383,7 +418,14 @@ export function MenuGrid({
                   ? "text-white shadow-lg"
                   : "bg-white/10 text-white/80 hover:bg-white/20 hover:text-white"
               }`}
-              style={active === cat ? { backgroundColor: '#16a34a !important', boxShadow: '0 10px 15px -3px rgba(22, 163, 74, 0.25) !important' } as any : undefined}
+              style={
+                active === cat
+                  ? ({
+                      backgroundColor: "#16a34a !important",
+                      boxShadow: "0 10px 15px -3px rgba(22, 163, 74, 0.25) !important",
+                    } as CSSProperties)
+                  : undefined
+              }
             >
               {cat}
             </motion.a>
@@ -410,9 +452,15 @@ export function MenuGrid({
             </div>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {items.map((it) => {
-                const actualIndex = menuData.findIndex(m => m.name === it.name);
+                const actualIndex = menuData.findIndex((m) => m.name === it.name);
                 return (
-                  <Card key={it.name + actualIndex} item={it} i={actualIndex} editable={editable} onEdit={onEdit} />
+                  <Card
+                    key={it.name + actualIndex}
+                    item={it}
+                    i={actualIndex}
+                    editable={editable}
+                    onEdit={onEdit}
+                  />
                 );
               })}
             </div>

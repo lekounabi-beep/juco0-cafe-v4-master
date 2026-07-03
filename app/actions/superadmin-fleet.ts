@@ -1,6 +1,6 @@
 "use server";
 
-import { isSuperAdminEnabled } from "@/features/superadmin/config/superadmin-flag";
+import { assertSuperAdminAccess } from "@/lib/server/superadmin-access.server";
 import type {
   SuperAdminFleetDelivery,
   SuperAdminFleetDetailsResult,
@@ -33,15 +33,12 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 const DRIVERS_TABLE = "drivers" as never;
 
-function assertSuperAdminAccess(): void {
-  if (!isSuperAdminEnabled()) {
-    throw new Error("SuperAdmin is disabled");
-  }
+async function requireSuperAdminAccess(): Promise<void> {
+  await assertSuperAdminAccess();
 }
 
 function toFleetDriver(item: ReturnType<typeof fleetBuildListItem>): SuperAdminFleetDriver {
-  const hasCoords =
-    item.current_location_lat != null && item.current_location_lng != null;
+  const hasCoords = item.current_location_lat != null && item.current_location_lng != null;
   const gpsAgeMs = item.last_location_update
     ? Date.now() - new Date(item.last_location_update).getTime()
     : null;
@@ -147,7 +144,7 @@ async function loadDriverContext(driverId: string): Promise<{
 /** SuperAdmin fleet list — read-only, feature-flag gated. */
 export async function getSuperAdminFleetList(): Promise<SuperAdminFleetListResult> {
   try {
-    assertSuperAdminAccess();
+    await requireSuperAdminAccess();
   } catch {
     return { success: false, error: "SuperAdmin is disabled" };
   }
@@ -192,7 +189,7 @@ export async function getSuperAdminFleetDriverDetails(
   driverId: string,
 ): Promise<SuperAdminFleetDetailsResult> {
   try {
-    assertSuperAdminAccess();
+    await requireSuperAdminAccess();
   } catch {
     return { success: false, error: "SuperAdmin is disabled" };
   }

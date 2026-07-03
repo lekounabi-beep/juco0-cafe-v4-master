@@ -5,11 +5,11 @@ export type AbortableTimeoutOptions = {
 };
 
 export class AbortableTimeoutError extends Error {
-  readonly reason: 'timeout' | 'abort';
+  readonly reason: "timeout" | "abort";
 
-  constructor(reason: 'timeout' | 'abort', label: string) {
-    super(reason === 'timeout' ? `${label}: timeout` : `${label}: aborted`);
-    this.name = 'AbortableTimeoutError';
+  constructor(reason: "timeout" | "abort", label: string) {
+    super(reason === "timeout" ? `${label}: timeout` : `${label}: aborted`);
+    this.name = "AbortableTimeoutError";
     this.reason = reason;
   }
 }
@@ -24,7 +24,7 @@ export async function withAbortableTimeout<T>(
   externalSignal?: AbortSignal,
   options?: AbortableTimeoutOptions,
 ): Promise<T> {
-  const label = options?.label ?? 'request';
+  const label = options?.label ?? "request";
   const controller = new AbortController();
   let timedOut = false;
 
@@ -32,9 +32,9 @@ export async function withAbortableTimeout<T>(
   if (externalSignal) {
     if (externalSignal.aborted) {
       options?.onAbort?.();
-      throw new AbortableTimeoutError('abort', label);
+      throw new AbortableTimeoutError("abort", label);
     }
-    externalSignal.addEventListener('abort', onExternalAbort, { once: true });
+    externalSignal.addEventListener("abort", onExternalAbort, { once: true });
   }
 
   const timeoutId = setTimeout(() => {
@@ -48,13 +48,13 @@ export async function withAbortableTimeout<T>(
   } catch (err) {
     if (controller.signal.aborted) {
       if (timedOut) {
-        throw new AbortableTimeoutError('timeout', label);
+        throw new AbortableTimeoutError("timeout", label);
       }
-      throw new AbortableTimeoutError('abort', label);
+      throw new AbortableTimeoutError("abort", label);
     }
     throw err;
   } finally {
     clearTimeout(timeoutId);
-    externalSignal?.removeEventListener('abort', onExternalAbort);
+    externalSignal?.removeEventListener("abort", onExternalAbort);
   }
 }

@@ -53,8 +53,7 @@ export type AdminMenuDataResult =
   | { success: false; error: string };
 
 export type SaveAdminMenuResult =
-  | { success: true; updated: number; inserted: number }
-  | { success: false; error: string };
+  { success: true; updated: number; inserted: number } | { success: false; error: string };
 
 function unauthorizedData(): AdminMenuDataResult {
   return { success: false, error: "Unauthorized — sign in again at /admin/login" };
@@ -64,10 +63,7 @@ function unauthorizedSave(): SaveAdminMenuResult {
   return { success: false, error: "Unauthorized — sign in again at /admin/login" };
 }
 
-function validateProductInput(
-  product: AdminMenuProductInput,
-  index: number,
-): string | null {
+function validateProductInput(product: AdminMenuProductInput, index: number): string | null {
   if (product.id && !isUUID(product.id)) {
     return `Invalid product id at index ${index}`;
   }
@@ -142,8 +138,14 @@ function normalizeStoreInfo(raw: unknown): StoreInfo {
 
   const record = raw as Record<string, unknown>;
   return {
-    address: typeof record.address === "string" && record.address.trim() ? record.address.trim() : fallback.address,
-    phone: typeof record.phone === "string" && record.phone.trim() ? record.phone.trim() : fallback.phone,
+    address:
+      typeof record.address === "string" && record.address.trim()
+        ? record.address.trim()
+        : fallback.address,
+    phone:
+      typeof record.phone === "string" && record.phone.trim()
+        ? record.phone.trim()
+        : fallback.phone,
     instagram:
       typeof record.instagram === "string" && record.instagram.trim()
         ? record.instagram.trim()

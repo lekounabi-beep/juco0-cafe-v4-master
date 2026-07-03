@@ -2,17 +2,26 @@
  * Driver Active Delivery Card — map always mounts with fixed height (no conditional container).
  */
 
-import { useState, useEffect } from 'react';
-import { Navigation, Package, MapPin, Loader2 } from 'lucide-react';
-import { DriverLiveMap } from '@/features/live-tracking-v2/components/DriverLiveMap';
-import { TrackingV2DebugPanel } from '@/features/live-tracking-v2/components/TrackingV2DebugPanel';
-import { formatDistance, formatETA } from '@/features/delivery/services/eta.service';
-import { DeliveryActions } from './DeliveryActions';
-import { DriverOrderDetailsSection } from './DriverOrderDetailsSection';
-import type { useETA } from '../hooks/useETA';
-import type { DeliveryUiState } from '../utils/delivery-ui-selector';
-import type { ActiveDeliveryView } from '../utils/active-delivery';
-import type { DriverOrderDetails } from '../types/driver-order.types';
+import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
+import { Navigation, Package, MapPin, Loader2 } from "lucide-react";
+import { MapDynamicLoading } from "@/features/maps/components/MapDynamicLoading";
+
+const DriverLiveMap = dynamic(
+  () => import("@/features/live-tracking-v2/components/DriverLiveMap").then((m) => m.DriverLiveMap),
+  {
+    ssr: false,
+    loading: () => <MapDynamicLoading className="h-full min-h-[400px]" />,
+  },
+);
+import { TrackingV2DebugPanel } from "@/features/live-tracking-v2/components/TrackingV2DebugPanel";
+import { formatDistance, formatETA } from "@/features/delivery/services/eta.service";
+import { DeliveryActions } from "./DeliveryActions";
+import { DriverOrderDetailsSection } from "./DriverOrderDetailsSection";
+import type { useETA } from "../hooks/useETA";
+import type { DeliveryUiState } from "../utils/delivery-ui-selector";
+import type { ActiveDeliveryView } from "../utils/active-delivery";
+import type { DriverOrderDetails } from "../types/driver-order.types";
 
 interface DriverActiveDeliveryCardProps {
   activeDeliveryView: ActiveDeliveryView;
@@ -45,7 +54,7 @@ export function DriverActiveDeliveryCard({
 }: DriverActiveDeliveryCardProps) {
   const order = activeDeliveryView.order;
   const stage = deliveryUi.stage;
-  const [mapStatus, setMapStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [mapStatus, setMapStatus] = useState<"loading" | "ready" | "error">("loading");
   const [lastRenderTime, setLastRenderTime] = useState<string | null>(null);
 
   useEffect(() => {
@@ -63,7 +72,7 @@ export function DriverActiveDeliveryCard({
             routePoints={routePoints}
             showDriverTrail={showDriverTrail}
             telemetryContext={{
-              surface: 'driver',
+              surface: "driver",
               assignmentId: activeDeliveryView.assignment?.id ?? null,
             }}
             onMapStatusChange={setMapStatus}
@@ -71,12 +80,8 @@ export function DriverActiveDeliveryCard({
           {!hasDestination && (
             <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/50 px-6 text-center">
               <MapPin className="h-10 w-10 text-white/40" />
-              <p className="text-sm font-medium text-white/90">
-                Αναμονή τοποθεσίας παραγγελίας...
-              </p>
-              {destinationResolving && (
-                <Loader2 className="h-5 w-5 animate-spin text-white/50" />
-              )}
+              <p className="text-sm font-medium text-white/90">Αναμονή τοποθεσίας παραγγελίας...</p>
+              {destinationResolving && <Loader2 className="h-5 w-5 animate-spin text-white/50" />}
             </div>
           )}
         </div>
@@ -113,10 +118,7 @@ export function DriverActiveDeliveryCard({
 
         {order && (
           <div className="space-y-3">
-            <DriverOrderDetailsSection
-              order={order as DriverOrderDetails}
-              deliveryStage={stage}
-            />
+            <DriverOrderDetailsSection order={order as DriverOrderDetails} deliveryStage={stage} />
 
             <div className="pt-3 border-t border-white/10">
               {stage && (

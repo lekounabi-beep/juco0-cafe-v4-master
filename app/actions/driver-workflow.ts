@@ -21,7 +21,7 @@ export async function driverTransitionAtomic(
     return { success: false, error: "Invalid id parameters" };
   }
 
-  const { error } = await (supabaseAdmin as any).rpc("transition_delivery_atomic", {
+  const { error } = await supabaseAdmin.rpc("transition_delivery_atomic", {
     p_order_id: orderId,
     p_assignment_id: assignmentId,
     p_driver_id: driverId,
@@ -29,8 +29,18 @@ export async function driverTransitionAtomic(
   });
 
   if (error) {
-    serverLog.warn("driver.transition.failed", { assignmentId, orderId, driverId, error: error.message });
+    serverLog.warn("driver.transition.failed", {
+      assignmentId,
+      orderId,
+      driverId,
+      status: newStatus,
+      error: error.message,
+    });
     return { success: false, error: "Could not update delivery status. Please try again." };
+  }
+
+  if (newStatus === "delivered") {
+    serverLog.info("driver.delivered", { assignmentId, orderId, driverId });
   }
 
   return { success: true };

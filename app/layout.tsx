@@ -1,5 +1,7 @@
-import type { Metadata, Viewport } from "next";
+import type { Viewport } from "next";
 import "./globals.css";
+import { RestaurantStructuredData } from "@/components/RestaurantStructuredData";
+import { createRootMetadata, SITE_METADATA } from "@/config/site-metadata";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 import { PwaInstallBanner } from "@/components/PwaInstallBanner";
 import { CustomerOfflineIndicator } from "@/components/CustomerOfflineIndicator";
@@ -24,25 +26,7 @@ const inter = Inter({
   variable: "--font-sans",
 });
 
-export const metadata: Metadata = {
-  title: "Juco — Fresh Juices & Quality Coffee",
-  description: "Juco Coffee & Juice Bar in Nafpaktos — fresh juices, specialty coffee, smoothies & snacks.",
-  manifest: "/manifest-customer.json",
-  icons: {
-    icon: [
-      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
-      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
-    ],
-    apple: [
-      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
-    ],
-  },
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "black-translucent",
-    title: "Juco Cafe",
-  },
-};
+export const metadata = createRootMetadata();
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -58,8 +42,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${spaceGrotesk.variable} ${inter.variable} min-h-screen font-sans`} suppressHydrationWarning>
+    <html
+      lang={SITE_METADATA.language}
+      className={`${spaceGrotesk.variable} ${inter.variable} min-h-screen font-sans`}
+      suppressHydrationWarning
+    >
       <head>
+        <RestaurantStructuredData />
         <script dangerouslySetInnerHTML={{ __html: PWA_LEGACY_PURGE_SCRIPT }} />
       </head>
       <body className="min-h-screen font-sans">

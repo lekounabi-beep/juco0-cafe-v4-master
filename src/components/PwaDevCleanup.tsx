@@ -1,11 +1,11 @@
-import Script from 'next/script';
+import Script from "next/script";
 
 /**
  * Dev/tunnel only: unregister stale service workers before the app boots.
  * Prevents installed PWAs from serving broken cached shells over public tunnel + next dev.
  */
 export function PwaDevCleanup() {
-  if (process.env.NODE_ENV !== 'development') {
+  if (process.env.NODE_ENV !== "development") {
     return null;
   }
 

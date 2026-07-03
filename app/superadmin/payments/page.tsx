@@ -6,7 +6,10 @@ import { SuperAdminPageHeader } from "@/features/superadmin/components/SuperAdmi
 import { useSuperAdminStats } from "@/features/superadmin/hooks/useSuperAdminStats";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { OperationsCard, OperationsStatRow } from "@/features/superadmin/components/overview/OperationsCards";
+import {
+  OperationsCard,
+  OperationsStatRow,
+} from "@/features/superadmin/components/overview/OperationsCards";
 import { useSuperAdminT } from "@/features/superadmin/i18n/SuperAdminLocaleProvider";
 
 export default function SuperAdminPaymentsPage() {
@@ -36,7 +39,9 @@ export default function SuperAdminPaymentsPage() {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <Card className="border-zinc-800 bg-zinc-900/50 shadow-none">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-zinc-400">{t("page.payments.vivaIntegration")}</CardTitle>
+            <CardTitle className="text-sm text-zinc-400">
+              {t("page.payments.vivaIntegration")}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <Badge
@@ -66,8 +71,16 @@ export default function SuperAdminPaymentsPage() {
 
         <OperationsCard title={t("page.payments.status")} loading={loading}>
           <div className="space-y-2">
-            <OperationsStatRow label={t("payments.failed")} value={stats?.payments.failed ?? 0} tone="danger" />
-            <OperationsStatRow label={t("payments.pending")} value={stats?.payments.pending ?? 0} tone="warning" />
+            <OperationsStatRow
+              label={t("payments.failed")}
+              value={stats?.payments.failed ?? 0}
+              tone="danger"
+            />
+            <OperationsStatRow
+              label={t("payments.pending")}
+              value={stats?.payments.pending ?? 0}
+              tone="warning"
+            />
           </div>
         </OperationsCard>
       </div>

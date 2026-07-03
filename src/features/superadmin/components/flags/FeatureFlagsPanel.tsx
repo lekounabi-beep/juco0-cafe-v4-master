@@ -19,7 +19,9 @@ export function FeatureFlagsPanel({ flags }: { flags: SuperAdminFeatureFlag[] })
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <CardTitle className="text-base text-white">{flag.label}</CardTitle>
-                  <CardDescription className="mt-1 text-zinc-500">{flag.description}</CardDescription>
+                  <CardDescription className="mt-1 text-zinc-500">
+                    {flag.description}
+                  </CardDescription>
                   <p className="mt-2 font-mono text-xs text-zinc-600">{flag.key}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">

@@ -3,48 +3,36 @@
  * Timeline, ETA, and status UI only — no map rendering.
  */
 
-'use client';
+"use client";
 
-import { useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Check,
-  Coffee,
-  MapPin,
-  Package,
-  PackageCheck,
-  UserRound,
-} from 'lucide-react';
-import { getCustomerOrderStep } from '@/shared/utils/customer-status';
-import type { CustomerOrderStep } from '@/shared/utils/customer-status';
+import { useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Check, Coffee, MapPin, Package, PackageCheck, UserRound } from "lucide-react";
+import { getCustomerOrderStep } from "@/shared/utils/customer-status";
+import type { CustomerOrderStep } from "@/shared/utils/customer-status";
 
 type TimelineStepId =
-  | 'received'
-  | 'preparing'
-  | 'ready'
-  | 'driver_assigned'
-  | 'on_the_way'
-  | 'delivered';
+  "received" | "preparing" | "ready" | "driver_assigned" | "on_the_way" | "delivered";
 
 const TIMELINE_STEPS = [
-  { id: 'received' as const, label: 'Παραγγελία ελήφθη', emoji: '🟢' },
-  { id: 'preparing' as const, label: 'Ετοιμάζεται', emoji: '☕' },
-  { id: 'ready' as const, label: 'Έτοιμη', emoji: '✨' },
-  { id: 'driver_assigned' as const, label: 'Οδηγός ανατέθηκε', emoji: '🛵' },
-  { id: 'on_the_way' as const, label: 'Ο οδηγός έρχεται', emoji: '📍' },
-  { id: 'delivered' as const, label: 'Παραδόθηκε', emoji: '✅' },
+  { id: "received" as const, label: "Παραγγελία ελήφθη", emoji: "🟢" },
+  { id: "preparing" as const, label: "Ετοιμάζεται", emoji: "☕" },
+  { id: "ready" as const, label: "Έτοιμη", emoji: "✨" },
+  { id: "driver_assigned" as const, label: "Οδηγός ανατέθηκε", emoji: "🛵" },
+  { id: "on_the_way" as const, label: "Ο οδηγός έρχεται", emoji: "📍" },
+  { id: "delivered" as const, label: "Παραδόθηκε", emoji: "✅" },
 ];
 
 const STEP_ORDER: TimelineStepId[] = [
-  'received',
-  'preparing',
-  'ready',
-  'driver_assigned',
-  'on_the_way',
-  'delivered',
+  "received",
+  "preparing",
+  "ready",
+  "driver_assigned",
+  "on_the_way",
+  "delivered",
 ];
 
-const POST_PICKUP = new Set(['picked_up', 'in_transit', 'arrived']);
+const POST_PICKUP = new Set(["picked_up", "in_transit", "arrived"]);
 
 function stepIndex(step: TimelineStepId): number {
   return STEP_ORDER.indexOf(step);
@@ -54,29 +42,29 @@ function resolveTimelineStep(
   orderStatus?: string,
   deliveryStatus?: string,
   customerStep?: CustomerOrderStep,
-): TimelineStepId | 'cancelled' {
-  const order = orderStatus || 'pending';
-  const delivery = deliveryStatus || 'pending';
+): TimelineStepId | "cancelled" {
+  const order = orderStatus || "pending";
+  const delivery = deliveryStatus || "pending";
 
-  if (customerStep === 'cancelled' || order === 'cancelled' || delivery === 'cancelled') {
-    return 'cancelled';
+  if (customerStep === "cancelled" || order === "cancelled" || delivery === "cancelled") {
+    return "cancelled";
   }
-  if (customerStep === 'delivered' || delivery === 'delivered') {
-    return 'delivered';
+  if (customerStep === "delivered" || delivery === "delivered") {
+    return "delivered";
   }
-  if (delivery === 'assigned') {
-    return 'driver_assigned';
+  if (delivery === "assigned") {
+    return "driver_assigned";
   }
-  if (POST_PICKUP.has(delivery) || customerStep === 'on_the_way') {
-    return 'on_the_way';
+  if (POST_PICKUP.has(delivery) || customerStep === "on_the_way") {
+    return "on_the_way";
   }
-  if (order === 'ready') {
-    return 'ready';
+  if (order === "ready") {
+    return "ready";
   }
-  if (order === 'accepted' || order === 'preparing') {
-    return 'preparing';
+  if (order === "accepted" || order === "preparing") {
+    return "preparing";
   }
-  return 'received';
+  return "received";
 }
 
 /* ── Radial layout (presentation only) ── */
@@ -122,35 +110,35 @@ function progressFraction(activeIndex: number, isCancelled: boolean): number {
 }
 
 function StepIcon({ stepId, className }: { stepId: TimelineStepId; className?: string }) {
-  const props = { className, strokeWidth: 2, 'aria-hidden': true as const };
+  const props = { className, strokeWidth: 2, "aria-hidden": true as const };
 
   switch (stepId) {
-    case 'received':
+    case "received":
       return <PackageCheck {...props} />;
-    case 'preparing':
+    case "preparing":
       return <Coffee {...props} />;
-    case 'ready':
+    case "ready":
       return <Package {...props} />;
-    case 'driver_assigned':
+    case "driver_assigned":
       return <UserRound {...props} />;
-    case 'on_the_way':
+    case "on_the_way":
       return <MapPin {...props} />;
-    case 'delivered':
+    case "delivered":
       return <Check {...props} />;
   }
 }
 
-type StepVisualState = 'completed' | 'active' | 'upcoming';
+type StepVisualState = "completed" | "active" | "upcoming";
 
 function getStepVisualState(
   index: number,
   activeIndex: number,
   isCancelled: boolean,
 ): StepVisualState {
-  if (isCancelled || activeIndex < 0) return 'upcoming';
-  if (activeIndex > index) return 'completed';
-  if (activeIndex === index) return 'active';
-  return 'upcoming';
+  if (isCancelled || activeIndex < 0) return "upcoming";
+  if (activeIndex > index) return "completed";
+  if (activeIndex === index) return "active";
+  return "upcoming";
 }
 
 function RadialStepNode({
@@ -160,7 +148,7 @@ function RadialStepNode({
   stepId: TimelineStepId;
   visualState: StepVisualState;
 }) {
-  if (visualState === 'completed') {
+  if (visualState === "completed") {
     return (
       <motion.div
         initial={{ scale: 0.85, opacity: 0 }}
@@ -172,11 +160,11 @@ function RadialStepNode({
     );
   }
 
-  if (visualState === 'active') {
+  if (visualState === "active") {
     return (
       <motion.div
         animate={{ scale: [1, 1.08, 1] }}
-        transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+        transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
         className="relative z-10 flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[var(--shadow-glow)] ring-[3px] ring-primary/40 sm:h-10 sm:w-10"
       >
         <span className="absolute inset-0 animate-ping rounded-full bg-primary/25" aria-hidden />
@@ -192,13 +180,7 @@ function RadialStepNode({
   );
 }
 
-function StepLabel({
-  label,
-  visualState,
-}: {
-  label: string;
-  visualState: StepVisualState;
-}) {
+function StepLabel({ label, visualState }: { label: string; visualState: StepVisualState }) {
   return (
     <AnimatePresence mode="wait">
       <motion.p
@@ -208,11 +190,11 @@ function StepLabel({
         exit={{ opacity: 0, scale: 0.96 }}
         transition={{ duration: 0.2 }}
         className={`max-w-[4.75rem] text-center text-[9px] leading-tight sm:max-w-[5.75rem] sm:text-xs ${
-          visualState === 'active'
-            ? 'font-display font-bold text-white'
-            : visualState === 'completed'
-              ? 'font-medium text-white/65'
-              : 'font-normal text-white/30'
+          visualState === "active"
+            ? "font-display font-bold text-white"
+            : visualState === "completed"
+              ? "font-medium text-white/65"
+              : "font-normal text-white/30"
         }`}
       >
         {label}
@@ -307,7 +289,7 @@ function CircularDeliveryTimeline({
               y1={inner.y}
               x2={outer.x}
               y2={outer.y}
-              stroke={filled ? 'rgba(16,185,129,0.7)' : 'rgba(255,255,255,0.15)'}
+              stroke={filled ? "rgba(16,185,129,0.7)" : "rgba(255,255,255,0.15)"}
               strokeWidth="1.25"
               strokeLinecap="round"
             />
@@ -368,8 +350,8 @@ function OnTheWayDetails({
   return (
     <motion.div
       initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: 'auto' }}
-      transition={{ duration: 0.35, ease: 'easeOut' }}
+      animate={{ opacity: 1, height: "auto" }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
       className="overflow-hidden rounded-xl border border-primary/25 bg-primary/10 px-4 py-3"
     >
       <p className="text-sm text-white/70">Ο οδηγός είναι καθ&apos; οδόν προς εσάς</p>
@@ -404,9 +386,7 @@ export function CustomerDeliveryTimelineUI({
   distance,
 }: CustomerDeliveryTimelineUIProps) {
   const customerStep = useMemo(
-    () =>
-      customerStepProp ??
-      getCustomerOrderStep(orderStatus, deliveryStatus),
+    () => customerStepProp ?? getCustomerOrderStep(orderStatus, deliveryStatus),
     [customerStepProp, orderStatus, deliveryStatus],
   );
 
@@ -415,9 +395,9 @@ export function CustomerDeliveryTimelineUI({
     [orderStatus, deliveryStatus, customerStep],
   );
 
-  const activeIndex = currentStep === 'cancelled' ? -1 : stepIndex(currentStep);
-  const isOnTheWay = currentStep === 'on_the_way';
-  const isCancelled = currentStep === 'cancelled';
+  const activeIndex = currentStep === "cancelled" ? -1 : stepIndex(currentStep);
+  const isOnTheWay = currentStep === "on_the_way";
+  const isCancelled = currentStep === "cancelled";
 
   return (
     <div className="rounded-2xl border border-white/10 bg-black/40 p-4 shadow-[var(--shadow-soft)] backdrop-blur-sm sm:p-6">

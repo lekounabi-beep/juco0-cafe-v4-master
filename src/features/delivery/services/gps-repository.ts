@@ -3,10 +3,10 @@
  * Never throws — failures queue for offline sync.
  */
 
-import { supabase } from '@/integrations/supabase/client';
-import { estimateJsonBytes, trackMapDataBytes } from '@/features/maps/debug/map-data-usage';
-import { isUUID } from '@/shared/utils/uuid';
-import type { GPSLocationUpdate } from '../types/delivery.types';
+import { supabase } from "@/integrations/supabase/client";
+import { estimateJsonBytes, trackMapDataBytes } from "@/features/maps/debug/map-data-usage";
+import { isUUID } from "@/shared/utils/uuid";
+import type { GPSLocationUpdate } from "../types/delivery.types";
 
 export type DriverLocationInsertPayload = {
   delivery_assignment_id: string;
@@ -32,12 +32,12 @@ export type InsertDriverLocationOptions = {
 };
 
 function formatDbError(error: { message?: string; details?: string; hint?: string }): string {
-  return [error.message, error.details, error.hint].filter(Boolean).join(' — ') || 'Database error';
+  return [error.message, error.details, error.hint].filter(Boolean).join(" — ") || "Database error";
 }
 
 async function queueOfflineInsert(payload: DriverLocationInsertPayload): Promise<void> {
   try {
-    const { addOfflineGpsPoint } = await import('./offline-queue.service');
+    const { addOfflineGpsPoint } = await import("./offline-queue.service");
     const point: GPSLocationUpdate = {
       lat: payload.lat,
       lng: payload.lng,
@@ -54,7 +54,7 @@ async function queueOfflineInsert(payload: DriverLocationInsertPayload): Promise
 
 export async function insertDriverLocation(
   payload: DriverLocationInsertPayload,
-  options: InsertDriverLocationOptions = {}
+  options: InsertDriverLocationOptions = {},
 ): Promise<InsertDriverLocationResult> {
   const assignmentId = payload.delivery_assignment_id;
   const driverId = payload.driver_id;
@@ -63,11 +63,15 @@ export async function insertDriverLocation(
     if (!options.suppressOfflineQueue) {
       await queueOfflineInsert(payload);
     }
-    return { success: false, error: 'Invalid assignment_id or driver_id UUID', queued: !options.suppressOfflineQueue };
+    return {
+      success: false,
+      error: "Invalid assignment_id or driver_id UUID",
+      queued: !options.suppressOfflineQueue,
+    };
   }
 
-  if (typeof payload.lat !== 'number' || typeof payload.lng !== 'number') {
-    return { success: false, error: 'lat and lng must be numbers' };
+  if (typeof payload.lat !== "number" || typeof payload.lng !== "number") {
+    return { success: false, error: "lat and lng must be numbers" };
   }
 
   try {
@@ -81,9 +85,9 @@ export async function insertDriverLocation(
       p_heading: payload.heading,
       p_recorded_at: payload.recorded_at,
     };
-    trackMapDataBytes('gpsUpload', estimateJsonBytes(rpcArgs));
+    trackMapDataBytes("gpsUpload", estimateJsonBytes(rpcArgs));
 
-    const { data, error } = await (supabase.rpc as any)('insert_driver_gps_location', rpcArgs);
+    const { data, error } = await supabase.rpc("insert_driver_gps_location", rpcArgs);
 
     if (error) {
       if (!options.suppressOfflineQueue) {
@@ -92,14 +96,14 @@ export async function insertDriverLocation(
       return { success: false, error: formatDbError(error), queued: !options.suppressOfflineQueue };
     }
 
-    return { success: true, locationId: typeof data === 'string' ? data : undefined };
+    return { success: true, locationId: typeof data === "string" ? data : undefined };
   } catch (error) {
     if (!options.suppressOfflineQueue) {
       await queueOfflineInsert(payload);
     }
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown GPS insert error',
+      error: error instanceof Error ? error.message : "Unknown GPS insert error",
       queued: !options.suppressOfflineQueue,
     };
   }

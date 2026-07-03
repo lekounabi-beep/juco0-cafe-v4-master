@@ -2,8 +2,8 @@
  * Cart Summary component
  */
 
-import { formatEur } from '@/shared/utils/currency';
-import { FREE_DELIVERY_THRESHOLD } from '@/config/constants';
+import { formatEur } from "@/shared/utils/currency";
+import { FREE_DELIVERY_THRESHOLD } from "@/config/constants";
 
 interface CartSummaryProps {
   subtotal: number;
@@ -16,7 +16,7 @@ export function CartSummary({ subtotal, deliveryFee, total, compact = false }: C
   const remainingForFree = Math.max(0, FREE_DELIVERY_THRESHOLD - subtotal);
 
   return (
-    <div className={`rounded-2xl ${compact ? '' : 'glass p-4'} space-y-1.5 text-sm`}>
+    <div className={`rounded-2xl ${compact ? "" : "glass p-4"} space-y-1.5 text-sm`}>
       <SummaryRow label="Μερικό σύνολο" value={formatEur(subtotal)} />
       <SummaryRow
         label="Μεταφορικά"

@@ -2,9 +2,9 @@
  * Register hook - handles email/password registration
  */
 
-import { useState } from 'react';
-import { useAuthStore } from '../store/auth-store';
-import { signUpWithEmail } from '@/integrations/supabase/services/auth.service';
+import { useState } from "react";
+import { useAuthStore } from "../store/auth-store";
+import { signUpWithEmail } from "@/integrations/supabase/services/auth.service";
 
 export function useRegister() {
   const { setUser, setSession, setError } = useAuthStore();
@@ -20,7 +20,7 @@ export function useRegister() {
       setSession(data.session);
       return { success: true };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Registration failed';
+      const message = error instanceof Error ? error.message : "Registration failed";
       setError(message);
       return { success: false, error: message };
     } finally {

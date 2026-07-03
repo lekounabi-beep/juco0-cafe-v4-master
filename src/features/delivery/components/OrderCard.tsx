@@ -3,9 +3,9 @@
  * Displays individual order information with accept button
  */
 
-import { CheckCircle2, Loader2 } from 'lucide-react';
-import type { DriverOrderDetails } from '../types/driver-order.types';
-import { formatDriverPaymentMethod } from '../utils/driver-order-display';
+import { CheckCircle2, Loader2 } from "lucide-react";
+import type { DriverOrderDetails } from "../types/driver-order.types";
+import { formatDriverPaymentMethod } from "../utils/driver-order-display";
 
 interface OrderCardProps {
   order: DriverOrderDetails & { delivery_status?: string };
@@ -22,9 +22,7 @@ export function OrderCard({ order, onAccept, loading }: OrderCardProps) {
           <p className="text-sm font-semibold text-white">{Number(order.total).toFixed(2)}€</p>
         </div>
         <p className="text-sm leading-relaxed text-white/80">{order.address}</p>
-        <p className="text-xs text-white/55">
-          {formatDriverPaymentMethod(order.payment_method)}
-        </p>
+        <p className="text-xs text-white/55">{formatDriverPaymentMethod(order.payment_method)}</p>
       </div>
 
       <button

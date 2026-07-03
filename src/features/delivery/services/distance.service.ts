@@ -3,7 +3,7 @@
  * Haversine distance calculation for GPS coordinates
  */
 
-import type { Coordinates } from '@/shared/types/common.types';
+import type { Coordinates } from "@/shared/types/common.types";
 
 /**
  * Earth radius in meters
@@ -43,9 +43,7 @@ export function calculateBearing(from: Coordinates, to: Coordinates): number {
   const deltaLon = toRadians(to.lng - from.lng);
 
   const y = Math.sin(deltaLon) * Math.cos(lat2);
-  const x =
-    Math.cos(lat1) * Math.sin(lat2) -
-    Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLon);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLon);
 
   const bearing = toDegrees(Math.atan2(y, x));
   return (bearing + 360) % 360;
@@ -86,7 +84,7 @@ function toDegrees(radians: number): number {
 export function areCoordinatesSame(
   coord1: Coordinates,
   coord2: Coordinates,
-  tolerance: number = 1
+  tolerance: number = 1,
 ): boolean {
   return calculateDistance(coord1, coord2) <= tolerance;
 }
@@ -98,10 +96,6 @@ export function areCoordinatesSame(
  * @param maxJump Maximum allowed jump in meters (default: 500m)
  * @returns True if jump is obviously incorrect
  */
-export function isObviousJump(
-  from: Coordinates,
-  to: Coordinates,
-  maxJump: number = 500
-): boolean {
+export function isObviousJump(from: Coordinates, to: Coordinates, maxJump: number = 500): boolean {
   return calculateDistance(from, to) > maxJump;
 }

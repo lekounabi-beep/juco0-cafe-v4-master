@@ -157,9 +157,62 @@ export function assertVivaPaymentMatchesOrder(
   return { ok: true };
 }
 
+export async function fetchVivaTransactionIdByOrderCode(
+  orderCode: string,
+): Promise<{ transactionId: string; verified: boolean } | null> {
+  if (!orderCode) return null;
+
+  const apiBaseUrl = process.env.VIVA_API_BASE_URL || "https://demo-api.vivapayments.com";
+  const accessToken = await fetchVivaAccessToken();
+  if (!accessToken) return null;
+
+  try {
+    const response = await fetch(`${apiBaseUrl}/checkout/v2/orders/${orderCode}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      serverLog.warn("payment.reconcile.recovery", {
+        step: "order_fetch",
+        orderCode,
+        status: response.status,
+      });
+      return null;
+    }
+
+    const data = await response.json();
+    const transactionId = String(
+      data.transactionId ?? data.TransactionId ?? data.transactionID ?? data.TransactionID ?? "",
+    ).trim();
+
+    if (!transactionId) {
+      serverLog.warn("payment.reconcile.recovery", {
+        step: "order_fetch_no_txn",
+        orderCode,
+      });
+      return null;
+    }
+
+    const details = await fetchVivaTransactionDetails(transactionId);
+    if (!details) return null;
+
+    return { transactionId, verified: details.verified };
+  } catch (error) {
+    serverLog.error("payment.failed", {
+      step: "order_code_recovery",
+      orderCode,
+      error: error instanceof Error ? error.message : "unknown",
+    });
+    return null;
+  }
+}
+
 export async function createVivaPaymentOrderServer(
   amountEur: number,
   redirectUrl: string,
+  options?: { merchantTrns?: string; customerTrns?: string },
 ): Promise<{ orderCode: string } | { error: string }> {
   const { clientId, clientSecret, sourceCode } = requireVivaCredentials();
   const apiBaseUrl = process.env.VIVA_API_BASE_URL || "https://demo-api.vivapayments.com";
@@ -171,8 +224,8 @@ export async function createVivaPaymentOrderServer(
 
   const orderBody = {
     amount: Math.round(amountEur * 100),
-    customerTrns: `Order-${Date.now()}`,
-    merchantTrns: `Juco-${Date.now()}`,
+    customerTrns: options?.customerTrns ?? `Order-${Date.now()}`,
+    merchantTrns: options?.merchantTrns ?? `Juco-${Date.now()}`,
     sourceCode,
     currencyCode: EUR_CURRENCY_NUMERIC,
     paymentTimeout: 900,
@@ -198,7 +251,11 @@ export async function createVivaPaymentOrderServer(
 
   if (!orderResponse.ok) {
     const errorText = await orderResponse.text();
-    serverLog.error("payment.failed", { step: "create_order", status: orderResponse.status, errorText });
+    serverLog.error("payment.failed", {
+      step: "create_order",
+      status: orderResponse.status,
+      errorText,
+    });
     return { error: "Failed to create Viva payment order" };
   }
 

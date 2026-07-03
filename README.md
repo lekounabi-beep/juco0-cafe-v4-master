@@ -1,51 +1,67 @@
-# Juco Cafe - Online Ordering System
+# Juco Cafe — Online Ordering System
 
-## Τι μπορεί να κάνει το site μας
+Full-stack café ordering platform (Next.js 15, Supabase, Viva Wallet, Mapbox).
 
-Το Juco Cafe είναι ένα πλήρες σύστημα ηλεκτρονικής παραγγελίας για καφέ με τις εξής δυνατότητες:
+## Features
 
-### Για Πελάτες
-- **Προβολή Μενού**: Εμφάνιση όλων των προϊόντων οργανωμένων σε κατηγορίες (καφέδες, ροφήματα, χυμοί, smoothies, snacks, κλπ)
-- **Αναζήτηση**: Εύκολη αναζήτηση προϊόντων με category navigation
-- **Καλάθι**: Προσθήκη προϊόντων στο καλάθι και διαχείριση ποσοτήτων
-- **Guest Checkout**: Παραγγελία χωρίς εγγραφή
-- **Εγγραφή & Login**: Εγγραφή με email ή Google OAuth
-- **Αποθήκευση Προφίλ**: Διαχείριση προσωπικών στοιχείων και διευθύνσεων
-- **Αγαπημένες Παραγγελίες**: Αποθήκευση και επαναφορά αγαπημένων παραγγελιών
-- **Ιστορικό Παραγγελιών**: Προβολή προηγούμενων παραγγελιών
-- **Πολλαπλές Μέθοδοι Πληρωμής**: Πληρωμή με κάρτα ή pickup στο κατάστημα
-- **Real-time Updates**: Άμεση ενημέρωση κατάστασης παραγγελίας
+### Customers
 
-### Για Διαχειριστές
-- **Admin Dashboard**: Πλήρης διαχείριση του μενού
-- **Επεξεργασία Προϊόντων**: Προσθήκη, τροποποίηση, διαγραφή προϊόντων
-- **Διαχείριση Κατηγοριών**: Οργάνωση προϊόντων ανά κατηγορία
-- **Επεξεργασία Ωραρίου**: Ρύθμιση ωρών λειτουργίας ανά ημέρα
-- **Διαχείριση Παραγγελιών**: Προβολή και διαχείριση όλων των παραγγελιών
-- **Ανάλυση Δεδομένων**: Στατιστικά παραγγελιών και πελατών
+- Menu browsing, search, cart
+- Guest checkout (pickup COD, delivery, card via Viva)
+- Account: profile, addresses, order history, favorite orders
+- Real-time order tracking (`/track/[orderId]`)
 
-### Τεχνικά Χαρακτηριστικά
-- **Next.js 15**: Modern React framework με App Router
-- **Supabase**: Backend database, authentication, και real-time subscriptions
-- **Tailwind CSS**: Modern styling με custom theme
-- **TypeScript**: Type-safe development
-- **Responsive Design**: Πλήρως responsive για mobile, tablet, desktop
-- **Google Maps**: Ενσωματωμένος χάρτης για τοποθεσία
-- **Google OAuth**: Social login integration
+### Operations
 
-## Installation
+- **Admin** (`/admin`) — menu, orders, drivers, kitchen workflow
+- **Driver** (`/driver`) — accept, pickup, deliver
+- **SuperAdmin** (`/superadmin`) — optional platform console (`NEXT_PUBLIC_SUPERADMIN_ENABLED=true`)
+
+## Quick start
 
 ```bash
-npm install
-npm run dev
+bun install
+cp .env.example .env.local   # fill in values
+bun run dev                  # http://localhost:8080
 ```
 
-## Environment Variables
+Public staging tunnel (optional):
 
-Δημιουργήστε ένα `.env.local` αρχείο με τα εξής:
+```bash
+bun run tunnel
+```
 
-```
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
-```
+## Environment variables
+
+Copy [`.env.example`](./.env.example) to `.env.local`. Required variables are validated at server startup via `src/lib/server/env.ts` (`ENV_MANIFEST`).
+
+**Always required:** `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`
+
+**Production only:** `SESSION_SECRET`, `VIVA_*` (see `.env.example`)
+
+See also [docs/PRODUCTION_RUNBOOK.md](./docs/PRODUCTION_RUNBOOK.md) and [docs/PUBLIC_API_KEYS.md](./docs/PUBLIC_API_KEYS.md).
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `bun run dev` | Development server (port 8080) |
+| `bun run build` | Production build |
+| `bun run start` | Production server (port 8080) |
+| `bun run typecheck` | TypeScript check |
+| `bun run test` | Unit tests (Vitest) |
+| `bun run test:e2e` | Playwright E2E (builds first, port 8092) |
+| `bun run test:e2e:live` | E2E against real Supabase (`E2E_LIVE=1`) |
+| `bun run lint` | ESLint |
+| `bun run verify:migrations` | Post-migration security checks |
+| `bun run tunnel` | zrok public tunnel for staging |
+
+## Documentation
+
+- [Production runbook](./docs/PRODUCTION_RUNBOOK.md)
+- [Deployment verification checklist](./docs/DEPLOYMENT_VERIFICATION.md)
+- [API key restrictions](./docs/PUBLIC_API_KEYS.md)
+
+## Tech stack
+
+Next.js 15 (App Router) · React 19 · TypeScript · Supabase · Tailwind CSS 4 · Viva Wallet · Mapbox · Bun

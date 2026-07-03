@@ -3,53 +3,60 @@
  * All delivery UI state derives from activeDeliveryView → deliveryUi.
  */
 
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { toast } from 'sonner';
-import { storeLocation } from '@/config/map-defaults';
-import { useDeliveryState } from '@/features/delivery/hooks/useDeliveryState';
-import { useDriverInitialization } from './useDriverInitialization';
-import { useWakeLock } from './useWakeLock';
-import { useDriverRealtime } from './useDriverRealtime';
-import { useDriverAvailability } from './useDriverAvailability';
-import { useGPS } from './useGPS';
-import { requestGeolocationPermission } from '../services/gps.service';
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { toast } from "sonner";
+import { storeLocation } from "@/config/map-defaults";
+import { useDeliveryState } from "@/features/delivery/hooks/useDeliveryState";
+import { useDriverInitialization } from "./useDriverInitialization";
+import { useWakeLock } from "./useWakeLock";
+import { useDriverRealtime } from "./useDriverRealtime";
+import { useDriverAvailability } from "./useDriverAvailability";
+import { useGPS } from "./useGPS";
+import { requestGeolocationPermission } from "../services/gps.service";
 import {
   type DriverDeliveryState,
   INITIAL_DRIVER_DELIVERY_STATE,
   resetDriverDeliveryState,
-} from '../state/driver-delivery-state';
-import { useETA } from './useETA';
-import { useOrderDestination } from './useOrderDestination';
-import { useDriverStore } from '../store/driver-store';
+} from "../state/driver-delivery-state";
+import { useETA } from "./useETA";
+import { useOrderDestination } from "./useOrderDestination";
+import { useDriverStore } from "../store/driver-store";
+import { runDeliveryTransitionWithOffline } from "../services/driver-offline-actions";
 import {
-  runDeliveryTransitionWithOffline,
-} from '../services/driver-offline-actions';
-import { safeAcceptOrder, withAcceptTimeout, type AcceptResult } from '../services/safe-accept-order';
-import { isNetworkOnline, syncOfflineQueue, resetOfflineQueueSync } from '../services/offline-queue.service';
-import { clearDriverRefreshInFlight } from '../services/driver-refresh-inflight';
+  safeAcceptOrder,
+  withAcceptTimeout,
+  type AcceptResult,
+} from "../services/safe-accept-order";
+import {
+  isNetworkOnline,
+  syncOfflineQueue,
+  resetOfflineQueueSync,
+} from "../services/offline-queue.service";
+import { clearDriverRefreshInFlight } from "../services/driver-refresh-inflight";
 import {
   getActiveDelivery,
   reconcileDriverStoreAvailability,
   type ActiveDeliveryView,
-} from '../utils/active-delivery';
+} from "../utils/active-delivery";
+import { selectDeliveryUi, type DeliveryUiState } from "../utils/delivery-ui-selector";
+import type { DriverProfile } from "../types/delivery.types";
+import { speedFromKmh } from "../services/speed.service";
+import { orderCoordinates } from "@/shared/utils/order-fields";
+import { isUUID } from "@/shared/utils/uuid";
 import {
-  selectDeliveryUi,
-  type DeliveryUiState,
-} from '../utils/delivery-ui-selector';
-import type { DriverProfile } from '../types/delivery.types';
-import { speedFromKmh } from '../services/speed.service';
-import { orderCoordinates } from '@/shared/utils/order-fields';
-import { isUUID } from '@/shared/utils/uuid';
-import { attachForensicToWindow, forensicCoord, forensicLog } from '@/features/maps/debug/map-forensic-logger';
-import { setPwaDeliveryActive } from '@/lib/pwa-update-guard';
-import { useDriverNetworkCoordinator } from '@/hooks/useDriverNetworkCoordinator';
-import { registerDriverReconnectHandlers } from '@/lib/network/driver-network';
-import { realtimeService } from '@/integrations/supabase/services/realtime.service';
+  attachForensicToWindow,
+  forensicCoord,
+  forensicLog,
+} from "@/features/maps/debug/map-forensic-logger";
+import { setPwaDeliveryActive } from "@/lib/pwa-update-guard";
+import { useDriverNetworkCoordinator } from "@/hooks/useDriverNetworkCoordinator";
+import { registerDriverReconnectHandlers } from "@/lib/network/driver-network";
+import { realtimeService } from "@/integrations/supabase/services/realtime.service";
 
 const MIN_ETA_SPEED_MS = speedFromKmh(5);
 const FALLBACK_ETA_SPEED_MS = speedFromKmh(25);
 
-import type { DriverOrderDetails } from '../types/driver-order.types';
+import type { DriverOrderDetails } from "../types/driver-order.types";
 
 type Order = DriverOrderDetails;
 
@@ -102,32 +109,35 @@ export function useDriverPage(): UseDriverPageReturn {
     removeAvailableOrder,
   } = useDriverInitialization();
 
-  const { availabilityStatus: storeAvailability, setAvailability, loading: availabilityLoading } =
-    useDriverAvailability();
+  const {
+    availabilityStatus: storeAvailability,
+    setAvailability,
+    loading: availabilityLoading,
+  } = useDriverAvailability();
 
   const [assignmentLoading, setAssignmentLoading] = useState(false);
   const [deliveryActionLoading, setDeliveryActionLoading] = useState(false);
   const [acceptingOrderId, setAcceptingOrderId] = useState<string | null>(null);
   const [driverDeliveryState, setDriverDeliveryState] = useState<DriverDeliveryState>(
-    INITIAL_DRIVER_DELIVERY_STATE
+    INITIAL_DRIVER_DELIVERY_STATE,
   );
   const [locationPermissionModalOpen, setLocationPermissionModalOpen] = useState(false);
 
-  const permissionPromiseRef = useRef<Promise<'granted' | 'denied' | 'unsupported'> | null>(null);
+  const permissionPromiseRef = useRef<Promise<"granted" | "denied" | "unsupported"> | null>(null);
   const restoredAssignmentRef = useRef<string | null>(null);
 
   const activeDeliveryView = useMemo(
     () => getActiveDelivery(driver, activeDelivery?.order, activeDelivery),
-    [driver, activeDelivery]
+    [driver, activeDelivery],
   );
 
   const deliveryUi = useMemo(
     () => selectDeliveryUi(activeDeliveryView, storeAvailability, driverDeliveryState),
-    [activeDeliveryView, storeAvailability, driverDeliveryState]
+    [activeDeliveryView, storeAvailability, driverDeliveryState],
   );
 
   const { destination: mapDestination, resolving: destinationResolving } = useOrderDestination(
-    deliveryUi.isOnDelivery ? activeDeliveryView.order : null
+    deliveryUi.isOnDelivery ? activeDeliveryView.order : null,
   );
 
   const availabilityStatus = deliveryUi.availability;
@@ -151,7 +161,7 @@ export function useDriverPage(): UseDriverPageReturn {
       syncOfflineQueue: () => syncOfflineQueue(),
       refreshActiveDelivery: () => refreshActiveDeliveryRef.current(),
       refreshOrders: () => refreshOrdersRef.current(),
-      abortStaleRefreshes: () => clearDriverRefreshInFlight('reconnect'),
+      abortStaleRefreshes: () => clearDriverRefreshInFlight("reconnect"),
       resetOfflineSync: () => resetOfflineQueueSync(),
     });
   }, []);
@@ -181,7 +191,7 @@ export function useDriverPage(): UseDriverPageReturn {
   const { deliveryState, locationDebug } = useDeliveryState({
     order: deliveryUi.isOnDelivery ? activeDeliveryView.order : null,
     assignment: deliveryUi.isOnDelivery ? activeDeliveryView.assignment : null,
-    role: 'driver',
+    role: "driver",
     storeLocation,
   });
 
@@ -189,7 +199,7 @@ export function useDriverPage(): UseDriverPageReturn {
     orderCoordinates(activeDeliveryView.order) != null || mapDestination != null;
 
   const handleGpsPermissionDenied = useCallback(() => {
-    setDriverDeliveryState((s) => ({ ...s, permission: 'denied', gpsReady: false }));
+    setDriverDeliveryState((s) => ({ ...s, permission: "denied", gpsReady: false }));
     setLocationPermissionModalOpen(true);
   }, []);
 
@@ -212,8 +222,8 @@ export function useDriverPage(): UseDriverPageReturn {
     driverId: gpsTrackingAllowed && driver?.id ? driver.id : null,
     onPermissionDenied: handleGpsPermissionDenied,
     onError: (err) => {
-      if (err.message !== 'Location permission denied') {
-        console.error('GPS error:', err);
+      if (err.message !== "Location permission denied") {
+        console.error("GPS error:", err);
       }
     },
   });
@@ -223,7 +233,7 @@ export function useDriverPage(): UseDriverPageReturn {
       return permissionPromiseRef.current;
     }
 
-    setDriverDeliveryState((s) => ({ ...s, permission: 'pending' }));
+    setDriverDeliveryState((s) => ({ ...s, permission: "pending" }));
 
     const promise = requestGpsPermission().finally(() => {
       permissionPromiseRef.current = null;
@@ -231,7 +241,7 @@ export function useDriverPage(): UseDriverPageReturn {
     permissionPromiseRef.current = promise;
 
     const result = await promise;
-    const permission = result === 'granted' ? 'granted' : 'denied';
+    const permission = result === "granted" ? "granted" : "denied";
     setDriverDeliveryState((s) => ({ ...s, permission }));
     return result;
   }, [requestGpsPermission]);
@@ -249,9 +259,8 @@ export function useDriverPage(): UseDriverPageReturn {
   useEffect(() => {
     attachForensicToWindow();
     const live = lastLocation?.coordinates;
-    const source =
-      isGPSTracking && live ? 'device' : deliveryState.driverPosition ? 'db' : 'none';
-    forensicLog('driver', 'delivery_state', 'driver_position_resolved', {
+    const source = isGPSTracking && live ? "device" : deliveryState.driverPosition ? "db" : "none";
+    forensicLog("driver", "delivery_state", "driver_position_resolved", {
       source,
       customerStep: deliveryState.customerStep,
       deliveryStatus: deliveryState.deliveryStatus,
@@ -259,7 +268,13 @@ export function useDriverPage(): UseDriverPageReturn {
       db: forensicCoord(deliveryState.driverPosition?.lat, deliveryState.driverPosition?.lng),
       isGPSTracking,
     });
-  }, [deliveryState.customerStep, deliveryState.deliveryStatus, deliveryState.driverPosition, isGPSTracking, lastLocation]);
+  }, [
+    deliveryState.customerStep,
+    deliveryState.deliveryStatus,
+    deliveryState.driverPosition,
+    isGPSTracking,
+    lastLocation,
+  ]);
 
   const driverPosition = useMemo(() => {
     const live = lastLocation?.coordinates;
@@ -316,20 +331,32 @@ export function useDriverPage(): UseDriverPageReturn {
 
   useEffect(() => {
     if (loading || !driver?.id || !isNetworkOnline() || !isRefreshAllowed) return;
-    if (storeAvailability === 'busy' && !deliveryUi.isOnDelivery) {
+    if (storeAvailability === "busy" && !deliveryUi.isOnDelivery) {
       void refreshActiveDelivery();
     }
-  }, [loading, driver?.id, storeAvailability, deliveryUi.isOnDelivery, refreshActiveDelivery, isRefreshAllowed]);
+  }, [
+    loading,
+    driver?.id,
+    storeAvailability,
+    deliveryUi.isOnDelivery,
+    refreshActiveDelivery,
+    isRefreshAllowed,
+  ]);
 
   useEffect(() => {
     const assignmentId = persistedAssignmentId;
-    if (!assignmentId || !driver?.id || !deliveryUi.isOnDelivery || driverDeliveryState.isPickingUp) {
+    if (
+      !assignmentId ||
+      !driver?.id ||
+      !deliveryUi.isOnDelivery ||
+      driverDeliveryState.isPickingUp
+    ) {
       return;
     }
 
-    if (driverDeliveryState.permission === 'denied') return;
+    if (driverDeliveryState.permission === "denied") return;
 
-    if (driverDeliveryState.permission === 'granted') {
+    if (driverDeliveryState.permission === "granted") {
       if (!isGPSTracking) {
         void startGPSTracking({
           skipPermissionRequest: true,
@@ -347,11 +374,11 @@ export function useDriverPage(): UseDriverPageReturn {
     void (async () => {
       const result = await ensureGeolocationPermission();
       if (cancelled) return;
-      if (result !== 'granted') {
+      if (result !== "granted") {
         setLocationPermissionModalOpen(true);
         return;
       }
-      setDriverDeliveryState((s) => ({ ...s, permission: 'granted', gpsReady: true }));
+      setDriverDeliveryState((s) => ({ ...s, permission: "granted", gpsReady: true }));
       await startGPSTracking({
         skipPermissionRequest: true,
         deliveryId: assignmentId,
@@ -376,15 +403,15 @@ export function useDriverPage(): UseDriverPageReturn {
   const handleAvailabilityChange = async (newAvailability: string) => {
     if (deliveryUi.isOnDelivery) return;
     try {
-      await setAvailability(newAvailability as 'online' | 'offline');
+      await setAvailability(newAvailability as "online" | "offline");
     } catch (err) {
-      console.error('Failed to update availability:', err);
+      console.error("Failed to update availability:", err);
     }
   };
 
   const handleRetryLocationPermission = useCallback(async () => {
     const result = await ensureGeolocationPermission();
-    if (result !== 'granted') return;
+    if (result !== "granted") return;
 
     setDriverDeliveryState((s) => ({ ...s, gpsReady: true }));
     setLocationPermissionModalOpen(false);
@@ -407,11 +434,11 @@ export function useDriverPage(): UseDriverPageReturn {
   const refreshAfterAccept = useCallback(async () => {
     try {
       await Promise.all([
-        withAcceptTimeout('refreshActiveDelivery', refreshActiveDelivery(), 5_000),
-        withAcceptTimeout('refreshOrders', refreshOrders(), 5_000),
+        withAcceptTimeout("refreshActiveDelivery", refreshActiveDelivery(), 5_000),
+        withAcceptTimeout("refreshOrders", refreshOrders(), 5_000),
       ]);
     } catch (err) {
-      console.warn('[ACCEPT] post-accept refresh failed:', err);
+      console.warn("[ACCEPT] post-accept refresh failed:", err);
     }
   }, [refreshActiveDelivery, refreshOrders]);
 
@@ -420,37 +447,37 @@ export function useDriverPage(): UseDriverPageReturn {
 
     const orderSnapshot = availableOrders.find((o) => o.id === orderId);
     if (!orderSnapshot) {
-      toast.error('Order not found');
+      toast.error("Order not found");
       return;
     }
 
     setAssignmentLoading(true);
     setAcceptingOrderId(orderId);
 
-    let result: AcceptResult = { ok: false, reason: 'Accept flow did not complete' };
+    let result: AcceptResult = { ok: false, reason: "Accept flow did not complete" };
 
     try {
       result = await safeAcceptOrder(orderId, driver.id, orderSnapshot);
     } catch (err) {
-      console.log('[ACCEPT_CATCH_ERROR]', err);
+      console.log("[ACCEPT_CATCH_ERROR]", err);
       result = {
         ok: false,
-        reason: err instanceof Error ? err.message : 'Failed to accept order',
+        reason: err instanceof Error ? err.message : "Failed to accept order",
       };
     } finally {
       setAssignmentLoading(false);
       setAcceptingOrderId(null);
-      console.log('[ACCEPT_FINALLY]', { orderId, result });
+      console.log("[ACCEPT_FINALLY]", { orderId, result });
     }
 
     if (result.ok) {
       removeAvailableOrder(orderId);
-      toast.success('Η παραγγελία αποδέχθηκε');
+      toast.success("Η παραγγελία αποδέχθηκε");
 
       void refreshAfterAccept();
       void requestGeolocationPermission().then((permissionResult) => {
-        if (permissionResult === 'granted') {
-          setDriverDeliveryState((s) => ({ ...s, permission: 'granted' }));
+        if (permissionResult === "granted") {
+          setDriverDeliveryState((s) => ({ ...s, permission: "granted" }));
         }
       });
       return;
@@ -468,21 +495,16 @@ export function useDriverPage(): UseDriverPageReturn {
     const stage = activeDeliveryView.stage;
 
     const runStep = async (step: string): Promise<boolean> => {
-      const result = await runDeliveryTransitionWithOffline(
-        step,
-        assignmentId,
-        orderId,
-        driver.id
-      );
+      const result = await runDeliveryTransitionWithOffline(step, assignmentId, orderId, driver.id);
       if (!result.ok) {
-        if (result.error === 'offline_queued') {
-          toast.message('Η ενέργεια αποθηκεύτηκε — θα συγχρονιστεί όταν επανέλθει η σύνδεση');
+        if (result.error === "offline_queued") {
+          toast.message("Η ενέργεια αποθηκεύτηκε — θα συγχρονιστεί όταν επανέλθει η σύνδεση");
           return false;
         }
         toast.error(
-          result.error === 'transition_timeout'
-            ? 'Η σύνδεση καθυστέρησε — δοκίμασε ξανά'
-            : 'Αποτυχία ενημέρωσης κατάστασης'
+          result.error === "transition_timeout"
+            ? "Η σύνδεση καθυστέρησε — δοκίμασε ξανά"
+            : "Αποτυχία ενημέρωσης κατάστασης",
         );
         return false;
       }
@@ -490,35 +512,35 @@ export function useDriverPage(): UseDriverPageReturn {
       return true;
     };
 
-    if (action === 'picked_up') {
+    if (action === "picked_up") {
       if (driverDeliveryState.isPickingUp || permissionPromiseRef.current) return;
 
-      setDriverDeliveryState((s) => ({ ...s, isPickingUp: true, permission: 'pending' }));
+      setDriverDeliveryState((s) => ({ ...s, isPickingUp: true, permission: "pending" }));
 
       try {
         const result = await ensureGeolocationPermission();
-        if (result !== 'granted') {
+        if (result !== "granted") {
           setDriverDeliveryState((s) => ({ ...s, isPickingUp: false }));
           setLocationPermissionModalOpen(true);
           return;
         }
 
-        setDriverDeliveryState((s) => ({ ...s, permission: 'granted', gpsReady: true }));
+        setDriverDeliveryState((s) => ({ ...s, permission: "granted", gpsReady: true }));
 
-        const ok = await runStep('picked_up');
+        const ok = await runStep("picked_up");
         if (!ok) {
           setDriverDeliveryState((s) => ({
             ...s,
             isPickingUp: false,
             gpsReady: false,
-            permission: 'pending',
+            permission: "pending",
           }));
           return;
         }
 
-        const enRoute = await runStep('start_delivery');
+        const enRoute = await runStep("start_delivery");
         if (!enRoute) {
-          toast.message('Η παραγγελία παραλήφθηκε επιτυχώς');
+          toast.message("Η παραγγελία παραλήφθηκε επιτυχώς");
         }
 
         await refreshActiveDelivery().catch(() => undefined);
@@ -530,8 +552,8 @@ export function useDriverPage(): UseDriverPageReturn {
           driverId: driver.id,
         });
       } catch (err) {
-        console.error('Failed to complete pickup:', err);
-        toast.error(err instanceof Error ? err.message : 'Failed to complete pickup');
+        console.error("Failed to complete pickup:", err);
+        toast.error(err instanceof Error ? err.message : "Failed to complete pickup");
         setDriverDeliveryState((s) => ({ ...s, isPickingUp: false }));
       } finally {
         setDriverDeliveryState((s) => ({ ...s, isPickingUp: false }));
@@ -541,29 +563,29 @@ export function useDriverPage(): UseDriverPageReturn {
 
     setDeliveryActionLoading(true);
     try {
-      if ((action === 'arrived' || action === 'delivered') && stage === 'picked_up') {
-        const enRoute = await runStep('start_delivery');
+      if ((action === "arrived" || action === "delivered") && stage === "picked_up") {
+        const enRoute = await runStep("start_delivery");
         if (!enRoute) return;
       }
 
-      if (action === 'delivered') {
-        const atDoor = await runStep('arrived');
+      if (action === "delivered") {
+        const atDoor = await runStep("arrived");
         if (!atDoor) return;
       }
 
       const ok = await runStep(action);
       if (!ok) return;
 
-      if (action === 'arrived') {
-        toast.success('Έφτασες στον πελάτη');
+      if (action === "arrived") {
+        toast.success("Έφτασες στον πελάτη");
       }
 
-      if (action === 'delivered') {
-        toast.success('Η παράδοση ολοκληρώθηκε');
+      if (action === "delivered") {
+        toast.success("Η παράδοση ολοκληρώθηκε");
         if (isNetworkOnline()) {
-          await setAvailability('online');
+          await setAvailability("online");
         } else {
-          useDriverStore.getState().setAvailabilityStatus('online');
+          useDriverStore.getState().setAvailabilityStatus("online");
         }
         setDriverDeliveryState(resetDriverDeliveryState());
         restoredAssignmentRef.current = null;
@@ -572,8 +594,8 @@ export function useDriverPage(): UseDriverPageReturn {
 
       void refreshActiveDelivery();
     } catch (err) {
-      console.error('Failed to update delivery status:', err);
-      toast.error(err instanceof Error ? err.message : 'Αποτυχία ενημέρωσης');
+      console.error("Failed to update delivery status:", err);
+      toast.error(err instanceof Error ? err.message : "Αποτυχία ενημέρωσης");
     } finally {
       setDeliveryActionLoading(false);
     }

@@ -13,6 +13,8 @@ type MapboxFeature = {
   place_name?: string;
   center?: [number, number];
   context?: MapboxContextItem[];
+  place_type?: string[];
+  relevance?: number;
 };
 
 function contextText(feature: MapboxFeature, prefix: string): string {
@@ -48,7 +50,34 @@ export function parseMapboxFeature(feature: MapboxFeature): AddressSearchResult 
     notes: "",
     label: [street, number].filter(Boolean).join(" ") || formattedAddress,
     description: formattedAddress,
+    geocode: {
+      featureType: feature.place_type?.[0],
+      relevance: feature.relevance,
+      contextKinds: (feature.context ?? [])
+        .map((item) => item.id?.split(".")[0])
+        .filter((kind): kind is string => !!kind),
+    },
   };
+}
+
+/** Keep geocoded address text but persist the map pin position (viewport center). */
+export function withPinCoordinates<T extends { lat: number; lng: number }>(
+  address: T,
+  pin: { lat: number; lng: number } | null | undefined,
+): T {
+  if (
+    !pin ||
+    !Number.isFinite(pin.lat) ||
+    !Number.isFinite(pin.lng) ||
+    pin.lat < -90 ||
+    pin.lat > 90 ||
+    pin.lng < -180 ||
+    pin.lng > 180
+  ) {
+    return address;
+  }
+
+  return { ...address, lat: pin.lat, lng: pin.lng };
 }
 
 export function isValidCheckoutAddress(

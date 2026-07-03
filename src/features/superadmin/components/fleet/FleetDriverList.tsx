@@ -90,13 +90,7 @@ export function FleetDriverList({
   );
 }
 
-function FleetEmptyState({
-  filter,
-  hasDrivers,
-}: {
-  filter: FleetFilter;
-  hasDrivers: boolean;
-}) {
+function FleetEmptyState({ filter, hasDrivers }: { filter: FleetFilter; hasDrivers: boolean }) {
   if (!hasDrivers) {
     return (
       <div className="rounded-xl border border-dashed border-zinc-800 px-4 py-8 text-center">

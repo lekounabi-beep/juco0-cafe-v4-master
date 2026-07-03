@@ -38,13 +38,13 @@ export function StickyCheckoutCta({
             disabled={isDisabled}
             className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none"
           >
-          {submitting ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <CheckCircle2 className="h-4 w-4" />
-          )}
-          {submitting ? "Επεξεργασία..." : `${label} • ${formatEur(total)}`}
-        </button>
+            {submitting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <CheckCircle2 className="h-4 w-4" />
+            )}
+            {submitting ? "Επεξεργασία..." : `${label} • ${formatEur(total)}`}
+          </button>
         </div>
       </div>
     </div>

@@ -2,10 +2,12 @@
  * Provider-neutral map defaults for live tracking (camera + initial view).
  */
 
-/** Juco Cafe — fixed store location (Mapbox / tracking). */
+import { JUCO_CAFE_LOCATION } from "@/config/juco-cafe-location";
+
+/** Juco Café — derived from {@link JUCO_CAFE_LOCATION} (lat/lng shape for map helpers). */
 export const storeLocation = {
-  lat: 38.3911807457238,
-  lng: 21.824054521794686,
+  lat: JUCO_CAFE_LOCATION.latitude,
+  lng: JUCO_CAFE_LOCATION.longitude,
 } as const;
 
 export const mapDefaults = {

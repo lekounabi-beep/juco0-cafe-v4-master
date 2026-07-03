@@ -3,13 +3,10 @@
  * Client-only; activated when the driver app mounts useDriverNetwork().
  */
 
-import {
-  AbortableTimeoutError,
-  withAbortableTimeout,
-} from '@/lib/network/with-abortable-timeout';
-import { getRefreshActiveDeliveryInFlight } from '@/features/delivery/services/driver-refresh-inflight';
+import { AbortableTimeoutError, withAbortableTimeout } from "@/lib/network/with-abortable-timeout";
+import { getRefreshActiveDeliveryInFlight } from "@/features/delivery/services/driver-refresh-inflight";
 
-export type DriverNetworkPhase = 'online' | 'offline' | 'reconnecting';
+export type DriverNetworkPhase = "online" | "offline" | "reconnecting";
 
 export type DriverNetworkState = {
   phase: DriverNetworkPhase;
@@ -30,10 +27,7 @@ export type DriverNetworkLogPayload = {
 };
 
 type ReconnectForensicStep =
-  | 'reconnectRealtime'
-  | 'syncOfflineQueue'
-  | 'refreshActiveDelivery'
-  | 'refreshOrders';
+  "reconnectRealtime" | "syncOfflineQueue" | "refreshActiveDelivery" | "refreshOrders";
 
 export type DriverReconnectHandlers = {
   reconnectRealtime: () => Promise<void>;
@@ -54,9 +48,8 @@ const RECONNECT_WATCHDOG_MS = 15_000;
 const MAX_WATCHDOG_ESCALATIONS = 3;
 
 let currentState: DriverNetworkState = {
-  phase:
-    typeof navigator !== 'undefined' && navigator.onLine ? 'online' : 'offline',
-  isVisible: typeof document !== 'undefined' ? !document.hidden : true,
+  phase: typeof navigator !== "undefined" && navigator.onLine ? "online" : "offline",
+  isVisible: typeof document !== "undefined" ? !document.hidden : true,
 };
 
 let coordinatorActive = false;
@@ -81,10 +74,7 @@ function emitState(): void {
 }
 
 function commitNetworkState(next: DriverNetworkState): void {
-  if (
-    currentState.phase === next.phase &&
-    currentState.isVisible === next.isVisible
-  ) {
+  if (currentState.phase === next.phase && currentState.isVisible === next.isVisible) {
     return;
   }
   currentState = next;
@@ -96,23 +86,26 @@ function bumpNetworkStateSnapshot(): void {
   emitState();
 }
 
+const NETWORK_DEBUG_LOGGING = process.env.NODE_ENV === "development";
+
 export function logDriverNetwork(
   event:
-    | 'offline'
-    | 'reconnect_started'
-    | 'reconnect_completed'
-    | 'reconnect_failed'
-    | 'reconnect_retry_scheduled'
-    | 'reconnect_timeout'
-    | 'reconnect_watchdog_triggered'
-    | 'reconnect_promise_cleared'
-    | 'reconnect_force_online'
-    | 'polling_paused'
-    | 'polling_resumed'
-    | 'request_aborted'
-    | 'request_timeout',
+    | "offline"
+    | "reconnect_started"
+    | "reconnect_completed"
+    | "reconnect_failed"
+    | "reconnect_retry_scheduled"
+    | "reconnect_timeout"
+    | "reconnect_watchdog_triggered"
+    | "reconnect_promise_cleared"
+    | "reconnect_force_online"
+    | "polling_paused"
+    | "polling_resumed"
+    | "request_aborted"
+    | "request_timeout",
   payload: DriverNetworkLogPayload = {},
 ): void {
+  if (!NETWORK_DEBUG_LOGGING) return;
   console.info(`[Network] ${event}`, {
     phase: currentState.phase,
     attempt: backoffAttempt,
@@ -122,9 +115,10 @@ export function logDriverNetwork(
 
 /** Temporary forensic logger — remove after reconnect hang is identified. */
 function logReconnectForensic(
-  event: 'step_start' | 'step_done' | 'reconnect_completed' | 'reconnect_failed',
+  event: "step_start" | "step_done" | "reconnect_completed" | "reconnect_failed",
   payload: DriverNetworkLogPayload = {},
 ): void {
+  if (!NETWORK_DEBUG_LOGGING) return;
   console.info(`[Network] ${event}`, {
     phase: currentState.phase,
     attempt: backoffAttempt,
@@ -138,23 +132,23 @@ function setPhase(next: DriverNetworkPhase): void {
   const prev = currentState.phase;
   commitNetworkState({ ...currentState, phase: next });
 
-  if (next === 'reconnecting') {
+  if (next === "reconnecting") {
     reconnectingSince = Date.now();
     startReconnectWatchdog();
   } else {
     clearReconnectWatchdog();
     reconnectingSince = null;
-    if (next === 'online') {
+    if (next === "online") {
       watchdogTriggerCount = 0;
     }
   }
 
-  if (prev !== 'offline' && next === 'offline') {
-    logDriverNetwork('offline');
-    logDriverNetwork('polling_paused', { reason: 'offline' });
+  if (prev !== "offline" && next === "offline") {
+    logDriverNetwork("offline");
+    logDriverNetwork("polling_paused", { reason: "offline" });
   }
-  if (prev === 'offline' && next === 'reconnecting') {
-    logDriverNetwork('polling_paused', { reason: 'reconnecting' });
+  if (prev === "offline" && next === "reconnecting") {
+    logDriverNetwork("polling_paused", { reason: "reconnecting" });
   }
 }
 
@@ -189,7 +183,7 @@ export function disableDriverNetworkCoordinator(): void {
   handlers = null;
   clearBackoffTimer();
   clearReconnectWatchdog();
-  clearReconnectInFlight('coordinator_disabled');
+  clearReconnectInFlight("coordinator_disabled");
   bumpNetworkStateSnapshot();
 }
 
@@ -212,30 +206,30 @@ export function unregisterPollAbortController(controller: AbortController): void
   pollAbortControllers.delete(controller);
 }
 
-export function cancelStaleDriverRequests(reason = 'reconnect'): void {
+export function cancelStaleDriverRequests(reason = "reconnect"): void {
   for (const controller of pollAbortControllers) {
     controller.abort();
-    logDriverNetwork('request_aborted', { reason });
+    logDriverNetwork("request_aborted", { reason });
   }
   pollAbortControllers.clear();
 }
 
 export function isDriverPollingAllowed(): boolean {
   if (!coordinatorActive) return true;
-  return currentState.phase === 'online' && currentState.isVisible;
+  return currentState.phase === "online" && currentState.isVisible;
 }
 
 export function isDriverRefreshAllowed(): boolean {
   if (!coordinatorActive) return true;
-  if (currentState.phase !== 'online') return false;
+  if (currentState.phase !== "online") return false;
   return currentState.isVisible;
 }
 
 export function shouldSkipDriverRealtimeCallback(): boolean {
   if (!coordinatorActive) {
-    return typeof navigator !== 'undefined' && !navigator.onLine;
+    return typeof navigator !== "undefined" && !navigator.onLine;
   }
-  return currentState.phase !== 'online';
+  return currentState.phase !== "online";
 }
 
 export function getPollRequestTimeoutMs(): number {
@@ -243,7 +237,7 @@ export function getPollRequestTimeoutMs(): number {
 }
 
 function notifyPollingResumed(): void {
-  logDriverNetwork('polling_resumed');
+  logDriverNetwork("polling_resumed");
   pollingResumeListeners.forEach((listener) => listener());
 }
 
@@ -266,7 +260,7 @@ function clearReconnectInFlight(reason: string): void {
   reconnectInFlight = false;
   reconnectPromise = null;
   if (hadWork) {
-    logDriverNetwork('reconnect_promise_cleared', { reason });
+    logDriverNetwork("reconnect_promise_cleared", { reason });
   }
 }
 
@@ -282,7 +276,7 @@ async function runReconnectStep<T>(label: string, fn: () => Promise<T>): Promise
     return await withAbortableTimeout(
       async (signal) => {
         if (signal.aborted) {
-          throw new AbortableTimeoutError('abort', label);
+          throw new AbortableTimeoutError("abort", label);
         }
         return fn();
       },
@@ -291,14 +285,14 @@ async function runReconnectStep<T>(label: string, fn: () => Promise<T>): Promise
       {
         label,
         onTimeout: () =>
-          logDriverNetwork('reconnect_timeout', {
+          logDriverNetwork("reconnect_timeout", {
             reason: label,
             durationMs: Date.now() - stepStarted,
           }),
       },
     );
   } catch (err) {
-    if (err instanceof AbortableTimeoutError && err.reason === 'timeout') {
+    if (err instanceof AbortableTimeoutError && err.reason === "timeout") {
       throw new Error(`reconnect_step_timeout:${label}`);
     }
     throw err;
@@ -309,11 +303,9 @@ function scheduleReconnectRetry(reason: string, startedAt: number): void {
   const delay = BACKOFF_MS[Math.min(backoffAttempt, BACKOFF_MS.length - 1)]!;
   backoffAttempt += 1;
 
-  setPhase(
-    typeof navigator !== 'undefined' && navigator.onLine ? 'reconnecting' : 'offline',
-  );
+  setPhase(typeof navigator !== "undefined" && navigator.onLine ? "reconnecting" : "offline");
 
-  logDriverNetwork('reconnect_retry_scheduled', {
+  logDriverNetwork("reconnect_retry_scheduled", {
     reason,
     durationMs: Date.now() - startedAt,
     attempt: backoffAttempt,
@@ -322,7 +314,7 @@ function scheduleReconnectRetry(reason: string, startedAt: number): void {
   clearBackoffTimer();
   backoffTimer = setTimeout(() => {
     backoffTimer = null;
-    if (typeof navigator !== 'undefined' && navigator.onLine && coordinatorActive) {
+    if (typeof navigator !== "undefined" && navigator.onLine && coordinatorActive) {
       void runReconnectSequence();
     }
   }, delay);
@@ -330,13 +322,13 @@ function scheduleReconnectRetry(reason: string, startedAt: number): void {
 
 function ensureReconnectRecovery(): void {
   if (!coordinatorActive) return;
-  if (typeof navigator === 'undefined' || !navigator.onLine) return;
-  if (currentState.phase !== 'reconnecting') return;
+  if (typeof navigator === "undefined" || !navigator.onLine) return;
+  if (currentState.phase !== "reconnecting") return;
   if (reconnectInFlight) return;
   if (backoffTimer) return;
 
-  logDriverNetwork('reconnect_retry_scheduled', {
-    reason: 'recovery_ensure',
+  logDriverNetwork("reconnect_retry_scheduled", {
+    reason: "recovery_ensure",
     attempt: backoffAttempt,
   });
 
@@ -350,30 +342,30 @@ function startReconnectWatchdog(): void {
   clearReconnectWatchdog();
   reconnectWatchdogTimer = setTimeout(() => {
     reconnectWatchdogTimer = null;
-    if (currentState.phase !== 'reconnecting') return;
-    if (typeof navigator === 'undefined' || !navigator.onLine) return;
+    if (currentState.phase !== "reconnecting") return;
+    if (typeof navigator === "undefined" || !navigator.onLine) return;
 
     watchdogTriggerCount += 1;
     const elapsed = reconnectingSince != null ? Date.now() - reconnectingSince : 0;
 
-    logDriverNetwork('reconnect_watchdog_triggered', {
+    logDriverNetwork("reconnect_watchdog_triggered", {
       durationMs: elapsed,
       attempt: backoffAttempt,
       reason: `watchdog_${watchdogTriggerCount}`,
     });
 
-    abortStaleReconnectWork('watchdog');
-    clearReconnectInFlight('watchdog');
+    abortStaleReconnectWork("watchdog");
+    clearReconnectInFlight("watchdog");
     clearBackoffTimer();
 
     if (watchdogTriggerCount >= MAX_WATCHDOG_ESCALATIONS) {
-      logDriverNetwork('reconnect_force_online', {
+      logDriverNetwork("reconnect_force_online", {
         durationMs: elapsed,
-        reason: 'watchdog_escalation',
+        reason: "watchdog_escalation",
       });
       backoffAttempt = 0;
       watchdogTriggerCount = 0;
-      setPhase('online');
+      setPhase("online");
       notifyPollingResumed();
       return;
     }
@@ -389,64 +381,64 @@ async function runReconnectSequence(): Promise<void> {
   reconnectInFlight = true;
   const startedAt = Date.now();
 
-  logDriverNetwork('reconnect_started', { attempt: backoffAttempt });
-  setPhase('reconnecting');
+  logDriverNetwork("reconnect_started", { attempt: backoffAttempt });
+  setPhase("reconnecting");
 
   const attemptPromise = (async () => {
     let currentStep: ReconnectForensicStep | null = null;
     try {
-      abortStaleReconnectWork('reconnect_start');
+      abortStaleReconnectWork("reconnect_start");
 
-      currentStep = 'reconnectRealtime';
-      logReconnectForensic('step_start', { step: currentStep });
+      currentStep = "reconnectRealtime";
+      logReconnectForensic("step_start", { step: currentStep });
       await handlers!.reconnectRealtime();
-      logReconnectForensic('step_done', { step: currentStep });
+      logReconnectForensic("step_done", { step: currentStep });
 
-      currentStep = 'syncOfflineQueue';
-      logReconnectForensic('step_start', { step: currentStep });
+      currentStep = "syncOfflineQueue";
+      logReconnectForensic("step_start", { step: currentStep });
       await handlers!.syncOfflineQueue();
-      logReconnectForensic('step_done', { step: currentStep });
+      logReconnectForensic("step_done", { step: currentStep });
 
-      currentStep = 'refreshActiveDelivery';
-      logReconnectForensic('step_start', {
+      currentStep = "refreshActiveDelivery";
+      logReconnectForensic("step_start", {
         step: currentStep,
         refreshInFlight: getRefreshActiveDeliveryInFlight() !== null,
       });
       const hasActive = await handlers!.refreshActiveDelivery();
-      logReconnectForensic('step_done', { step: currentStep, hasActive });
+      logReconnectForensic("step_done", { step: currentStep, hasActive });
 
       if (!hasActive) {
-        currentStep = 'refreshOrders';
-        logReconnectForensic('step_start', { step: currentStep });
+        currentStep = "refreshOrders";
+        logReconnectForensic("step_start", { step: currentStep });
         await handlers!.refreshOrders();
-        logReconnectForensic('step_done', { step: currentStep });
+        logReconnectForensic("step_done", { step: currentStep });
       }
 
-      logReconnectForensic('reconnect_completed');
+      logReconnectForensic("reconnect_completed");
       backoffAttempt = 0;
       watchdogTriggerCount = 0;
-      setPhase('online');
-      logDriverNetwork('reconnect_completed', {
+      setPhase("online");
+      logDriverNetwork("reconnect_completed", {
         durationMs: Date.now() - startedAt,
         attempt: 0,
       });
       notifyPollingResumed();
     } catch (err) {
-      logReconnectForensic('reconnect_failed', {
+      logReconnectForensic("reconnect_failed", {
         error: err,
         step: currentStep ?? undefined,
       });
-      const reason = err instanceof Error ? err.message : 'reconnect_failed';
-      logDriverNetwork('reconnect_failed', {
+      const reason = err instanceof Error ? err.message : "reconnect_failed";
+      logDriverNetwork("reconnect_failed", {
         durationMs: Date.now() - startedAt,
         reason,
       });
-      abortStaleReconnectWork('reconnect_failed');
+      abortStaleReconnectWork("reconnect_failed");
       scheduleReconnectRetry(reason, startedAt);
     } finally {
       reconnectInFlight = false;
       reconnectPromise = null;
-      logDriverNetwork('reconnect_promise_cleared', { reason: 'attempt_finished' });
+      logDriverNetwork("reconnect_promise_cleared", { reason: "attempt_finished" });
       ensureReconnectRecovery();
     }
   })();
@@ -462,10 +454,10 @@ function handleBrowserOnline(): void {
   if (reconnectInFlight) return;
 
   // Already healthy.
-  if (currentState.phase === 'online') return;
+  if (currentState.phase === "online") return;
 
   // A backoff retry is already scheduled — do not cancel it (P0.2).
-  if (currentState.phase === 'reconnecting' && backoffTimer !== null) return;
+  if (currentState.phase === "reconnecting" && backoffTimer !== null) return;
 
   void runReconnectSequence();
 }
@@ -474,15 +466,15 @@ function handleBrowserOffline(): void {
   if (!coordinatorActive) return;
   clearBackoffTimer();
   clearReconnectWatchdog();
-  abortStaleReconnectWork('offline');
-  clearReconnectInFlight('offline');
+  abortStaleReconnectWork("offline");
+  clearReconnectInFlight("offline");
   backoffAttempt = 0;
   watchdogTriggerCount = 0;
-  setPhase('offline');
+  setPhase("offline");
 }
 
 function handleVisibilityChange(): void {
-  if (typeof document === 'undefined') return;
+  if (typeof document === "undefined") return;
   const nextVisible = !document.hidden;
   if (currentState.isVisible === nextVisible) return;
   commitNetworkState({ ...currentState, isVisible: nextVisible });
@@ -490,37 +482,37 @@ function handleVisibilityChange(): void {
   if (!coordinatorActive) return;
 
   if (!nextVisible) {
-    logDriverNetwork('polling_paused', { reason: 'hidden' });
+    logDriverNetwork("polling_paused", { reason: "hidden" });
     return;
   }
 
-  if (currentState.phase === 'online') {
+  if (currentState.phase === "online") {
     notifyPollingResumed();
   }
 }
 
 export function startDriverNetworkMonitoring(): void {
-  if (typeof window === 'undefined' || monitoringStarted) return;
+  if (typeof window === "undefined" || monitoringStarted) return;
   monitoringStarted = true;
 
   commitNetworkState({
-    phase: navigator.onLine ? 'online' : 'offline',
+    phase: navigator.onLine ? "online" : "offline",
     isVisible: !document.hidden,
   });
 
-  window.addEventListener('online', handleBrowserOnline);
-  window.addEventListener('offline', handleBrowserOffline);
-  document.addEventListener('visibilitychange', handleVisibilityChange);
+  window.addEventListener("online", handleBrowserOnline);
+  window.addEventListener("offline", handleBrowserOffline);
+  document.addEventListener("visibilitychange", handleVisibilityChange);
 }
 
 export function stopDriverNetworkMonitoring(): void {
-  if (!monitoringStarted || typeof window === 'undefined') return;
+  if (!monitoringStarted || typeof window === "undefined") return;
   monitoringStarted = false;
 
-  window.removeEventListener('online', handleBrowserOnline);
-  window.removeEventListener('offline', handleBrowserOffline);
-  document.removeEventListener('visibilitychange', handleVisibilityChange);
+  window.removeEventListener("online", handleBrowserOnline);
+  window.removeEventListener("offline", handleBrowserOffline);
+  document.removeEventListener("visibilitychange", handleVisibilityChange);
   clearBackoffTimer();
   clearReconnectWatchdog();
-  clearReconnectInFlight('monitoring_stopped');
+  clearReconnectInFlight("monitoring_stopped");
 }

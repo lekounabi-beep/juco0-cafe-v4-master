@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { serverLog } from "@/lib/server/logger";
 
 function isAuthSessionMissingError(error: unknown) {
   return (
@@ -36,7 +37,9 @@ export async function updateSession(request: NextRequest) {
   if (!error) {
     user = data.user;
   } else if (!isAuthSessionMissingError(error)) {
-    console.error("Supabase middleware auth error:", error);
+    serverLog.warn("supabase.middleware.auth_error", {
+      error: error instanceof Error ? error.message : "unknown",
+    });
   }
 
   const path = request.nextUrl.pathname;

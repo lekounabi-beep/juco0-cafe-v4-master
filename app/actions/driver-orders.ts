@@ -83,7 +83,10 @@ export async function fetchAcceptableOrdersForDriver(
     .is("cancelled_at", null);
 
   if (assignmentError) {
-    serverLog.warn("driver.orders.assignment_fetch_failed", { driverId, error: assignmentError.message });
+    serverLog.warn("driver.orders.assignment_fetch_failed", {
+      driverId,
+      error: assignmentError.message,
+    });
     return { success: false, orders: [], error: "Failed to load orders" };
   }
 

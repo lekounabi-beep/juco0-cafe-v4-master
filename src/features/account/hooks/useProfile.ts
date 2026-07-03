@@ -2,10 +2,10 @@
  * Profile hook - manages user profile
  */
 
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/features/auth/hooks/useAuth';
-import { getProfile, updateProfile } from '@/integrations/supabase/services/profile.service';
-import type { Profile, ProfileUpdate } from '@/features/account/types/account.types';
+import { useState, useEffect } from "react";
+import { useAuth } from "@/features/auth/hooks/useAuth";
+import { getProfile, updateProfile } from "@/integrations/supabase/services/profile.service";
+import type { Profile, ProfileUpdate } from "@/features/account/types/account.types";
 
 export function useProfile() {
   const { user } = useAuth();
@@ -26,7 +26,7 @@ export function useProfile() {
         const data = await getProfile(user.id);
         setProfile(data);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load profile');
+        setError(err instanceof Error ? err.message : "Failed to load profile");
       } finally {
         setLoading(false);
       }
@@ -38,7 +38,7 @@ export function useProfile() {
 
   const update = async (updateData: ProfileUpdate) => {
     if (!user) {
-      setError('User not authenticated');
+      setError("User not authenticated");
       return { success: false };
     }
 
@@ -49,7 +49,7 @@ export function useProfile() {
       setProfile(updated);
       return { success: true };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to update profile';
+      const message = err instanceof Error ? err.message : "Failed to update profile";
       setError(message);
       return { success: false, error: message };
     } finally {

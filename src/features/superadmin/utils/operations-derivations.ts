@@ -81,7 +81,9 @@ function isTerminalOrder(order: OperationsOrderRow): boolean {
   );
 }
 
-export function deriveLiveOrdersOverview(orders: OperationsOrderRow[]): SuperAdminLiveOrdersOverview {
+export function deriveLiveOrdersOverview(
+  orders: OperationsOrderRow[],
+): SuperAdminLiveOrdersOverview {
   const today = startOfToday();
   const counts: Record<AdminOrderColumnId, number> = {
     incoming: 0,
@@ -354,7 +356,10 @@ export function deriveOperationalAlerts(input: {
       });
     }
 
-    if (column === "incoming" && minutesSince(order.created_at, now) > ORDER_WAITING_THRESHOLD_MIN) {
+    if (
+      column === "incoming" &&
+      minutesSince(order.created_at, now) > ORDER_WAITING_THRESHOLD_MIN
+    ) {
       alerts.push({
         id: `order-waiting-${order.id}`,
         severity: "warning",
@@ -385,10 +390,7 @@ export function deriveOperationalAlerts(input: {
       });
     }
 
-    if (
-      driver.has_active_assignment &&
-      isGpsStale(driver.last_location_update, now)
-    ) {
+    if (driver.has_active_assignment && isGpsStale(driver.last_location_update, now)) {
       alerts.push({
         id: `gps-stale-${driver.id}`,
         severity: "warning",

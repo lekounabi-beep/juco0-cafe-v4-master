@@ -2,11 +2,17 @@
  * Deterministic Google Maps script loader
  */
 
-import { googleMapsConfig } from './config';
+import { googleMapsConfig } from "./config";
+
+type GoogleMapsImportLibrary = (library: string) => Promise<unknown>;
 
 declare global {
   interface Window {
-    google?: any;
+    google?: {
+      maps: {
+        importLibrary: GoogleMapsImportLibrary;
+      };
+    };
     initGoogleMaps?: () => void;
   }
 }
@@ -35,7 +41,7 @@ export class GoogleMapsLoader {
     }
 
     if (!googleMapsConfig.apiKey) {
-      throw new Error('Google Maps API Key is missing (NEXT_PUBLIC_GOOGLE_MAPS_API_KEY)');
+      throw new Error("Google Maps API Key is missing (NEXT_PUBLIC_GOOGLE_MAPS_API_KEY)");
     }
 
     if (window.google?.maps) {
@@ -44,7 +50,7 @@ export class GoogleMapsLoader {
     }
 
     this.loadingPromise = new Promise((resolve, reject) => {
-      const script = document.createElement('script');
+      const script = document.createElement("script");
       script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsConfig.apiKey}&callback=initGoogleMaps&v=weekly&loading=async`;
       script.async = true;
       script.defer = true;
@@ -52,11 +58,11 @@ export class GoogleMapsLoader {
       window.initGoogleMaps = async () => {
         try {
           if (!window.google?.maps) {
-            throw new Error('Google Maps object not available after script load');
+            throw new Error("Google Maps object not available after script load");
           }
 
-          await window.google.maps.importLibrary('maps');
-          await window.google.maps.importLibrary('places');
+          await window.google.maps.importLibrary("maps");
+          await window.google.maps.importLibrary("places");
 
           this.loaded = true;
           resolve();
@@ -68,7 +74,7 @@ export class GoogleMapsLoader {
 
       script.onerror = () => {
         this.loadingPromise = null;
-        reject(new Error('Failed to load Google Maps script'));
+        reject(new Error("Failed to load Google Maps script"));
       };
 
       document.head.appendChild(script);

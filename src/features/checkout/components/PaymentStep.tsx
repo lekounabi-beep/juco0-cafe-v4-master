@@ -13,7 +13,7 @@ export function PaymentStep() {
     <section className="space-y-3 rounded-3xl glass p-4">
       <div>
         <p className="text-xs uppercase tracking-wider text-white/50">
-          Βήμα {fulfillment === "delivery" ? "5" : "3"}
+          Βήμα {fulfillment === "delivery" ? "4" : "3"}
         </p>
         <h2 className="text-lg font-semibold text-white">Πληρωμή</h2>
         <p className="mt-1 text-sm text-white/55">

@@ -20,11 +20,36 @@ export function FleetSummaryBar({
     <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-7">
       <MetricCard label={t("fleet.total")} value={summary.total} loading={loading} />
       <MetricCard label={t("fleet.online")} value={summary.online} icon={Radio} loading={loading} />
-      <MetricCard label={t("fleet.delivering")} value={summary.delivering} icon={Truck} loading={loading} />
-      <MetricCard label={t("fleet.offline")} value={summary.offline} icon={UserX} loading={loading} />
-      <MetricCard label={t("fleet.gpsActive")} value={summary.gps_active} icon={MapPin} loading={loading} />
-      <MetricCard label={t("fleet.gpsStaleShort")} value={summary.gps_stale} icon={MapPin} loading={loading} />
-      <MetricCard label={t("fleet.lastUpdate")} value={lastUpdate} loading={loading} hint={t("fleet.summaryHint")} />
+      <MetricCard
+        label={t("fleet.delivering")}
+        value={summary.delivering}
+        icon={Truck}
+        loading={loading}
+      />
+      <MetricCard
+        label={t("fleet.offline")}
+        value={summary.offline}
+        icon={UserX}
+        loading={loading}
+      />
+      <MetricCard
+        label={t("fleet.gpsActive")}
+        value={summary.gps_active}
+        icon={MapPin}
+        loading={loading}
+      />
+      <MetricCard
+        label={t("fleet.gpsStaleShort")}
+        value={summary.gps_stale}
+        icon={MapPin}
+        loading={loading}
+      />
+      <MetricCard
+        label={t("fleet.lastUpdate")}
+        value={lastUpdate}
+        loading={loading}
+        hint={t("fleet.summaryHint")}
+      />
     </div>
   );
 }

@@ -1,30 +1,39 @@
 /**
- * Shared Viva order completion — used by server action, webhook, and order-success UX.
+ * Shared Viva order completion — pre-created pending orders updated on payment (B+C architecture).
  */
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   fetchVivaTransactionDetails,
+  fetchVivaTransactionIdByOrderCode,
   assertVivaPaymentMatchesOrder,
 } from "@/integrations/viva/services/payment.server";
-import {
-  verifyCheckoutToken,
-  type CheckoutTokenPayload,
-} from "@/lib/server/checkout-token.server";
+import { verifyCheckoutToken, type CheckoutTokenPayload } from "@/lib/server/checkout-token.server";
 import { setOrderAccessCookie } from "@/lib/server/order-access.server";
+import { expireAbandonedCardPaymentOrders } from "@/lib/server/card-payment-cleanup.server";
+import { syncLatestSuccessfulOrderToFavorite } from "@/lib/server/favorite-orders.server";
 import { serverLog } from "@/lib/server/logger";
-import type { TablesInsert } from "@/integrations/supabase/types";
 
 export type CompleteVivaOrderResult = { id: string; order_number: string };
 
 export type CompleteVivaOrderOptions = {
-  /** Set order_access cookie — false for webhook (no browser context). */
   setAccessCookie?: boolean;
-  /** Remove checkout_pending row after success. */
   clearPending?: boolean;
 };
 
-/** Read-only lookup — safe for browser polling (webhook may have created the order). */
+export type CardPaymentReturnResult =
+  | { status: "track"; order: CompleteVivaOrderResult; path: string }
+  | { status: "pending"; orderId?: string; path: string }
+  | { status: "checkout"; path: string; eventId?: string }
+  | { status: "error"; message: string; path: string };
+
+type OrderRow = CompleteVivaOrderResult & {
+  payment_status: string;
+  client_request_id: string | null;
+  viva_transaction_id: string | null;
+};
+
+/** Read-only lookup — safe for browser polling. */
 export async function findOrderByTransactionId(
   transactionId: string,
 ): Promise<CompleteVivaOrderResult | null> {
@@ -32,32 +41,53 @@ export async function findOrderByTransactionId(
 
   const { data } = await supabaseAdmin
     .from("orders")
-    .select("id, order_number")
+    .select("id, order_number, payment_status")
     .eq("viva_transaction_id", transactionId)
     .maybeSingle();
 
   if (!data) return null;
-  return data as CompleteVivaOrderResult;
+  return { id: (data as OrderRow).id, order_number: (data as OrderRow).order_number };
+}
+
+export async function findOrderByClientRequestId(
+  clientRequestId: string,
+): Promise<OrderRow | null> {
+  if (!clientRequestId) return null;
+
+  const { data } = await supabaseAdmin
+    .from("orders")
+    .select("id, order_number, payment_status, client_request_id, viva_transaction_id")
+    .eq("client_request_id", clientRequestId)
+    .maybeSingle();
+
+  if (!data) return null;
+  return data as OrderRow;
+}
+
+async function findOrderRowById(orderId: string): Promise<OrderRow | null> {
+  const { data } = await supabaseAdmin
+    .from("orders")
+    .select("id, order_number, payment_status, client_request_id, viva_transaction_id")
+    .eq("id", orderId)
+    .maybeSingle();
+
+  if (!data) return null;
+  return data as OrderRow;
 }
 
 async function findExistingOrder(
   transactionId: string,
   clientRequestId: string,
-): Promise<CompleteVivaOrderResult | null> {
-  const existingByTxn = await findOrderByTransactionId(transactionId);
-  if (existingByTxn) return existingByTxn;
-
-  const { data: existingByIdempotency } = await supabaseAdmin
+): Promise<OrderRow | null> {
+  const { data: byTxn } = await supabaseAdmin
     .from("orders")
-    .select("id, order_number")
-    .eq("client_request_id", clientRequestId)
+    .select("id, order_number, payment_status, client_request_id, viva_transaction_id")
+    .eq("viva_transaction_id", transactionId)
     .maybeSingle();
 
-  if (existingByIdempotency) {
-    return existingByIdempotency as CompleteVivaOrderResult;
-  }
+  if (byTxn) return byTxn as OrderRow;
 
-  return null;
+  return findOrderByClientRequestId(clientRequestId);
 }
 
 async function clearCheckoutPending(vivaOrderCode: string | null | undefined): Promise<void> {
@@ -68,20 +98,104 @@ async function clearCheckoutPending(vivaOrderCode: string | null | undefined): P
     .eq("viva_order_code", vivaOrderCode);
 }
 
+function isPaid(row: Pick<OrderRow, "payment_status">): boolean {
+  return row.payment_status === "paid";
+}
+
+/**
+ * Idempotent: marks pre-created pending order as paid. Never inserts a new order row.
+ */
+async function markOrderPaid(
+  orderId: string,
+  transactionId: string,
+  options: CompleteVivaOrderOptions = {},
+): Promise<CompleteVivaOrderResult | null> {
+  const { setAccessCookie = true, clearPending } = options;
+
+  const existing = await findOrderRowById(orderId);
+  if (!existing) return null;
+
+  if (isPaid(existing)) {
+    if (existing.viva_transaction_id && existing.viva_transaction_id !== transactionId) {
+      serverLog.warn("payment.order.updated", {
+        orderId,
+        reason: "already_paid_different_txn",
+        existingTxn: existing.viva_transaction_id,
+        incomingTxn: transactionId,
+      });
+    }
+    if (setAccessCookie) await setOrderAccessCookie(existing.id);
+    return { id: existing.id, order_number: existing.order_number };
+  }
+
+  if (existing.payment_status === "cancelled") {
+    serverLog.warn("payment.order.updated", {
+      orderId,
+      reason: "cancelled_order_payment_attempt",
+      transactionId,
+    });
+    return null;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("orders")
+    .update({
+      payment_status: "paid",
+      viva_transaction_id: transactionId,
+    } as never)
+    .eq("id", orderId)
+    .eq("payment_status", "pending")
+    .select("id, order_number")
+    .maybeSingle();
+
+  if (error) {
+    serverLog.error("payment.failed", {
+      step: "mark_paid",
+      orderId,
+      transactionId,
+      error: error.message,
+    });
+    return null;
+  }
+
+  if (!data) {
+    const raced = await findOrderRowById(orderId);
+    if (raced && isPaid(raced)) {
+      if (setAccessCookie) await setOrderAccessCookie(raced.id);
+      return { id: raced.id, order_number: raced.order_number };
+    }
+    return null;
+  }
+
+  const result = data as CompleteVivaOrderResult;
+
+  serverLog.info("payment.order.updated", {
+    orderId: result.id,
+    orderNumber: result.order_number,
+    transactionId,
+    paymentStatus: "paid",
+  });
+
+  serverLog.info("payment.success", {
+    orderId: result.id,
+    orderNumber: result.order_number,
+    transactionId,
+  });
+
+  if (setAccessCookie) await setOrderAccessCookie(result.id);
+  await syncLatestSuccessfulOrderToFavorite(result.id);
+  return result;
+}
+
 export async function completePaidVivaOrder(
   checkoutToken: string,
   transactionId: string,
   options: CompleteVivaOrderOptions = {},
 ): Promise<CompleteVivaOrderResult> {
-  const { setAccessCookie = true, clearPending = true } = options;
+  const { clearPending = true } = options;
 
-  if (!transactionId) {
-    throw new Error("Missing transaction ID");
-  }
-
-  if (!checkoutToken) {
-    throw new Error("Missing checkout token");
-  }
+  if (!transactionId) throw new Error("Missing transaction ID");
+  if (!checkoutToken) throw new Error("Missing checkout token");
 
   const draft = verifyCheckoutToken(checkoutToken);
   if (!draft) {
@@ -90,14 +204,10 @@ export async function completePaidVivaOrder(
   }
 
   const existing = await findExistingOrder(transactionId, draft.clientRequestId);
-  if (existing) {
-    if (setAccessCookie) {
-      await setOrderAccessCookie(existing.id);
-    }
-    if (clearPending) {
-      await clearCheckoutPending(draft.vivaOrderCode);
-    }
-    return existing;
+  if (existing && isPaid(existing)) {
+    if (options.setAccessCookie !== false) await setOrderAccessCookie(existing.id);
+    if (clearPending) await clearCheckoutPending(draft.vivaOrderCode);
+    return { id: existing.id, order_number: existing.order_number };
   }
 
   const txn = await fetchVivaTransactionDetails(transactionId);
@@ -123,73 +233,45 @@ export async function completePaidVivaOrder(
     clientRequestId: draft.clientRequestId,
   });
 
-  const orderPayload: TablesInsert<"orders"> = {
-    items: draft.items as never,
-    subtotal: draft.subtotal,
-    delivery_fee: draft.delivery_fee,
-    total: draft.total,
-    customer_name: draft.customer_name,
-    customer_phone: draft.customer_phone,
-    address: draft.address,
-    address_notes: draft.address_notes,
-    lat: draft.lat,
-    lng: draft.lng,
-    payment_method: "card",
-    payment_status: "paid",
-    notes: draft.notes,
-    status: "pending",
-    viva_transaction_id: transactionId,
-    user_id: draft.user_id,
-    client_request_id: draft.clientRequestId,
-  } as TablesInsert<"orders">;
-
-  const { data, error } = await supabaseAdmin
-    .from("orders")
-    .insert(orderPayload as never)
-    .select("id, order_number")
-    .single();
-
-  if (error) {
-    if (error.code === "23505") {
-      const dup = await findExistingOrder(transactionId, draft.clientRequestId);
-      if (dup) {
-        if (setAccessCookie) {
-          await setOrderAccessCookie(dup.id);
-        }
-        if (clearPending) {
-          await clearCheckoutPending(draft.vivaOrderCode);
-        }
-        return dup;
-      }
-    }
+  const order = existing ?? (await findOrderByClientRequestId(draft.clientRequestId));
+  if (!order) {
     serverLog.error("order.rejected", {
-      reason: "insert_after_payment",
+      reason: "pending_order_missing",
       transactionId,
-      error: error.message,
+      clientRequestId: draft.clientRequestId,
     });
     throw new Error(
-      "Η πληρωμή μπορεί να έχει ολοκληρωθεί, αλλά δεν μπορέσαμε να καταχωρήσουμε την παραγγελία. Επικοινωνήστε με το κατάστημα.",
+      "Η πληρωμή μπορεί να έχει ολοκληρωθεί, αλλά δεν μπορέσαμε να βρούμε την παραγγελία. Επικοινωνήστε με το κατάστημα.",
     );
   }
 
-  const result = data as CompleteVivaOrderResult;
+  const updated = await markOrderPaid(order.id, transactionId, options);
+  if (!updated) {
+    throw new Error(
+      "Η πληρωμή μπορεί να έχει ολοκληρωθεί, αλλά δεν μπορέσαμε να ενημερώσουμε την παραγγελία. Επικοινωνήστε με το κατάστημα.",
+    );
+  }
+
+  if (clearPending) await clearCheckoutPending(draft.vivaOrderCode);
 
   serverLog.info("order.created", {
-    orderId: result.id,
-    orderNumber: result.order_number,
+    orderId: updated.id,
+    orderNumber: updated.order_number,
     payment: "card",
     total: draft.total,
     transactionId,
+    note: "payment_marked_paid",
   });
 
-  if (setAccessCookie) {
-    await setOrderAccessCookie(result.id);
-  }
-  if (clearPending) {
-    await clearCheckoutPending(draft.vivaOrderCode);
-  }
+  serverLog.info("checkout.completed", {
+    orderId: updated.id,
+    orderNumber: updated.order_number,
+    payment: "card",
+    transactionId,
+    clientRequestId: draft.clientRequestId,
+  });
 
-  return result;
+  return updated;
 }
 
 export async function completeVivaOrderByOrderCode(
@@ -199,18 +281,14 @@ export async function completeVivaOrderByOrderCode(
 ): Promise<CompleteVivaOrderResult | null> {
   const existing = await findOrderByTransactionId(transactionId);
   if (existing) {
-    if (options.setAccessCookie !== false) {
-      await setOrderAccessCookie(existing.id);
-    }
-    if (options.clearPending !== false) {
-      await clearCheckoutPending(vivaOrderCode);
-    }
+    if (options.setAccessCookie !== false) await setOrderAccessCookie(existing.id);
+    if (options.clearPending !== false) await clearCheckoutPending(vivaOrderCode);
     return existing;
   }
 
   const { data, error } = await supabaseAdmin
     .from("checkout_pending" as never)
-    .select("checkout_token, expires_at")
+    .select("checkout_token, expires_at, client_request_id")
     .eq("viva_order_code", vivaOrderCode)
     .maybeSingle();
 
@@ -219,7 +297,12 @@ export async function completeVivaOrderByOrderCode(
     return null;
   }
 
-  const row = data as { checkout_token: string; expires_at: string };
+  const row = data as {
+    checkout_token: string;
+    expires_at: string;
+    client_request_id: string;
+  };
+
   if (new Date(row.expires_at).getTime() < Date.now()) {
     serverLog.warn("payment.webhook.expired_pending", { vivaOrderCode, transactionId });
     await supabaseAdmin
@@ -229,25 +312,35 @@ export async function completeVivaOrderByOrderCode(
     return null;
   }
 
-  return completePaidVivaOrder(row.checkout_token, transactionId, {
-    setAccessCookie: options.setAccessCookie ?? false,
-    clearPending: options.clearPending ?? true,
-  });
+  const pendingOrder = await findOrderByClientRequestId(row.client_request_id);
+  if (pendingOrder && isPaid(pendingOrder)) {
+    if (options.setAccessCookie !== false) await setOrderAccessCookie(pendingOrder.id);
+    if (options.clearPending !== false) await clearCheckoutPending(vivaOrderCode);
+    return { id: pendingOrder.id, order_number: pendingOrder.order_number };
+  }
+
+  try {
+    return await completePaidVivaOrder(row.checkout_token, transactionId, {
+      setAccessCookie: options.setAccessCookie ?? false,
+      clearPending: options.clearPending ?? true,
+    });
+  } catch (error) {
+    serverLog.error("payment.reconcile.token_failed", {
+      vivaOrderCode,
+      transactionId,
+      error: error instanceof Error ? error.message : "unknown",
+    });
+    return null;
+  }
 }
 
-/**
- * Reconcile via Viva API order code when browser has no sessionStorage token.
- * Idempotent — returns existing order if webhook already completed.
- */
 export async function completeVivaOrderByTransactionId(
   transactionId: string,
   options: CompleteVivaOrderOptions = {},
 ): Promise<CompleteVivaOrderResult | null> {
   const existing = await findOrderByTransactionId(transactionId);
   if (existing) {
-    if (options.setAccessCookie !== false) {
-      await setOrderAccessCookie(existing.id);
-    }
+    if (options.setAccessCookie !== false) await setOrderAccessCookie(existing.id);
     return existing;
   }
 
@@ -261,38 +354,33 @@ export async function completeVivaOrderByTransactionId(
 }
 
 export type CardPaymentStatusResult =
-  | { status: "ready"; order: CompleteVivaOrderResult }
-  | { status: "pending" };
+  { status: "ready"; order: CompleteVivaOrderResult } | { status: "pending" };
 
-/** Browser polling — read-only; never creates orders (webhook is source of truth). */
 export async function getCardPaymentOrderStatus(
   transactionId: string,
 ): Promise<CardPaymentStatusResult> {
-  const order = await findOrderByTransactionId(transactionId);
-  if (!order) {
+  const { data } = await supabaseAdmin
+    .from("orders")
+    .select("id, order_number, payment_status")
+    .eq("viva_transaction_id", transactionId)
+    .maybeSingle();
+
+  if (!data || (data as OrderRow).payment_status !== "paid") {
     return { status: "pending" };
   }
 
+  const order = data as CompleteVivaOrderResult;
   await setOrderAccessCookie(order.id);
   return { status: "ready", order };
 }
 
-/**
- * Fallback reconciliation when webhook is delayed or missed.
- * Idempotent — safe if webhook and browser call concurrently.
- */
 export async function reconcileCardPayment(
   transactionId: string,
   checkoutToken?: string | null,
   options: CompleteVivaOrderOptions = {},
 ): Promise<CompleteVivaOrderResult | null> {
-  const existing = await findOrderByTransactionId(transactionId);
-  if (existing) {
-    if (options.setAccessCookie !== false) {
-      await setOrderAccessCookie(existing.id);
-    }
-    return existing;
-  }
+  const status = await getCardPaymentOrderStatus(transactionId);
+  if (status.status === "ready") return status.order;
 
   if (checkoutToken) {
     try {
@@ -312,10 +400,7 @@ export async function reconcileCardPayment(
   return completeVivaOrderByTransactionId(transactionId, options);
 }
 
-/** Lookup order created by webhook when browser only has Viva order code (s). */
-export async function findOrderByVivaOrderCode(
-  vivaOrderCode: string,
-): Promise<CompleteVivaOrderResult | null> {
+export async function findOrderByVivaOrderCode(vivaOrderCode: string): Promise<OrderRow | null> {
   if (!vivaOrderCode) return null;
 
   const { data: pending } = await supabaseAdmin
@@ -327,50 +412,153 @@ export async function findOrderByVivaOrderCode(
   const clientRequestId = (pending as { client_request_id?: string } | null)?.client_request_id;
   if (!clientRequestId) return null;
 
-  const { data: order } = await supabaseAdmin
-    .from("orders")
-    .select("id, order_number")
-    .eq("client_request_id", clientRequestId)
-    .maybeSingle();
-
-  if (!order) return null;
-  return order as CompleteVivaOrderResult;
+  return findOrderByClientRequestId(clientRequestId);
 }
 
 export type CardPaymentOrderCodeStatus =
-  | { status: "ready"; order: CompleteVivaOrderResult }
-  | { status: "pending" };
+  { status: "ready"; order: CompleteVivaOrderResult } | { status: "pending"; orderId?: string };
 
-/** Browser polling by Viva order code — read-only. */
 export async function getCardPaymentOrderStatusByOrderCode(
   vivaOrderCode: string,
 ): Promise<CardPaymentOrderCodeStatus> {
   const order = await findOrderByVivaOrderCode(vivaOrderCode);
-  if (!order) {
-    return { status: "pending" };
+  if (!order) return { status: "pending" };
+
+  if (isPaid(order)) {
+    await setOrderAccessCookie(order.id);
+    return { status: "ready", order: { id: order.id, order_number: order.order_number } };
   }
 
-  await setOrderAccessCookie(order.id);
-  return { status: "ready", order };
+  return { status: "pending", orderId: order.id };
 }
 
-/** Reconcile when browser has order code and optional transaction id. */
+async function recoverTransactionIdForOrderCode(vivaOrderCode: string): Promise<string | null> {
+  const recovered = await fetchVivaTransactionIdByOrderCode(vivaOrderCode);
+  if (!recovered?.verified || !recovered.transactionId) {
+    serverLog.info("payment.reconcile.recovery", {
+      vivaOrderCode,
+      recovered: false,
+    });
+    return null;
+  }
+
+  serverLog.info("payment.reconcile.recovery", {
+    vivaOrderCode,
+    transactionId: recovered.transactionId,
+    recovered: true,
+  });
+
+  return recovered.transactionId;
+}
+
 export async function reconcileCardPaymentByOrderCode(
   vivaOrderCode: string,
   transactionId?: string | null,
   options: CompleteVivaOrderOptions = {},
 ): Promise<CompleteVivaOrderResult | null> {
-  const existing = await findOrderByVivaOrderCode(vivaOrderCode);
-  if (existing) {
-    if (options.setAccessCookie !== false) {
-      await setOrderAccessCookie(existing.id);
-    }
-    return existing;
+  const status = await getCardPaymentOrderStatusByOrderCode(vivaOrderCode);
+  if (status.status === "ready") return status.order;
+
+  let txnId = transactionId?.trim() || null;
+  if (!txnId) {
+    txnId = await recoverTransactionIdForOrderCode(vivaOrderCode);
   }
 
-  if (!transactionId) return null;
+  if (!txnId) return null;
 
-  return completeVivaOrderByOrderCode(vivaOrderCode, transactionId, options);
+  return completeVivaOrderByOrderCode(vivaOrderCode, txnId, options);
+}
+
+/**
+ * Central return-path resolver — browser, refresh, and missing-param recovery.
+ */
+export async function finalizeCardPaymentReturn(input: {
+  transactionId?: string | null;
+  vivaOrderCode?: string | null;
+  orderId?: string | null;
+  checkoutToken?: string | null;
+  eventId?: string | null;
+}): Promise<CardPaymentReturnResult> {
+  await expireAbandonedCardPaymentOrders();
+
+  const transactionId = input.transactionId?.trim() || null;
+  const vivaOrderCode = input.vivaOrderCode?.trim() || null;
+  const orderId = input.orderId?.trim() || null;
+  const eventId = input.eventId?.trim() || null;
+
+  serverLog.info("payment.return.resolved", {
+    path: "finalize_start",
+    hasTransactionId: Boolean(transactionId),
+    hasOrderCode: Boolean(vivaOrderCode),
+    hasOrderId: Boolean(orderId),
+    eventId: eventId ?? undefined,
+  });
+
+  if (orderId) {
+    const row = await findOrderRowById(orderId);
+    if (row && isPaid(row)) {
+      await setOrderAccessCookie(row.id);
+      return {
+        status: "track",
+        order: { id: row.id, order_number: row.order_number },
+        path: "order_id_paid",
+      };
+    }
+  }
+
+  if (transactionId) {
+    const reconciled = await reconcileCardPayment(transactionId, input.checkoutToken, {
+      setAccessCookie: true,
+      clearPending: true,
+    });
+    if (reconciled) {
+      return { status: "track", order: reconciled, path: "transaction_id" };
+    }
+  }
+
+  if (vivaOrderCode) {
+    const byCode = await reconcileCardPaymentByOrderCode(vivaOrderCode, transactionId, {
+      setAccessCookie: true,
+      clearPending: true,
+    });
+    if (byCode) {
+      return { status: "track", order: byCode, path: "order_code_recovery" };
+    }
+
+    const pending = await getCardPaymentOrderStatusByOrderCode(vivaOrderCode);
+    if (pending.status === "ready") {
+      return { status: "track", order: pending.order, path: "order_code_paid" };
+    }
+
+    if (pending.orderId && !eventId) {
+      serverLog.info("payment.return.pending", {
+        orderId: pending.orderId,
+        vivaOrderCode,
+      });
+      return { status: "pending", orderId: pending.orderId, path: "awaiting_verification" };
+    }
+  }
+
+  if (eventId) {
+    serverLog.info("payment.return.failed", { eventId, vivaOrderCode: vivaOrderCode ?? undefined });
+    return { status: "checkout", path: "viva_failure", eventId };
+  }
+
+  if (transactionId || vivaOrderCode) {
+    return {
+      status: "error",
+      message:
+        "Η πληρωμή μπορεί να έχει ολοκληρωθεί, αλλά δεν μπορέσαμε να την επιβεβαιώσουμε ακόμα. Δοκιμάστε να ανανεώσετε τη σελίδα.",
+      path: "verification_timeout",
+    };
+  }
+
+  return {
+    status: "error",
+    message:
+      "Δεν ολοκληρώθηκε παραγγελία. Αν προσπάθησες να πληρώσεις με κάρτα, δεν έχει επιβεβαιωθεί πληρωμή.",
+    path: "missing_params",
+  };
 }
 
 export async function storePendingCheckout(
@@ -400,7 +588,6 @@ export async function storePendingCheckout(
   }
 }
 
-/** Resolve checkout token from viva order code (webhook / recovery). */
 export async function resolveCheckoutTokenByOrderCode(
   vivaOrderCode: string,
 ): Promise<CheckoutTokenPayload | null> {

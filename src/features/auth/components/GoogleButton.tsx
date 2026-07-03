@@ -2,10 +2,10 @@
  * Google Button component
  */
 
-'use client';
+"use client";
 
-import { useGoogleAuth } from '../hooks/useGoogleAuth';
-import { Loader2 } from 'lucide-react';
+import { useGoogleAuth } from "../hooks/useGoogleAuth";
+import { Loader2 } from "lucide-react";
 
 export function GoogleButton() {
   const { signInWithGoogle, loading } = useGoogleAuth();
@@ -38,7 +38,7 @@ export function GoogleButton() {
           />
         </svg>
       )}
-      <span>{loading ? 'Σύνδεση...' : 'Συνέχεια με Google'}</span>
+      <span>{loading ? "Σύνδεση..." : "Συνέχεια με Google"}</span>
     </button>
   );
 }

@@ -1,27 +1,38 @@
-import { storeLocation } from '@/config/map-defaults';
-import type { AddressSearchResult } from '../types/address';
-import { parseMapboxFeature } from './address-parser';
+import { storeLocation } from "@/config/map-defaults";
+import type { AddressSearchResult } from "../types/address";
+import { parseMapboxFeature } from "./address-parser";
+import {
+  getCachedForwardGeocode,
+  getCachedReverseGeocode,
+  setCachedForwardGeocode,
+  setCachedReverseGeocode,
+} from "./mapbox-geocode-cache";
 
+/**
+ * Mapbox Geocoding — requires NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN.
+ * Restrict the token in Mapbox dashboard (URL restrictions + scopes).
+ * See docs/PUBLIC_API_KEYS.md for allowed domains during zrok staging and production.
+ */
 type MapboxSearchResponse = {
   features?: unknown[];
 };
 
-const MAPBOX_GEOCODING_URL = 'https://api.mapbox.com/geocoding/v5/mapbox.places';
+const MAPBOX_GEOCODING_URL = "https://api.mapbox.com/geocoding/v5/mapbox.places";
 
 function mapboxToken(): string {
-  return process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
+  return process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || "";
 }
 
 function endpoint(path: string, params: Record<string, string>): string {
   const token = mapboxToken();
   if (!token) {
-    throw new Error('NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN is required for checkout location search');
+    throw new Error("NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN is required for checkout location search");
   }
 
   const query = new URLSearchParams({
     access_token: token,
-    country: 'gr',
-    language: 'el',
+    country: "gr",
+    language: "el",
     proximity: `${storeLocation.lng},${storeLocation.lat}`,
     ...params,
   });
@@ -31,50 +42,67 @@ function endpoint(path: string, params: Record<string, string>): string {
 
 export async function searchAddresses(
   query: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<AddressSearchResult[]> {
   const normalized = query.trim();
-  if (normalized.length < 2) return [];
+  if (normalized.length < 3) return [];
+
+  const cached = getCachedForwardGeocode(normalized);
+  if (cached) return cached;
 
   const response = await fetch(
     endpoint(normalized, {
-      autocomplete: 'true',
-      limit: '6',
-      types: 'address,poi,place,postcode',
+      autocomplete: "true",
+      limit: "6",
+      types: "address,poi,place,postcode",
     }),
-    { signal }
+    { signal },
   );
 
   if (!response.ok) {
-    throw new Error('Address search failed');
+    throw new Error("Address search failed");
   }
 
   const data = (await response.json()) as MapboxSearchResponse;
-  return (data.features ?? [])
+  const results = (data.features ?? [])
     .map((feature) => parseMapboxFeature(feature as Parameters<typeof parseMapboxFeature>[0]))
     .filter((result): result is AddressSearchResult => result != null);
+
+  setCachedForwardGeocode(normalized, results);
+  return results;
 }
 
 export async function reverseSearchAddress(
   lat: number,
   lng: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<AddressSearchResult | null> {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
 
+  const cached = getCachedReverseGeocode(lat, lng);
+  if (cached !== undefined) return cached;
+
   const response = await fetch(
     endpoint(`${lng},${lat}`, {
-      limit: '1',
-      types: 'address,poi',
+      limit: "1",
+      types: "address,poi",
     }),
-    { signal }
+    { signal },
   );
 
   if (!response.ok) {
-    throw new Error('Reverse geocoding failed');
+    if (response.status >= 500 || response.status === 429) {
+      throw new Error("Προσωρινό πρόβλημα σύνδεσης. Δοκίμασε ξανά.");
+    }
+    throw new Error("Δεν βρέθηκε διεύθυνση.");
   }
 
   const data = (await response.json()) as MapboxSearchResponse;
   const first = data.features?.[0];
-  return first ? parseMapboxFeature(first as Parameters<typeof parseMapboxFeature>[0]) : null;
+  const result = first
+    ? parseMapboxFeature(first as Parameters<typeof parseMapboxFeature>[0])
+    : null;
+
+  setCachedReverseGeocode(lat, lng, result);
+  return result;
 }

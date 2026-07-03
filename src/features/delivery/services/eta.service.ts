@@ -3,9 +3,9 @@
  * Calculate estimated time of arrival based on distance and average speed
  */
 
-import type { Coordinates } from '@/shared/types/common.types';
-import { calculateDistance } from './distance.service';
-import { speedFromKmh, speedToKmh } from './speed.service';
+import type { Coordinates } from "@/shared/types/common.types";
+import { calculateDistance } from "./distance.service";
+import { speedFromKmh, speedToKmh } from "./speed.service";
 
 export interface ETAConfig {
   arrivalThreshold: number; // Distance threshold for arrival detection in meters (default: 50m)
@@ -46,7 +46,7 @@ export class ETACalculator {
   calculateETA(
     currentLocation: Coordinates,
     destination: Coordinates,
-    averageSpeedMs: number
+    averageSpeedMs: number,
   ): ETAResult {
     const remainingDistance = calculateDistance(currentLocation, destination);
 
@@ -63,7 +63,10 @@ export class ETACalculator {
 
     // Filter out invalid speeds
     const speedKmh = speedToKmh(averageSpeedMs);
-    if (speedKmh < this.config.minSpeedForCalculation || speedKmh > this.config.maxSpeedForCalculation) {
+    if (
+      speedKmh < this.config.minSpeedForCalculation ||
+      speedKmh > this.config.maxSpeedForCalculation
+    ) {
       return {
         eta: null,
         remainingDistance,
@@ -84,7 +87,8 @@ export class ETACalculator {
     if (this.smoothedETA) {
       const smoothedTime = this.smoothedETA.getTime();
       const newTime = eta.getTime();
-      const smoothedTimestamp = smoothedTime + this.config.smoothingFactor * (newTime - smoothedTime);
+      const smoothedTimestamp =
+        smoothedTime + this.config.smoothingFactor * (newTime - smoothedTime);
       this.smoothedETA = new Date(smoothedTimestamp);
     } else {
       this.smoothedETA = eta;
@@ -129,7 +133,7 @@ export function calculateETA(
   currentLocation: Coordinates,
   destination: Coordinates,
   averageSpeedMs: number,
-  config: Partial<ETAConfig> = {}
+  config: Partial<ETAConfig> = {},
 ): ETAResult {
   const cfg = { ...DEFAULT_ETA_CONFIG, ...config };
   const remainingDistance = calculateDistance(currentLocation, destination);
@@ -217,7 +221,7 @@ export function createETACalculator(config?: Partial<ETAConfig>): ETACalculator 
  */
 export function formatETA(eta: Date | null): string {
   if (!eta) {
-    return 'Calculating...';
+    return "Calculating...";
   }
 
   const now = new Date();
@@ -225,15 +229,15 @@ export function formatETA(eta: Date | null): string {
   const diffMinutes = Math.round(diffMs / 60000);
 
   if (diffMinutes <= 0) {
-    return 'Arriving now';
+    return "Arriving now";
   }
 
   if (diffMinutes < 1) {
-    return 'Less than 1 min';
+    return "Less than 1 min";
   }
 
   if (diffMinutes === 1) {
-    return '1 min';
+    return "1 min";
   }
 
   if (diffMinutes < 60) {
@@ -244,7 +248,7 @@ export function formatETA(eta: Date | null): string {
   const minutes = diffMinutes % 60;
 
   if (hours === 1) {
-    return minutes > 0 ? `1 hr ${minutes} min` : '1 hr';
+    return minutes > 0 ? `1 hr ${minutes} min` : "1 hr";
   }
 
   return minutes > 0 ? `${hours} hrs ${minutes} min` : `${hours} hrs`;

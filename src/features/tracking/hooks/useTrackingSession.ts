@@ -2,38 +2,38 @@
  * Consolidated customer tracking session — single poll, single server round-trip.
  */
 
-'use client';
+"use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getTrackingSessionServer } from '@app/actions/tracking-session';
-import { computeDeliveryState } from '@/features/delivery/core/compute-delivery-state';
-import { calculateETA } from '@/features/delivery/services/eta.service';
-import { speedFromKmh } from '@/features/delivery/services/speed.service';
-import { orderCoordinates } from '@/shared/utils/order-fields';
-import { playNotificationSound } from '@/features/notifications/services/notification-sound.service';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getTrackingSessionServer } from "@app/actions/tracking-session";
+import { computeDeliveryState } from "@/features/delivery/core/compute-delivery-state";
+import { calculateETA } from "@/features/delivery/services/eta.service";
+import { speedFromKmh } from "@/features/delivery/services/speed.service";
+import { orderCoordinates } from "@/shared/utils/order-fields";
+import { playNotificationSound } from "@/features/notifications/services/notification-sound.service";
 import {
   evaluatePollTick,
   connectionStateFromContext,
   isDocumentHidden,
   TRACKING_POLL_INTERVAL_MS,
-} from '@/features/tracking/core/poll-coordinator';
+} from "@/features/tracking/core/poll-coordinator";
 import {
   latestLocationFromRows,
   mergeMonotonicLocations,
-} from '@/features/tracking/core/tracking-session-merge';
-import { isTerminalOrder } from '@/features/tracking/core/terminal-order';
-import { trackSessionTelemetry } from '@/features/tracking/core/tracking-session-telemetry';
-import { trailPointsSignature } from '@/features/live-tracking-v2/utils/driver-trail-geojson';
-import type { DeliveryLocationRow } from '@/features/delivery/core/delivery-state.types';
+} from "@/features/tracking/core/tracking-session-merge";
+import { isTerminalOrder } from "@/features/tracking/core/terminal-order";
+import { trackSessionTelemetry } from "@/features/tracking/core/tracking-session-telemetry";
+import { trailPointsSignature } from "@/features/live-tracking-v2/utils/driver-trail-geojson";
+import type { DeliveryLocationRow } from "@/features/delivery/core/delivery-state.types";
 import type {
   TrackingAssignment,
   TrackingDriver,
   TrackingOrder,
-} from '@/features/tracking/hooks/useCustomerTrackingSync';
+} from "@/features/tracking/hooks/useCustomerTrackingSync";
 import type {
   TrackingConnectionState,
   UseTrackingSessionResult,
-} from '@/features/tracking/types/tracking-session.types';
+} from "@/features/tracking/types/tracking-session.types";
 
 const FALLBACK_ETA_SPEED_MS = speedFromKmh(25);
 
@@ -53,7 +53,7 @@ const EMPTY_DELIVERY_STATE = computeDeliveryState({
   order: null,
   assignment: null,
   locations: [],
-  role: 'customer',
+  role: "customer",
 });
 
 export function useTrackingSession(orderId: string): UseTrackingSessionResult {
@@ -63,7 +63,7 @@ export function useTrackingSession(orderId: string): UseTrackingSessionResult {
   const [locations, setLocations] = useState<DeliveryLocationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [connectionState, setConnectionState] = useState<TrackingConnectionState>('idle');
+  const [connectionState, setConnectionState] = useState<TrackingConnectionState>("idle");
   const [lastPollAt, setLastPollAt] = useState<string | null>(null);
   const [pollCount, setPollCount] = useState(0);
 
@@ -93,26 +93,23 @@ export function useTrackingSession(orderId: string): UseTrackingSessionResult {
         order,
         assignment,
         locations,
-        role: 'customer',
+        role: "customer",
       }),
     [order, assignment, locations],
   );
 
-  const latestLocation = useMemo(
-    () => latestLocationFromRows(locations),
-    [locations],
-  );
+  const latestLocation = useMemo(() => latestLocationFromRows(locations), [locations]);
 
   const timeline = useMemo(
     () => ({
       customerStep: deliveryState.customerStep,
-      orderStatus: order?.status ?? 'pending',
+      orderStatus: order?.status ?? "pending",
       deliveryStatus: order?.delivery_status ?? deliveryState.deliveryStatus,
     }),
     [deliveryState.customerStep, deliveryState.deliveryStatus, order],
   );
 
-  const showDriverOnMap = timeline.customerStep === 'on_the_way';
+  const showDriverOnMap = timeline.customerStep === "on_the_way";
   const destination = useMemo(() => orderCoordinates(order), [order]);
 
   const eta = useMemo(() => {
@@ -123,7 +120,7 @@ export function useTrackingSession(orderId: string): UseTrackingSessionResult {
   const routePointsCacheRef = useRef<{
     signature: string;
     points: typeof deliveryState.routePoints;
-  }>({ signature: '0', points: [] });
+  }>({ signature: "0", points: [] });
 
   const routePoints = useMemo(() => {
     const next = deliveryState.routePoints;
@@ -135,22 +132,23 @@ export function useTrackingSession(orderId: string): UseTrackingSessionResult {
     return next;
   }, [deliveryState.routePoints]);
 
-  const updateConnectionState = useCallback(
-    (hasError: boolean, isPolling: boolean) => {
-      setConnectionState(
-        connectionStateFromContext({
-          isTerminal: terminalRef.current,
-          documentHidden: isDocumentHidden(),
-          hasError,
-          isPolling,
-        }),
-      );
-    },
-    [],
-  );
+  const updateConnectionState = useCallback((hasError: boolean, isPolling: boolean) => {
+    setConnectionState(
+      connectionStateFromContext({
+        isTerminal: terminalRef.current,
+        documentHidden: isDocumentHidden(),
+        hasError,
+        isPolling,
+      }),
+    );
+  }, []);
 
   const runPoll = useCallback(
-    async (options?: { playMilestoneSound?: boolean; silent?: boolean; forceBootstrap?: boolean }) => {
+    async (options?: {
+      playMilestoneSound?: boolean;
+      silent?: boolean;
+      forceBootstrap?: boolean;
+    }) => {
       if (!orderId || loadInFlightRef.current) return;
 
       if (options?.forceBootstrap) {
@@ -170,14 +168,14 @@ export function useTrackingSession(orderId: string): UseTrackingSessionResult {
         forceBootstrap: forceBootstrapRef.current,
       });
 
-      if (decision.action === 'skip' && !options?.forceBootstrap) {
-        trackSessionTelemetry('poll_skipped', { reason: decision.reason });
-        if (decision.reason === 'terminal') {
+      if (decision.action === "skip" && !options?.forceBootstrap) {
+        trackSessionTelemetry("poll_skipped", { reason: decision.reason });
+        if (decision.reason === "terminal") {
           terminalRef.current = true;
-          trackSessionTelemetry('poll_stopped', { reason: 'terminal' });
+          trackSessionTelemetry("poll_stopped", { reason: "terminal" });
         }
-        if (decision.reason === 'hidden') {
-          trackSessionTelemetry('poll_paused', { reason: 'hidden' });
+        if (decision.reason === "hidden") {
+          trackSessionTelemetry("poll_paused", { reason: "hidden" });
         }
         updateConnectionState(!!errorRef.current, false);
         return;
@@ -191,17 +189,17 @@ export function useTrackingSession(orderId: string): UseTrackingSessionResult {
       const startedAt = performance.now();
 
       const gpsMode =
-        decision.action === 'poll'
+        decision.action === "poll"
           ? decision.gpsMode
           : options?.forceBootstrap && currentAssignmentId
-            ? 'bootstrap'
-            : 'none';
+            ? "bootstrap"
+            : "none";
 
-      if (decision.action === 'poll' && decision.forceBootstrap) {
+      if (decision.action === "poll" && decision.forceBootstrap) {
         forceBootstrapRef.current = true;
       }
 
-      trackSessionTelemetry('poll_started', { gpsMode });
+      trackSessionTelemetry("poll_started", { gpsMode });
       updateConnectionState(!!errorRef.current, true);
 
       try {
@@ -209,7 +207,7 @@ export function useTrackingSession(orderId: string): UseTrackingSessionResult {
 
         if (!payload?.order) {
           if (!options?.silent) {
-            setError('Order not found');
+            setError("Order not found");
           }
           updateConnectionState(true, false);
           return;
@@ -223,29 +221,29 @@ export function useTrackingSession(orderId: string): UseTrackingSessionResult {
 
         if (isTerminalOrder(nextOrder)) {
           terminalRef.current = true;
-          trackSessionTelemetry('poll_stopped', { reason: 'terminal' });
+          trackSessionTelemetry("poll_stopped", { reason: "terminal" });
         }
 
-        if (payload.assignment && assignmentMilestoneReached(assignmentRef.current, payload.assignment)) {
+        if (
+          payload.assignment &&
+          assignmentMilestoneReached(assignmentRef.current, payload.assignment)
+        ) {
           if (options?.playMilestoneSound) {
             const next = payload.assignment;
-            void playNotificationSound('delivery', {
-              eventId: `${next.id}-${next.picked_up_at ?? ''}-${next.started_delivery_at ?? ''}-${next.arrived_at ?? ''}-${next.delivered_at ?? ''}`,
+            void playNotificationSound("delivery", {
+              eventId: `${next.id}-${next.picked_up_at ?? ""}-${next.started_delivery_at ?? ""}-${next.arrived_at ?? ""}-${next.delivered_at ?? ""}`,
               orderId,
             });
           }
         }
 
-        if (payload.gps.mode === 'bootstrap' && payload.assignment?.id) {
-          const { locations: merged, stats } = mergeMonotonicLocations(
-            [],
-            payload.gps.trail,
-          );
+        if (payload.gps.mode === "bootstrap" && payload.assignment?.id) {
+          const { locations: merged, stats } = mergeMonotonicLocations([], payload.gps.trail);
           setLocations(merged);
           gpsBootstrappedForRef.current = payload.assignment.id;
           forceBootstrapRef.current = false;
-          trackSessionTelemetry('gps_merge', { ...stats, mode: 'bootstrap' });
-        } else if (payload.gps.mode === 'latest' && payload.gps.trail.length > 0) {
+          trackSessionTelemetry("gps_merge", { ...stats, mode: "bootstrap" });
+        } else if (payload.gps.mode === "latest" && payload.gps.trail.length > 0) {
           const { locations: merged, stats } = mergeMonotonicLocations(
             locationsRef.current,
             payload.gps.trail,
@@ -254,7 +252,7 @@ export function useTrackingSession(orderId: string): UseTrackingSessionResult {
           if (payload.assignment?.id) {
             gpsBootstrappedForRef.current = payload.assignment.id;
           }
-          trackSessionTelemetry('gps_merge', { ...stats, mode: 'latest' });
+          trackSessionTelemetry("gps_merge", { ...stats, mode: "latest" });
         } else if (!payload.assignment?.id) {
           setLocations([]);
           gpsBootstrappedForRef.current = null;
@@ -264,14 +262,14 @@ export function useTrackingSession(orderId: string): UseTrackingSessionResult {
         const now = new Date().toISOString();
         setLastPollAt(now);
         setPollCount((c) => c + 1);
-        trackSessionTelemetry('poll_completed', {
+        trackSessionTelemetry("poll_completed", {
           durationMs: Math.round(performance.now() - startedAt),
           gpsMode: payload.gps.mode,
         });
         updateConnectionState(false, false);
       } catch {
         if (!options?.silent) {
-          setError('Failed to load order');
+          setError("Failed to load order");
         }
         updateConnectionState(true, false);
       } finally {
@@ -311,15 +309,15 @@ export function useTrackingSession(orderId: string): UseTrackingSessionResult {
     }, TRACKING_POLL_INTERVAL_MS);
 
     const onVisible = () => {
-      if (document.visibilityState === 'visible' && !terminalRef.current) {
-        trackSessionTelemetry('poll_resumed', { reason: 'visibility' });
+      if (document.visibilityState === "visible" && !terminalRef.current) {
+        trackSessionTelemetry("poll_resumed", { reason: "visibility" });
         void runPollRef.current({ playMilestoneSound: true, silent: true });
       }
     };
 
     const onOnline = () => {
       if (!terminalRef.current) {
-        trackSessionTelemetry('poll_resumed', { reason: 'online' });
+        trackSessionTelemetry("poll_resumed", { reason: "online" });
         forceBootstrapRef.current = true;
         void runPollRef.current({
           playMilestoneSound: true,
@@ -329,16 +327,16 @@ export function useTrackingSession(orderId: string): UseTrackingSessionResult {
       }
     };
 
-    document.addEventListener('visibilitychange', onVisible);
-    window.addEventListener('online', onOnline);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", onOnline);
 
     return () => {
       if (pollTimerRef.current) {
         window.clearInterval(pollTimerRef.current);
         pollTimerRef.current = null;
       }
-      document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener('online', onOnline);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", onOnline);
     };
   }, [orderId]);
 

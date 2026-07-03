@@ -1,13 +1,15 @@
-import type { Metadata } from 'next';
+import type { Metadata } from "next";
+import { NOINDEX_ROBOTS } from "@/config/site-metadata";
 
 export const metadata: Metadata = {
-  title: 'Juco Driver',
-  description: 'Professional delivery driver application for Juco Cafe',
-  manifest: '/manifest-driver.json',
+  title: "Juco Driver",
+  description: "Professional delivery driver application for Juco Cafe",
+  robots: NOINDEX_ROBOTS,
+  manifest: "/manifest-driver.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'black-translucent',
-    title: 'Juco Driver',
+    statusBarStyle: "black-translucent",
+    title: "Juco Driver",
   },
 };
 

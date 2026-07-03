@@ -84,9 +84,7 @@ export function SuperAdminTopBar() {
   const pathname = usePathname();
   const { t } = useSuperAdminT();
   const current = SUPERADMIN_NAV_ITEMS.find((item) => item.match(pathname));
-  const currentLabel = current
-    ? t(NAV_KEY_MAP[current.id] ?? "nav.overview")
-    : t("shell.brand");
+  const currentLabel = current ? t(NAV_KEY_MAP[current.id] ?? "nav.overview") : t("shell.brand");
 
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-zinc-800 bg-zinc-950/90 px-4 backdrop-blur-md lg:pl-6">

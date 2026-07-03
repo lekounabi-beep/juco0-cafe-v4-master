@@ -25,9 +25,7 @@ type SuperAdminLocaleContextValue = {
   t: (key: SuperAdminMessageKey, values?: MessageValues) => string;
 };
 
-const SuperAdminLocaleContext = createContext<SuperAdminLocaleContextValue | null>(
-  null,
-);
+const SuperAdminLocaleContext = createContext<SuperAdminLocaleContextValue | null>(null);
 
 function readStoredLocale(): SuperAdminLocale {
   if (typeof window === "undefined") return "en";
@@ -49,20 +47,14 @@ export function SuperAdminLocaleProvider({ children }: { children: ReactNode }) 
   }, []);
 
   const t = useCallback(
-    (key: SuperAdminMessageKey, values?: MessageValues) =>
-      getMessage(locale, key, values),
+    (key: SuperAdminMessageKey, values?: MessageValues) => getMessage(locale, key, values),
     [locale],
   );
 
-  const value = useMemo(
-    () => ({ locale, setLocale, t }),
-    [locale, setLocale, t],
-  );
+  const value = useMemo(() => ({ locale, setLocale, t }), [locale, setLocale, t]);
 
   return (
-    <SuperAdminLocaleContext.Provider value={value}>
-      {children}
-    </SuperAdminLocaleContext.Provider>
+    <SuperAdminLocaleContext.Provider value={value}>{children}</SuperAdminLocaleContext.Provider>
   );
 }
 

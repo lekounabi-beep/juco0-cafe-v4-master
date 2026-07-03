@@ -4,7 +4,7 @@
  * «Έναρξη» (in_transit) is applied automatically after pickup — not shown in UI.
  */
 
-import { Package, CheckCircle2, Loader2 } from 'lucide-react';
+import { Package, CheckCircle2, Loader2 } from "lucide-react";
 
 interface DeliveryActionsProps {
   status: string;
@@ -23,16 +23,16 @@ export function DeliveryActions({
 }: DeliveryActionsProps) {
   const actions = [
     {
-      key: 'picked_up',
-      label: 'Παραλαβή',
+      key: "picked_up",
+      label: "Παραλαβή",
       icon: Package,
-      allowed: status === 'assigned',
+      allowed: status === "assigned",
     },
     {
-      key: 'delivered',
-      label: 'Παράδοση',
+      key: "delivered",
+      label: "Παράδοση",
       icon: CheckCircle2,
-      allowed: status === 'picked_up' || status === 'in_transit' || status === 'arrived',
+      allowed: status === "picked_up" || status === "in_transit" || status === "arrived",
     },
   ];
 
@@ -48,8 +48,8 @@ export function DeliveryActions({
 
   const Icon = currentAction.icon;
   const busy =
-    (isPickingUp && currentAction.key === 'picked_up') ||
-    (actionLoading && currentAction.key !== 'picked_up');
+    (isPickingUp && currentAction.key === "picked_up") ||
+    (actionLoading && currentAction.key !== "picked_up");
 
   return (
     <button
@@ -57,15 +57,11 @@ export function DeliveryActions({
       disabled={busy}
       onClick={() => onAction(currentAction.key)}
       className={`flex w-full min-h-[52px] items-center justify-center gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-[var(--shadow-glow)] transition hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-60 ${
-        sticky ? 'text-base' : 'h-14'
+        sticky ? "text-base" : "h-14"
       }`}
     >
-      {busy ? (
-        <Loader2 className="h-5 w-5 animate-spin" />
-      ) : (
-        <Icon className="h-5 w-5" />
-      )}
-      {busy ? 'Παρακαλώ περιμένετε...' : currentAction.label}
+      {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Icon className="h-5 w-5" />}
+      {busy ? "Παρακαλώ περιμένετε..." : currentAction.label}
     </button>
   );
 }

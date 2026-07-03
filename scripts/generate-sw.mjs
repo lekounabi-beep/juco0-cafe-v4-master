@@ -1,12 +1,12 @@
 /**
  * Generates public/sw.js — customer + driver PWA caching (no third-party frameworks).
  */
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const root = path.join(__dirname, '..');
+const root = path.join(__dirname, "..");
 
 const swSource = `// AUTO-GENERATED — customer SWR + image cache + driver shell offline fallback
 const SHELL_CACHE = "juco-shell-v1";
@@ -160,5 +160,5 @@ self.addEventListener("fetch", (event) => {
 });
 `;
 
-fs.writeFileSync(path.join(root, 'public', 'sw.js'), swSource, 'utf8');
-console.log('[generate-sw] Wrote customer + driver sw.js');
+fs.writeFileSync(path.join(root, "public", "sw.js"), swSource, "utf8");
+console.log("[generate-sw] Wrote customer + driver sw.js");

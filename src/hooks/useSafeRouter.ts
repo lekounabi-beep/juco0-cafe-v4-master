@@ -1,13 +1,18 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import { devLog } from '@/shared/utils/dev-log';
+import { useCallback, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { devLog } from "@/shared/utils/dev-log";
 
-type SafeRouterAction = 'push' | 'replace';
+type SafeRouterAction = "push" | "replace";
 
-function logRouterAction(action: SafeRouterAction, route: string, mounted: boolean, ready: boolean) {
-  devLog.log('[ROUTER SAFE]', {
+function logRouterAction(
+  action: SafeRouterAction,
+  route: string,
+  mounted: boolean,
+  ready: boolean,
+) {
+  devLog.log("[ROUTER SAFE]", {
     action,
     route,
     mounted,
@@ -16,7 +21,7 @@ function logRouterAction(action: SafeRouterAction, route: string, mounted: boole
 }
 
 function fallbackNavigate(route: string) {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
   window.location.assign(route);
 }
 
@@ -50,28 +55,28 @@ export function useSafeRouter() {
       logRouterAction(action, url, mounted, ready);
 
       if (!mounted || !ready) {
-        devLog.warn('[ROUTER SAFE] blocked — router not ready', { action, url, mounted, ready });
+        devLog.warn("[ROUTER SAFE] blocked — router not ready", { action, url, mounted, ready });
         return false;
       }
 
       try {
-        if (action === 'push') {
+        if (action === "push") {
           router.push(url);
         } else {
           router.replace(url);
         }
         return true;
       } catch (error) {
-        console.error('[ROUTER SAFE] navigation failed, using location.assign', error);
+        console.error("[ROUTER SAFE] navigation failed, using location.assign", error);
         fallbackNavigate(url);
         return true;
       }
     },
-    [router]
+    [router],
   );
 
-  const push = useCallback((url: string) => run('push', url), [run]);
-  const replace = useCallback((url: string) => run('replace', url), [run]);
+  const push = useCallback((url: string) => run("push", url), [run]);
+  const replace = useCallback((url: string) => run("replace", url), [run]);
 
   const navigateWhenReady = useCallback(
     (action: SafeRouterAction, url: string) => {
@@ -94,17 +99,17 @@ export function useSafeRouter() {
 
       attempt(0);
     },
-    [run]
+    [run],
   );
 
   const pushWhenReady = useCallback(
-    (url: string) => navigateWhenReady('push', url),
-    [navigateWhenReady]
+    (url: string) => navigateWhenReady("push", url),
+    [navigateWhenReady],
   );
 
   const replaceWhenReady = useCallback(
-    (url: string) => navigateWhenReady('replace', url),
-    [navigateWhenReady]
+    (url: string) => navigateWhenReady("replace", url),
+    [navigateWhenReady],
   );
 
   return {

@@ -27,7 +27,9 @@ function encode(payload: OrderAccessPayload): string {
 
 function decode(body: string): OrderAccessPayload | null {
   try {
-    const parsed = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as OrderAccessPayload;
+    const parsed = JSON.parse(
+      Buffer.from(body, "base64url").toString("utf8"),
+    ) as OrderAccessPayload;
     if (!parsed.orderId || !parsed.exp) return null;
     return parsed;
   } catch {

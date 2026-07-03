@@ -3,12 +3,16 @@
  * Production-grade GPS tracking with battery optimization and accuracy filtering
  */
 
-import type { Coordinates } from '@/shared/types/common.types';
-import { createLocationFilter, type LocationUpdate, type FilterConfig } from './location-filter.service';
-import { createSpeedTracker, calculateSpeed, type SpeedTracker } from './speed.service';
-import { recordDriverLocationWithOffline } from '@/features/delivery/services/driver-offline-actions';
-import { isUUID } from '@/shared/utils/uuid';
-import { forensicCoord, forensicLog } from '@/features/maps/debug/map-forensic-logger';
+import type { Coordinates } from "@/shared/types/common.types";
+import {
+  createLocationFilter,
+  type LocationUpdate,
+  type FilterConfig,
+} from "./location-filter.service";
+import { createSpeedTracker, calculateSpeed, type SpeedTracker } from "./speed.service";
+import { recordDriverLocationWithOffline } from "@/features/delivery/services/driver-offline-actions";
+import { isUUID } from "@/shared/utils/uuid";
+import { forensicCoord, forensicLog } from "@/features/maps/debug/map-forensic-logger";
 
 export interface GPSConfig {
   updateInterval: number; // Minimum time between updates in ms (default: 15s)
@@ -86,7 +90,7 @@ export class GPSService {
   async startTracking(
     deliveryId: string,
     driverId: string,
-    options: StartTrackingOptions = {}
+    options: StartTrackingOptions = {},
   ): Promise<void> {
     if (this.isTracking) {
       if (this.deliveryId === deliveryId && this.driverId === driverId) {
@@ -96,17 +100,17 @@ export class GPSService {
     }
 
     if (!isGeolocationSupported()) {
-      this.callbacks.onError?.(new Error('Geolocation not supported'));
+      this.callbacks.onError?.(new Error("Geolocation not supported"));
       return;
     }
 
     if (!options.skipPermissionRequest) {
       const permission = await this.requestPermission();
-      if (permission === 'unsupported') {
-        this.callbacks.onError?.(new Error('Geolocation not supported'));
+      if (permission === "unsupported") {
+        this.callbacks.onError?.(new Error("Geolocation not supported"));
         return;
       }
-      if (permission === 'denied') {
+      if (permission === "denied") {
         this.callbacks.onPermissionDenied?.();
         return;
       }
@@ -126,7 +130,7 @@ export class GPSService {
           enableHighAccuracy: this.config.enableHighAccuracy,
           timeout: this.config.timeout,
           maximumAge: this.config.maximumAge,
-        }
+        },
       );
 
       this.callbacks.onTrackingStarted?.();
@@ -177,7 +181,7 @@ export class GPSService {
       calculatedSpeed = calculateSpeed(
         this.lastCoordinates,
         coordinates,
-        timestamp - this.lastTimestamp
+        timestamp - this.lastTimestamp,
       );
     }
 
@@ -185,12 +189,7 @@ export class GPSService {
     this.lastCoordinates = coordinates;
     this.lastTimestamp = timestamp;
 
-    if (
-      this.deliveryId &&
-      this.driverId &&
-      isUUID(this.deliveryId) &&
-      isUUID(this.driverId)
-    ) {
+    if (this.deliveryId && this.driverId && isUUID(this.deliveryId) && isUUID(this.driverId)) {
       void recordDriverLocationWithOffline(this.deliveryId, this.driverId, {
         lat: coordinates.lat,
         lng: coordinates.lng,
@@ -207,7 +206,7 @@ export class GPSService {
       ...update,
       speed: calculatedSpeed,
     });
-    forensicLog('driver', 'gps', 'device_accepted', {
+    forensicLog("driver", "gps", "device_accepted", {
       coord: forensicCoord(coordinates.lat, coordinates.lng),
       heading: heading || 0,
       accuracy,
@@ -219,7 +218,7 @@ export class GPSService {
     const update = this.positionToUpdate(position);
     const accepted = this.locationFilter.shouldAcceptUpdate(update);
     if (!accepted) {
-      forensicLog('driver', 'gps', 'device_filtered', {
+      forensicLog("driver", "gps", "device_filtered", {
         coord: forensicCoord(update.coordinates.lat, update.coordinates.lng),
         accuracy: update.accuracy,
       });
@@ -253,7 +252,7 @@ export class GPSService {
           enableHighAccuracy: this.config.enableHighAccuracy,
           timeout: this.config.timeout,
           maximumAge: 0,
-        }
+        },
       );
     });
   }
@@ -282,7 +281,7 @@ export class GPSService {
       return;
     }
 
-    console.error('[GPSService] Position error:', error);
+    console.error("[GPSService] Position error:", error);
     const errorMessage = this.getErrorMessage(error);
     this.callbacks.onError?.(new Error(errorMessage));
   }
@@ -293,13 +292,13 @@ export class GPSService {
   private getErrorMessage(error: GeolocationPositionError): string {
     switch (error.code) {
       case error.PERMISSION_DENIED:
-        return 'Location permission denied';
+        return "Location permission denied";
       case error.POSITION_UNAVAILABLE:
-        return 'Location unavailable';
+        return "Location unavailable";
       case error.TIMEOUT:
-        return 'Location request timeout';
+        return "Location request timeout";
       default:
-        return 'Unknown location error';
+        return "Unknown location error";
     }
   }
 
@@ -340,18 +339,18 @@ export class GPSService {
  */
 export function createGPSService(
   config?: Partial<GPSConfig>,
-  callbacks?: GPSCallbacks
+  callbacks?: GPSCallbacks,
 ): GPSService {
   return new GPSService(config, callbacks);
 }
 
-export type GeolocationPermissionResult = 'granted' | 'denied' | 'unsupported';
+export type GeolocationPermissionResult = "granted" | "denied" | "unsupported";
 
 /**
  * Check if geolocation is supported
  */
 export function isGeolocationSupported(): boolean {
-  return typeof navigator !== 'undefined' && 'geolocation' in navigator;
+  return typeof navigator !== "undefined" && "geolocation" in navigator;
 }
 
 /**
@@ -360,14 +359,14 @@ export function isGeolocationSupported(): boolean {
  */
 export async function requestGeolocationPermission(): Promise<GeolocationPermissionResult> {
   if (!isGeolocationSupported()) {
-    return 'unsupported';
+    return "unsupported";
   }
 
-  if ('permissions' in navigator) {
+  if ("permissions" in navigator) {
     try {
-      const result = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
-      if (result.state === 'granted') return 'granted';
-      if (result.state === 'denied') return 'denied';
+      const result = await navigator.permissions.query({ name: "geolocation" as PermissionName });
+      if (result.state === "granted") return "granted";
+      if (result.state === "denied") return "denied";
     } catch {
       // fall through to getCurrentPosition prompt
     }
@@ -375,16 +374,16 @@ export async function requestGeolocationPermission(): Promise<GeolocationPermiss
 
   return new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
-      () => resolve('granted'),
+      () => resolve("granted"),
       (error) => {
         if (error.code === error.PERMISSION_DENIED) {
-          resolve('denied');
+          resolve("denied");
         } else {
           // Timeout/unavailable — permission may still be granted
-          resolve('granted');
+          resolve("granted");
         }
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
     );
   });
 }

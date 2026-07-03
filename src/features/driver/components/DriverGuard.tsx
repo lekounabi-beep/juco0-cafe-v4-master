@@ -1,12 +1,9 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import {
-  clearDriverSession,
-  getDriverSession,
-} from '@/lib/auth/driver-session';
-import { verifyDriverSession } from '../../../../app/actions/driver-login';
-import { isUUID } from '@/shared/utils/uuid';
+import { useEffect, useState } from "react";
+import { clearDriverSession, getDriverSession } from "@/lib/auth/driver-session";
+import { verifyDriverSession } from "../../../../app/actions/driver-login";
+import { isUUID } from "@/shared/utils/uuid";
 
 function hardRedirect(url: string): void {
   window.location.replace(url);
@@ -32,14 +29,14 @@ export function DriverGuard({ children }: { children: React.ReactNode }) {
 
     if (!session || !isUUID(session.driver_id)) {
       clearDriverSession();
-      hardRedirect('/driver/login');
+      hardRedirect("/driver/login");
       return;
     }
 
     verifyDriverSession().then((ok) => {
       if (!ok) {
         clearDriverSession();
-        hardRedirect('/driver/login');
+        hardRedirect("/driver/login");
         return;
       }
       setReady(true);

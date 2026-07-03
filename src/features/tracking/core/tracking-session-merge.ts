@@ -6,8 +6,8 @@
 import {
   parseDeliveryLocationRow,
   shouldAcceptLocationRow,
-} from '@/features/delivery/core/compute-delivery-state';
-import type { DeliveryLocationRow } from '@/features/delivery/core/delivery-state.types';
+} from "@/features/delivery/core/compute-delivery-state";
+import type { DeliveryLocationRow } from "@/features/delivery/core/delivery-state.types";
 
 export type GpsMergeStats = {
   incoming: number;
@@ -33,9 +33,7 @@ export function mergeMonotonicLocations(
 
   const sorted = [...existing];
   let lastMs: number | null =
-    sorted.length > 0
-      ? new Date(sorted[sorted.length - 1]!.recorded_at).getTime()
-      : null;
+    sorted.length > 0 ? new Date(sorted[sorted.length - 1]!.recorded_at).getTime() : null;
 
   for (const raw of incoming) {
     const row = toDeliveryRow(raw);
@@ -52,9 +50,7 @@ export function mergeMonotonicLocations(
     stats.accepted += 1;
   }
 
-  sorted.sort(
-    (a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime(),
-  );
+  sorted.sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime());
 
   stats.total = sorted.length;
   return { locations: sorted, stats };

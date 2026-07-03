@@ -2,7 +2,7 @@
  * Authentication types
  */
 
-import type { User, Session } from '@supabase/supabase-js';
+import type { User, Session } from "@supabase/supabase-js";
 
 export interface AuthState {
   user: User | null;

@@ -1,15 +1,11 @@
-'use client';
+"use client";
 
-import { useEffect, useRef } from 'react';
-import { toast } from 'sonner';
-import {
-  applyPwaUpdate,
-  isPwaReloadBlocked,
-  noteWaitingPwaWorker,
-} from '@/lib/pwa-update-guard';
+import { useEffect, useRef } from "react";
+import { toast } from "sonner";
+import { applyPwaUpdate, isPwaReloadBlocked, noteWaitingPwaWorker } from "@/lib/pwa-update-guard";
 
 const UPDATE_CHECK_MS = 60 * 60 * 1000;
-const UPDATE_TOAST_ID = 'pwa-update-prompt';
+const UPDATE_TOAST_ID = "pwa-update-prompt";
 
 /**
  * Registers SW in production. Shows an update prompt — never auto-reloads on focus.
@@ -20,12 +16,12 @@ export function usePWAUpdate() {
   const promptShown = useRef(false);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
       return;
     }
 
     // Dev / tunnel: SW + stale caches are cleared by PwaDevCleanup before React loads.
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === "development") {
       return;
     }
 
@@ -40,12 +36,12 @@ export function usePWAUpdate() {
       runReload();
     };
 
-    navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
+    navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
 
     const onUpdateApplied = () => {
       pendingReload.current = true;
     };
-    window.addEventListener('pwa:update-applied', onUpdateApplied);
+    window.addEventListener("pwa:update-applied", onUpdateApplied);
 
     const promptForUpdate = (worker: ServiceWorker) => {
       noteWaitingPwaWorker(worker);
@@ -53,7 +49,7 @@ export function usePWAUpdate() {
       if (isPwaReloadBlocked()) {
         if (promptShown.current) return;
         promptShown.current = true;
-        toast.info('Νέα έκδοση — θα εγκατασταθεί μετά την παράδοση', {
+        toast.info("Νέα έκδοση — θα εγκατασταθεί μετά την παράδοση", {
           id: UPDATE_TOAST_ID,
           duration: 8000,
         });
@@ -63,21 +59,21 @@ export function usePWAUpdate() {
       if (promptShown.current) return;
       promptShown.current = true;
 
-      toast.info('Νέα έκδοση διαθέσιμη', {
+      toast.info("Νέα έκδοση διαθέσιμη", {
         id: UPDATE_TOAST_ID,
-        description: 'Πάτα Ενημέρωση για να εγκατασταθεί η νέα έκδοση.',
+        description: "Πάτα Ενημέρωση για να εγκατασταθεί η νέα έκδοση.",
         duration: Infinity,
         action: {
-          label: 'Ενημέρωση',
+          label: "Ενημέρωση",
           onClick: () => {
             pendingReload.current = true;
             const outcome = applyPwaUpdate();
-            if (outcome === 'deferred') {
+            if (outcome === "deferred") {
               pendingReload.current = false;
-              toast.info('Θα ενημερωθεί μετά την παράδοση');
+              toast.info("Θα ενημερωθεί μετά την παράδοση");
               return;
             }
-            if (outcome === 'none') {
+            if (outcome === "none") {
               pendingReload.current = false;
             }
           },
@@ -89,8 +85,8 @@ export function usePWAUpdate() {
       const worker = registration.installing;
       if (!worker) return;
 
-      worker.addEventListener('statechange', () => {
-        if (worker.state !== 'installed') return;
+      worker.addEventListener("statechange", () => {
+        if (worker.state !== "installed") return;
         if (!navigator.serviceWorker.controller) return;
         promptForUpdate(worker);
       });
@@ -98,15 +94,15 @@ export function usePWAUpdate() {
 
     const register = async () => {
       try {
-        const registration = await navigator.serviceWorker.register('/sw.js', {
-          updateViaCache: 'none',
+        const registration = await navigator.serviceWorker.register("/sw.js", {
+          updateViaCache: "none",
         });
 
         if (registration.waiting && navigator.serviceWorker.controller) {
           promptForUpdate(registration.waiting);
         }
 
-        registration.addEventListener('updatefound', () => {
+        registration.addEventListener("updatefound", () => {
           watchInstallingWorker(registration);
         });
 
@@ -125,8 +121,8 @@ export function usePWAUpdate() {
     }, UPDATE_CHECK_MS);
 
     return () => {
-      navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
-      window.removeEventListener('pwa:update-applied', onUpdateApplied);
+      navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+      window.removeEventListener("pwa:update-applied", onUpdateApplied);
       window.clearInterval(intervalId);
       toast.dismiss(UPDATE_TOAST_ID);
     };

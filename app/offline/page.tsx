@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { useCallback } from 'react';
-import { Home, RefreshCw, WifiOff } from 'lucide-react';
-import { EspressoBackground } from '@/components/EspressoBackground';
-import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import Link from "next/link";
+import { useCallback } from "react";
+import { Home, RefreshCw, WifiOff } from "lucide-react";
+import { EspressoBackground } from "@/components/EspressoBackground";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 
 export default function OfflinePage() {
   const { isOnline } = useNetworkStatus();
 
   const handleRetry = useCallback(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       window.location.reload();
     }
   }, []);
@@ -27,8 +27,8 @@ export default function OfflinePage() {
           <h1 className="font-display text-xl font-semibold text-white">You&apos;re offline</h1>
           <p className="mt-2 text-sm text-white/65">
             {isOnline
-              ? 'Connection restored — you can head back to the menu.'
-              : 'Check your connection and try again.'}
+              ? "Connection restored — you can head back to the menu."
+              : "Check your connection and try again."}
           </p>
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">

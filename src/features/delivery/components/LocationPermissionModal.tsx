@@ -2,7 +2,7 @@
  * Prompts the driver to enable location before pickup / during delivery.
  */
 
-import { MapPin } from 'lucide-react';
+import { MapPin } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +10,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 
 interface LocationPermissionModalProps {
   open: boolean;
@@ -18,7 +18,11 @@ interface LocationPermissionModalProps {
   onRetry: () => void;
 }
 
-export function LocationPermissionModal({ open, onOpenChange, onRetry }: LocationPermissionModalProps) {
+export function LocationPermissionModal({
+  open,
+  onOpenChange,
+  onRetry,
+}: LocationPermissionModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">

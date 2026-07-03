@@ -1,57 +1,77 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
-import { storeLocation } from '@/config/map-defaults';
-import { cn } from '@/lib/utils';
-import { liveTrackingMapboxConfig } from '../config/mapbox';
+import { useEffect, useMemo, useRef, useState } from "react";
+import type mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
+import { storeLocation } from "@/config/map-defaults";
+import { attachJucoCafeMarker } from "@/features/maps/juco-cafe-mapbox-marker";
+import { isValidLatLng, normalizeCoordinates } from "@/shared/utils/coordinates";
+import { cn } from "@/lib/utils";
+import { liveTrackingMapboxConfig } from "../config/mapbox";
 import {
   isTrailRenderable,
   toDriverTrailGeoJson,
   trailLayerDataKey,
   trailPointsSignature,
   type TrailPoint,
-} from '../utils/driver-trail-geojson';
+} from "../utils/driver-trail-geojson";
 import {
   ensureDriverTrailLayer,
   removeDriverTrailLayer,
   updateDriverTrailLayer,
-} from '../utils/driver-trail-mapbox';
-import {
-  trackV2,
-  type TrackingV2TelemetryContext,
-} from '../telemetry/tracking-v2-telemetry';
+} from "../utils/driver-trail-mapbox";
+import { trackV2, type TrackingV2TelemetryContext } from "../telemetry/tracking-v2-telemetry";
 
 export type DriverLiveMapProps = {
   destination?: { lat: number; lng: number } | null;
   driverLocation?: { lat: number; lng: number };
-  storeLocation?: { lat: number; lng: number } | null;
   routePoints?: TrailPoint[];
   showDriverTrail?: boolean;
   className?: string;
   telemetryContext?: TrackingV2TelemetryContext;
-  onMapStatusChange?: (status: 'loading' | 'ready' | 'error') => void;
+  onMapStatusChange?: (status: "loading" | "ready" | "error") => void;
 };
 
-type MapboxModule = typeof import('mapbox-gl');
+type MapboxModule = typeof import("mapbox-gl");
 
 type LatLng = { lat: number; lng: number };
 
 function isValidCoord(point: LatLng | null | undefined): point is LatLng {
-  if (!point) return false;
-  return Number.isFinite(point.lat) && Number.isFinite(point.lng);
+  return isValidLatLng(normalizeCoordinates(point));
+}
+
+function resolveSafeCoord(point: LatLng | null | undefined): LatLng | null {
+  return normalizeCoordinates(point);
+}
+
+function resolveMapboxMarkerCtor(mapbox: MapboxModule): typeof mapboxgl.Marker {
+  return mapbox.default.Marker;
+}
+
+function logDriverLiveMapMarkers(
+  phase: string,
+  payload: {
+    driver?: LatLng | null;
+    destination?: LatLng | null;
+    cafe?: LatLng | null;
+    markerCount: number;
+  },
+): void {
+  if (process.env.NODE_ENV !== "development") return;
+  console.info(`[DriverLiveMap] ${phase}`, payload);
 }
 
 function resolveMapCenter(destination?: LatLng | null, driverLocation?: LatLng | null): LatLng {
-  if (isValidCoord(destination)) return destination;
-  if (isValidCoord(driverLocation)) return driverLocation;
+  const safeDestination = resolveSafeCoord(destination);
+  if (safeDestination) return safeDestination;
+  const safeDriver = resolveSafeCoord(driverLocation);
+  if (safeDriver) return safeDriver;
   return storeLocation;
 }
 
 function createDestinationMarkerElement(): HTMLDivElement {
-  const el = document.createElement('div');
-  el.setAttribute('aria-label', 'Destination');
+  const el = document.createElement("div");
+  el.setAttribute("aria-label", "Destination");
   el.innerHTML = `
     <div style="
       width: 28px;
@@ -67,8 +87,8 @@ function createDestinationMarkerElement(): HTMLDivElement {
 }
 
 function createDriverMarkerElement(): HTMLDivElement {
-  const el = document.createElement('div');
-  el.setAttribute('aria-label', 'Driver');
+  const el = document.createElement("div");
+  el.setAttribute("aria-label", "Driver");
   el.innerHTML = `
     <div style="
       width: 22px;
@@ -82,56 +102,57 @@ function createDriverMarkerElement(): HTMLDivElement {
   return el;
 }
 
-function createStoreMarkerElement(): HTMLDivElement {
-  const el = document.createElement('div');
-  el.setAttribute('aria-label', 'Store');
-  el.innerHTML = `
-    <div style="
-      width: 24px;
-      height: 24px;
-      border-radius: 6px;
-      background: #3b82f6;
-      border: 2px solid #fff;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.45);
-    "></div>
-  `;
-  return el;
-}
-
-function collectFitPoints(
-  destination?: LatLng | null,
-  driverLocation?: LatLng | null,
-  storeLocationPoint?: LatLng | null,
-): LatLng[] {
-  const points: LatLng[] = [];
-  if (isValidCoord(storeLocationPoint)) points.push(storeLocationPoint);
+function collectFitPoints(destination?: LatLng | null, driverLocation?: LatLng | null): LatLng[] {
+  const points: LatLng[] = [storeLocation];
   if (isValidCoord(destination)) points.push(destination);
   if (isValidCoord(driverLocation)) points.push(driverLocation);
   return points;
 }
 
-function mapCoordsFingerprint(
-  destination?: LatLng | null,
-  driverLocation?: LatLng | null,
-  storeLocationPoint?: LatLng | null,
-): string {
-  const store = isValidCoord(storeLocationPoint)
-    ? `${storeLocationPoint.lat},${storeLocationPoint.lng}`
-    : 'none';
-  const dest = isValidCoord(destination)
-    ? `${destination.lat},${destination.lng}`
-    : 'none';
+function mapCoordsFingerprint(destination?: LatLng | null, driverLocation?: LatLng | null): string {
+  const dest = isValidCoord(destination) ? `${destination.lat},${destination.lng}` : "none";
   const driver = isValidCoord(driverLocation)
     ? `${driverLocation.lat},${driverLocation.lng}`
-    : 'none';
-  return `${store}|${dest}|${driver}`;
+    : "none";
+  return `${dest}|${driver}`;
+}
+
+const FIT_BOUNDS_THROTTLE_MS = 5000;
+
+function splitMapCoordsFingerprint(fingerprint: string): { dest: string; driver: string } {
+  const separator = fingerprint.indexOf("|");
+  if (separator === -1) {
+    return { dest: fingerprint, driver: "none" };
+  }
+
+  return {
+    dest: fingerprint.slice(0, separator),
+    driver: fingerprint.slice(separator + 1),
+  };
+}
+
+function shouldFitMapBounds(
+  nextFingerprint: string,
+  previousFingerprint: string | null,
+  lastFitAtMs: number,
+  isInitialFit: boolean,
+): boolean {
+  if (isInitialFit) return true;
+  if (!previousFingerprint) return true;
+
+  const previous = splitMapCoordsFingerprint(previousFingerprint);
+  const next = splitMapCoordsFingerprint(nextFingerprint);
+
+  if (previous.dest !== next.dest) return true;
+
+  return Date.now() - lastFitAtMs >= FIT_BOUNDS_THROTTLE_MS;
 }
 
 function fitMapToPoints(
   map: mapboxgl.Map,
   mapbox: MapboxModule,
   points: LatLng[],
-  animate: boolean
+  animate: boolean,
 ): void {
   const padding = liveTrackingMapboxConfig.fitPadding;
   const duration = animate ? 450 : 0;
@@ -173,7 +194,6 @@ function fitMapToPoints(
 export function DriverLiveMap({
   destination,
   driverLocation,
-  storeLocation: storeLocationProp,
   routePoints = [],
   showDriverTrail = false,
   className,
@@ -184,20 +204,19 @@ export function DriverLiveMap({
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const mapboxRef = useRef<MapboxModule | null>(null);
   const destinationMarkerRef = useRef<mapboxgl.Marker | null>(null);
-  const storeMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const cafeMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const driverMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const hasFittedRef = useRef(false);
   const lastMapCoordsFingerprintRef = useRef<string | null>(null);
+  const lastFitBoundsAtRef = useRef(0);
 
-  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const destinationRef = useRef(destination);
   const driverLocationRef = useRef(driverLocation);
-  const storeLocationRef = useRef(storeLocationProp);
   destinationRef.current = destination;
   driverLocationRef.current = driverLocation;
-  storeLocationRef.current = storeLocationProp;
 
   const stableTrailPointsRef = useRef(routePoints);
   const trailSignature = trailPointsSignature(routePoints);
@@ -208,30 +227,27 @@ export function DriverLiveMap({
   }
   const stableTrailPoints = stableTrailPointsRef.current;
 
-  const trailGeoJson = useMemo(
-    () => toDriverTrailGeoJson(stableTrailPoints),
-    [trailSignature],
-  );
+  const trailGeoJson = useMemo(() => toDriverTrailGeoJson(stableTrailPoints), [trailSignature]);
 
   const telemetryPayload = (extra?: Record<string, unknown>) => ({
     assignmentId: telemetryContext?.assignmentId ?? null,
-    surface: telemetryContext?.surface ?? 'driver',
+    surface: telemetryContext?.surface ?? "driver",
     destinationPresent: isValidCoord(destination ?? undefined),
     driverPresent: isValidCoord(driverLocation),
     ...extra,
   });
 
   useEffect(() => {
-    trackV2('mounted', telemetryPayload());
+    trackV2("mounted", telemetryPayload());
     return () => {
-      trackV2('unmounted', telemetryPayload());
+      trackV2("unmounted", telemetryPayload());
     };
   }, []);
 
   useEffect(() => {
     onMapStatusChange?.(status);
-    if (status === 'ready') {
-      trackV2('ready', telemetryPayload());
+    if (status === "ready") {
+      trackV2("ready", telemetryPayload());
     }
   }, [status, onMapStatusChange]);
 
@@ -242,7 +258,7 @@ export function DriverLiveMap({
     let cancelled = false;
     let map: mapboxgl.Map | null = null;
     let destinationMarker: mapboxgl.Marker | null = null;
-    let storeMarker: mapboxgl.Marker | null = null;
+    let cafeMarker: mapboxgl.Marker | null = null;
     let driverMarker: mapboxgl.Marker | null = null;
     let rafId: number | null = null;
 
@@ -260,8 +276,8 @@ export function DriverLiveMap({
           if (performance.now() - startedAt > 5000) {
             reject(
               new Error(
-                `Map container has no size (${Math.round(rect.width)}×${Math.round(rect.height)})`
-              )
+                `Map container has no size (${Math.round(rect.width)}×${Math.round(rect.height)})`,
+              ),
             );
             return;
           }
@@ -273,18 +289,18 @@ export function DriverLiveMap({
 
     void (async () => {
       try {
-        setStatus('loading');
+        setStatus("loading");
         setErrorMessage(null);
 
         const token = liveTrackingMapboxConfig.accessToken;
         if (!token) {
           throw new Error(
-            'NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN is required (same as checkout address map)'
+            "NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN is required (same as checkout address map)",
           );
         }
 
-        trackV2('map_load', telemetryPayload({ phase: 'importing' }));
-        const mapbox = await import('mapbox-gl');
+        trackV2("map_load", telemetryPayload({ phase: "importing" }));
+        const mapbox = await import("mapbox-gl");
         if (cancelled) return;
 
         mapboxRef.current = mapbox;
@@ -292,20 +308,20 @@ export function DriverLiveMap({
         await waitForContainerSize();
         if (cancelled) return;
 
-        trackV2('map_load', telemetryPayload({
-          phase: 'container_ready',
-          width: container.clientWidth,
-          height: container.clientHeight,
-        }));
+        trackV2(
+          "map_load",
+          telemetryPayload({
+            phase: "container_ready",
+            width: container.clientWidth,
+            height: container.clientHeight,
+          }),
+        );
 
         mapbox.default.accessToken = token;
 
-        const initialCenter = resolveMapCenter(
-          destinationRef.current,
-          driverLocationRef.current
-        );
+        const initialCenter = resolveMapCenter(destinationRef.current, driverLocationRef.current);
 
-        trackV2('map_load', telemetryPayload({ phase: 'creating_map' }));
+        trackV2("map_load", telemetryPayload({ phase: "creating_map" }));
         map = new mapbox.default.Map({
           container,
           style: liveTrackingMapboxConfig.style,
@@ -318,89 +334,95 @@ export function DriverLiveMap({
 
         mapRef.current = map;
 
-        map.on('error', (event) => {
+        map.on("error", (event) => {
           if (cancelled) return;
-          const message = event.error?.message ?? 'Mapbox map failed to load';
-          trackV2('map_error', telemetryPayload({ message }));
+          const message = event.error?.message ?? "Mapbox map failed to load";
+          trackV2("map_error", telemetryPayload({ message }));
           setErrorMessage(message);
-          setStatus('error');
+          setStatus("error");
         });
 
         const onMapReady = () => {
           if (cancelled || !map) return;
 
-          trackV2('map_load', telemetryPayload({ phase: 'map_ready' }));
+          trackV2("map_load", telemetryPayload({ phase: "map_ready" }));
 
           map.resize();
 
           ensureDriverTrailLayer(map);
 
-          const dest = destinationRef.current;
-          const store = storeLocationRef.current;
-          if (isValidCoord(store)) {
-            storeMarker = new mapbox.default.Marker({
-              element: createStoreMarkerElement(),
-              anchor: 'center',
-            })
-              .setLngLat([store.lng, store.lat])
-              .addTo(map);
-            storeMarkerRef.current = storeMarker;
-          }
+          cafeMarker = attachJucoCafeMarker(map, mapbox);
+          cafeMarkerRef.current = cafeMarker;
 
-          if (isValidCoord(dest)) {
-            destinationMarker = new mapbox.default.Marker({
+          const dest = resolveSafeCoord(destinationRef.current);
+          const MarkerCtor = resolveMapboxMarkerCtor(mapbox);
+
+          if (dest) {
+            destinationMarker = new MarkerCtor({
               element: createDestinationMarkerElement(),
-              anchor: 'bottom',
+              anchor: "bottom",
             })
               .setLngLat([dest.lng, dest.lat])
               .addTo(map);
             destinationMarkerRef.current = destinationMarker;
           }
 
-          const currentDriver = driverLocationRef.current;
-          const safeDriverLocation = isValidCoord(currentDriver) ? currentDriver : null;
+          const safeDriverLocation = resolveSafeCoord(driverLocationRef.current);
           if (safeDriverLocation) {
-            driverMarker = new mapbox.default.Marker({
+            driverMarker = new MarkerCtor({
               element: createDriverMarkerElement(),
-              anchor: 'center',
+              anchor: "center",
             })
               .setLngLat([safeDriverLocation.lng, safeDriverLocation.lat])
               .addTo(map);
             driverMarkerRef.current = driverMarker;
           }
 
-          const points = collectFitPoints(dest, safeDriverLocation, store);
+          const points = collectFitPoints(dest, safeDriverLocation);
           fitMapToPoints(map, mapbox, points, false);
           hasFittedRef.current = true;
+          lastFitBoundsAtRef.current = Date.now();
+          lastMapCoordsFingerprintRef.current = mapCoordsFingerprint(dest, safeDriverLocation);
 
-          setStatus('ready');
+          logDriverLiveMapMarkers("ready", {
+            driver: safeDriverLocation,
+            destination: dest,
+            cafe: storeLocation,
+            markerCount: points.length,
+          });
+
+          setStatus("ready");
         };
 
-        map.once('load', onMapReady);
-        map.once('remove', () => {
-          trackV2('map_remove', telemetryPayload());
+        if (map.loaded()) {
+          onMapReady();
+        } else {
+          map.once("load", onMapReady);
+        }
+        map.once("remove", () => {
+          trackV2("map_remove", telemetryPayload());
         });
       } catch (err) {
         if (cancelled) return;
-        const message = err instanceof Error ? err.message : 'Map failed to initialize';
-        trackV2('map_error', telemetryPayload({ message, phase: 'init' }));
+        const message = err instanceof Error ? err.message : "Map failed to initialize";
+        trackV2("map_error", telemetryPayload({ message, phase: "init" }));
         setErrorMessage(message);
-        setStatus('error');
+        setStatus("error");
       }
     })();
 
     return () => {
-      trackV2('map_remove', telemetryPayload({ phase: 'cleanup' }));
+      trackV2("map_remove", telemetryPayload({ phase: "cleanup" }));
       cancelled = true;
       if (rafId != null) {
         cancelAnimationFrame(rafId);
       }
 
       destinationMarker?.remove();
-      storeMarker?.remove();
+      cafeMarker?.remove();
       driverMarker?.remove();
       destinationMarkerRef.current = null;
-      storeMarkerRef.current = null;
+      cafeMarkerRef.current = null;
       driverMarkerRef.current = null;
 
       removeDriverTrailLayer(map);
@@ -409,51 +431,34 @@ export function DriverLiveMap({
       mapboxRef.current = null;
       hasFittedRef.current = false;
       lastMapCoordsFingerprintRef.current = null;
+      lastFitBoundsAtRef.current = 0;
     };
   }, []);
 
   useEffect(() => {
     const map = mapRef.current;
     const mapbox = mapboxRef.current;
-    if (!map || !mapbox || status !== 'ready') return;
+    if (!map || !mapbox || status !== "ready") return;
 
-    const safeDestination = isValidCoord(destinationRef.current)
-      ? destinationRef.current
-      : null;
-    const safeStore = isValidCoord(storeLocationRef.current) ? storeLocationRef.current : null;
-
+    const safeDestination = resolveSafeCoord(destinationRef.current);
+    const safeDriverLocation = resolveSafeCoord(driverLocationRef.current);
     const currentDriver = driverLocationRef.current;
-    const safeDriverLocation = isValidCoord(currentDriver) ? currentDriver : null;
-    const fingerprint = mapCoordsFingerprint(safeDestination, safeDriverLocation, safeStore);
+    const fingerprint = mapCoordsFingerprint(safeDestination, safeDriverLocation);
+    const previousFingerprint = lastMapCoordsFingerprintRef.current;
 
-    if (lastMapCoordsFingerprintRef.current === fingerprint) {
+    if (previousFingerprint === fingerprint) {
       return;
     }
-    lastMapCoordsFingerprintRef.current = fingerprint;
 
-    trackV2('destination_updated', telemetryPayload({ destination: safeDestination }));
+    const MarkerCtor = resolveMapboxMarkerCtor(mapbox);
 
-    if (safeStore) {
-      if (!storeMarkerRef.current) {
-        storeMarkerRef.current = new mapbox.Marker({
-          element: createStoreMarkerElement(),
-          anchor: 'center',
-        })
-          .setLngLat([safeStore.lng, safeStore.lat])
-          .addTo(map);
-      } else {
-        storeMarkerRef.current.setLngLat([safeStore.lng, safeStore.lat]);
-      }
-    } else if (storeMarkerRef.current) {
-      storeMarkerRef.current.remove();
-      storeMarkerRef.current = null;
-    }
+    trackV2("destination_updated", telemetryPayload({ destination: safeDestination }));
 
     if (safeDestination) {
       if (!destinationMarkerRef.current) {
-        destinationMarkerRef.current = new mapbox.Marker({
+        destinationMarkerRef.current = new MarkerCtor({
           element: createDestinationMarkerElement(),
-          anchor: 'bottom',
+          anchor: "bottom",
         })
           .setLngLat([safeDestination.lng, safeDestination.lat])
           .addTo(map);
@@ -466,18 +471,18 @@ export function DriverLiveMap({
     }
 
     if (!safeDriverLocation && currentDriver !== undefined) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('[DriverLiveMap] invalid driver location', currentDriver);
+      if (process.env.NODE_ENV === "development") {
+        console.warn("[DriverLiveMap] invalid driver location", currentDriver);
       }
     }
 
-    trackV2('driver_updated', telemetryPayload({ driverLocation: safeDriverLocation }));
+    trackV2("driver_updated", telemetryPayload({ driverLocation: safeDriverLocation }));
 
     if (safeDriverLocation) {
       if (!driverMarkerRef.current) {
-        driverMarkerRef.current = new mapbox.Marker({
+        driverMarkerRef.current = new MarkerCtor({
           element: createDriverMarkerElement(),
-          anchor: 'center',
+          anchor: "center",
         })
           .setLngLat([safeDriverLocation.lng, safeDriverLocation.lat])
           .addTo(map);
@@ -489,33 +494,58 @@ export function DriverLiveMap({
       driverMarkerRef.current = null;
     }
 
-    const points = collectFitPoints(safeDestination, safeDriverLocation, safeStore);
-    fitMapToPoints(map, mapbox, points, hasFittedRef.current);
-    hasFittedRef.current = true;
-  }, [destination, driverLocation, storeLocationProp, status]);
+    const points = collectFitPoints(safeDestination, safeDriverLocation);
+    logDriverLiveMapMarkers("markers_updated", {
+      driver: safeDriverLocation,
+      destination: safeDestination,
+      cafe: storeLocation,
+      markerCount: points.length,
+    });
+
+    const shouldFit = shouldFitMapBounds(
+      fingerprint,
+      previousFingerprint,
+      lastFitBoundsAtRef.current,
+      !hasFittedRef.current,
+    );
+
+    if (shouldFit) {
+      fitMapToPoints(map, mapbox, points, hasFittedRef.current);
+      lastFitBoundsAtRef.current = Date.now();
+      hasFittedRef.current = true;
+    }
+
+    lastMapCoordsFingerprintRef.current = fingerprint;
+  }, [destination, driverLocation, status]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || status !== 'ready') return;
+    if (!map || status !== "ready") return;
 
     const visible = isTrailRenderable(showDriverTrail, stableTrailPoints);
     const dataKey = trailLayerDataKey(stableTrailPoints, visible);
     updateDriverTrailLayer(map, trailGeoJson, visible, dataKey);
 
-    trackV2('trail_updated', telemetryPayload({
-      trailVisible: visible,
-      trailPoints: stableTrailPoints.length,
-    }));
+    trackV2(
+      "trail_updated",
+      telemetryPayload({
+        trailVisible: visible,
+        trailPoints: stableTrailPoints.length,
+      }),
+    );
   }, [trailGeoJson, trailSignature, showDriverTrail, status]);
 
   useEffect(() => {
-    if (!mapRef.current || status !== 'ready') return;
+    if (!mapRef.current || status !== "ready") return;
 
     const id = requestAnimationFrame(() => {
       mapRef.current?.resize();
-      trackV2('resize', telemetryPayload({
-        rect: containerRef.current?.getBoundingClientRect(),
-      }));
+      trackV2(
+        "resize",
+        telemetryPayload({
+          rect: containerRef.current?.getBoundingClientRect(),
+        }),
+      );
     });
 
     return () => cancelAnimationFrame(id);
@@ -524,7 +554,7 @@ export function DriverLiveMap({
   useEffect(() => {
     const container = containerRef.current;
     const map = mapRef.current;
-    if (!container || !map || status !== 'ready' || typeof ResizeObserver === 'undefined') return;
+    if (!container || !map || status !== "ready" || typeof ResizeObserver === "undefined") return;
 
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
@@ -534,23 +564,30 @@ export function DriverLiveMap({
       if (width <= 0 || height <= 0) return;
 
       map.resize();
-      trackV2('resize', telemetryPayload({
-        reason: 'resize_observer',
-        width,
-        height,
-      }));
+      trackV2(
+        "resize",
+        telemetryPayload({
+          reason: "resize_observer",
+          width,
+          height,
+        }),
+      );
     });
 
     observer.observe(container);
     return () => observer.disconnect();
   }, [status]);
 
-  const showLoading = status === 'loading';
-  const showError = status === 'error';
+  const showLoading = status === "loading";
+  const showError = status === "error";
 
   return (
-    <div className={cn('relative h-full w-full overflow-hidden', className)}>
-      <div ref={containerRef} className="absolute inset-0 h-full w-full" data-testid="driver-live-map" />
+    <div className={cn("relative h-full w-full overflow-hidden", className)}>
+      <div
+        ref={containerRef}
+        className="absolute inset-0 h-full w-full"
+        data-testid="driver-live-map"
+      />
 
       {showLoading && (
         <div
@@ -569,7 +606,7 @@ export function DriverLiveMap({
           role="alert"
         >
           <p className="text-sm font-medium text-red-300">Ο χάρτης δεν φορτώθηκε</p>
-          <p className="text-xs text-white/60">{errorMessage ?? 'Άγνωστο σφάλμα'}</p>
+          <p className="text-xs text-white/60">{errorMessage ?? "Άγνωστο σφάλμα"}</p>
         </div>
       )}
     </div>

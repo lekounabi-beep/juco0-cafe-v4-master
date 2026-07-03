@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 type V2TrackingStatusCardProps = {
   connected: boolean;
@@ -15,9 +15,7 @@ export function V2TrackingStatusCard({
   driverLocationPresent,
   locationError,
 }: V2TrackingStatusCardProps) {
-  const lastGpsLabel = lastUpdatedAt
-    ? new Date(lastUpdatedAt).toLocaleString('el-GR')
-    : '—';
+  const lastGpsLabel = lastUpdatedAt ? new Date(lastUpdatedAt).toLocaleString("el-GR") : "—";
 
   return (
     <div className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-xs text-white/70">
@@ -25,8 +23,8 @@ export function V2TrackingStatusCard({
       <dl className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
         <div className="flex justify-between gap-2 sm:block">
           <dt>Realtime Connected</dt>
-          <dd className={connected ? 'text-emerald-400' : 'text-amber-400'}>
-            {connected ? 'Yes' : 'No'}
+          <dd className={connected ? "text-emerald-400" : "text-amber-400"}>
+            {connected ? "Yes" : "No"}
           </dd>
         </div>
         <div className="flex justify-between gap-2 sm:block">
@@ -35,18 +33,16 @@ export function V2TrackingStatusCard({
         </div>
         <div className="flex justify-between gap-2 sm:block">
           <dt>Assignment ID</dt>
-          <dd className="truncate font-mono text-white/90">{assignmentId ?? '—'}</dd>
+          <dd className="truncate font-mono text-white/90">{assignmentId ?? "—"}</dd>
         </div>
         <div className="flex justify-between gap-2 sm:block">
           <dt>Driver Location Present</dt>
-          <dd className={driverLocationPresent ? 'text-emerald-400' : 'text-white/50'}>
-            {driverLocationPresent ? 'Yes' : 'No'}
+          <dd className={driverLocationPresent ? "text-emerald-400" : "text-white/50"}>
+            {driverLocationPresent ? "Yes" : "No"}
           </dd>
         </div>
       </dl>
-      {locationError && (
-        <p className="mt-2 text-amber-300/90">Location: {locationError}</p>
-      )}
+      {locationError && <p className="mt-2 text-amber-300/90">Location: {locationError}</p>}
     </div>
   );
 }

@@ -11,8 +11,8 @@ export function clearDriverRefreshInFlight(reason: string): void {
   generation += 1;
   refreshActiveDeliveryInFlight = null;
   refreshOrdersInFlight = null;
-  if (process.env.NODE_ENV === 'development') {
-    console.info('[Network] driver_refresh_inflight_cleared', { reason, generation });
+  if (process.env.NODE_ENV === "development") {
+    console.info("[Network] driver_refresh_inflight_cleared", { reason, generation });
   }
 }
 

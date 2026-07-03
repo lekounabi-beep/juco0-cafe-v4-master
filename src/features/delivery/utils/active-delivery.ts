@@ -3,14 +3,14 @@
  * Stage derivation delegates to computeDeliveryState.
  */
 
-import { computeDeliveryState } from '@/features/delivery/core/compute-delivery-state';
-import { orderCoordinates } from '@/shared/utils/order-fields';
-import { isValidLatLng } from '@/shared/utils/coordinates';
-import type { Coordinates } from '@/shared/types/common.types';
-import type { DriverOrderDetails } from '../types/driver-order.types';
+import { computeDeliveryState } from "@/features/delivery/core/compute-delivery-state";
+import { orderCoordinates } from "@/shared/utils/order-fields";
+import { isValidLatLng } from "@/shared/utils/coordinates";
+import type { Coordinates } from "@/shared/types/common.types";
+import type { DriverOrderDetails } from "../types/driver-order.types";
 
-export type DeliveryStage = 'assigned' | 'picked_up' | 'in_transit' | 'arrived';
-export type DriverAvailability = 'online' | 'offline' | 'busy';
+export type DeliveryStage = "assigned" | "picked_up" | "in_transit" | "arrived";
+export type DriverAvailability = "online" | "offline" | "busy";
 
 type OrderLike =
   | (Partial<DriverOrderDetails> & {
@@ -19,20 +19,23 @@ type OrderLike =
   | null
   | undefined;
 
-type AssignmentLike = {
-  id?: string;
-  order_id?: string;
-  driver_id?: string;
-  status?: string;
-  assigned_at?: string | null;
-  accepted_at?: string | null;
-  picked_up_at?: string | null;
-  started_delivery_at?: string | null;
-  arrived_at?: string | null;
-  delivered_at?: string | null;
-  cancelled_at?: string | null;
-  order?: OrderLike;
-} | null | undefined;
+type AssignmentLike =
+  | {
+      id?: string;
+      order_id?: string;
+      driver_id?: string;
+      status?: string;
+      assigned_at?: string | null;
+      accepted_at?: string | null;
+      picked_up_at?: string | null;
+      started_delivery_at?: string | null;
+      arrived_at?: string | null;
+      delivered_at?: string | null;
+      cancelled_at?: string | null;
+      order?: OrderLike;
+    }
+  | null
+  | undefined;
 
 type DriverLike = { id?: string } | null | undefined;
 
@@ -43,25 +46,25 @@ export type ActiveDeliveryView = {
   assignment: NonNullable<AssignmentLike> | null;
 };
 
-const ACTIVE_STAGES = new Set<DeliveryStage>(['assigned', 'picked_up', 'in_transit', 'arrived']);
+const ACTIVE_STAGES = new Set<DeliveryStage>(["assigned", "picked_up", "in_transit", "arrived"]);
 
 function deriveStage(
   order: OrderLike,
-  assignment: NonNullable<AssignmentLike>
+  assignment: NonNullable<AssignmentLike>,
 ): DeliveryStage | null {
-  const state = computeDeliveryState({ order, assignment, locations: [], role: 'driver' });
+  const state = computeDeliveryState({ order, assignment, locations: [], role: "driver" });
   if (!state.isDeliveryActive) return null;
   const stage = state.deliveryStatus;
   if (ACTIVE_STAGES.has(stage as DeliveryStage)) {
     return stage as DeliveryStage;
   }
-  return 'assigned';
+  return "assigned";
 }
 
 export function getActiveDelivery(
   _driver: DriverLike,
   order: OrderLike,
-  assignment: AssignmentLike
+  assignment: AssignmentLike,
 ): ActiveDeliveryView {
   if (!assignment?.id || assignment.delivered_at || assignment.cancelled_at) {
     return { isActive: false, stage: null, order: null, assignment: null };
@@ -84,11 +87,11 @@ export function getActiveDelivery(
 
 export function resolveEffectiveAvailability(
   storeAvailability: string,
-  deliveryUi: { isOnDelivery: boolean }
+  deliveryUi: { isOnDelivery: boolean },
 ): DriverAvailability {
-  if (deliveryUi.isOnDelivery) return 'busy';
-  if (storeAvailability === 'offline') return 'offline';
-  return 'online';
+  if (deliveryUi.isOnDelivery) return "busy";
+  if (storeAvailability === "offline") return "offline";
+  return "online";
 }
 
 export function reconcileDriverStoreAvailability(
@@ -99,21 +102,21 @@ export function reconcileDriverStoreAvailability(
     assignmentLoading: boolean;
     hasOptimistic: boolean;
     serverConfirmedNoActive: boolean;
-  }
+  },
 ): DriverAvailability | null {
   if (ctx.loading || ctx.assignmentLoading) return null;
 
-  if (deliveryUi.isOnDelivery && storeAvailability !== 'busy') {
-    return 'busy';
+  if (deliveryUi.isOnDelivery && storeAvailability !== "busy") {
+    return "busy";
   }
 
   if (
     !deliveryUi.isOnDelivery &&
-    storeAvailability === 'busy' &&
+    storeAvailability === "busy" &&
     !ctx.hasOptimistic &&
     ctx.serverConfirmedNoActive
   ) {
-    return 'online';
+    return "online";
   }
 
   return null;
@@ -127,5 +130,5 @@ export function resolveActiveDeliveryDestination(view: ActiveDeliveryView): Coor
 
 export function isNavigationGpsActive(view: ActiveDeliveryView): boolean {
   if (!view.isActive || !view.stage) return false;
-  return view.stage === 'picked_up' || view.stage === 'in_transit' || view.stage === 'arrived';
+  return view.stage === "picked_up" || view.stage === "in_transit" || view.stage === "arrived";
 }

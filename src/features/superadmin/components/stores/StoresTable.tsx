@@ -96,9 +96,7 @@ export function StoresTable({
                           : "border-zinc-600 text-zinc-400"
                       }
                     >
-                      {store.status === "active"
-                        ? t("stores.status.active")
-                        : store.status}
+                      {store.status === "active" ? t("stores.status.active") : store.status}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-zinc-300">{store.ordersToday ?? "—"}</TableCell>

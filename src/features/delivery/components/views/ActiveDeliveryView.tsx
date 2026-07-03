@@ -1,17 +1,26 @@
-'use client';
+"use client";
 
-import { MapPin, Navigation, Phone, Loader2 } from 'lucide-react';
-import { DriverLiveMap } from '@/features/live-tracking-v2/components/DriverLiveMap';
-import { TrackingV2DebugPanel } from '@/features/live-tracking-v2/components/TrackingV2DebugPanel';
-import { ENABLE_TRACKING_V2_DEBUG } from '@/features/live-tracking-v2/config/debug';
-import { formatETA } from '@/features/delivery/services/eta.service';
-import { DeliveryActions } from '../DeliveryActions';
-import { DriverOrderDetailsSection } from '../DriverOrderDetailsSection';
-import { buildMapboxDirectionsUrl, buildTelHref } from '../../utils/driver-order-display';
-import type { useETA } from '../../hooks/useETA';
-import type { DeliveryUiState } from '../../utils/delivery-ui-selector';
-import type { ActiveDeliveryView as ActiveDeliveryViewModel } from '../../utils/active-delivery';
-import type { DriverOrderDetails } from '../../types/driver-order.types';
+import dynamic from "next/dynamic";
+import { MapPin, Navigation, Phone, Loader2 } from "lucide-react";
+import { MapDynamicLoading } from "@/features/maps/components/MapDynamicLoading";
+
+const DriverLiveMap = dynamic(
+  () => import("@/features/live-tracking-v2/components/DriverLiveMap").then((m) => m.DriverLiveMap),
+  {
+    ssr: false,
+    loading: () => <MapDynamicLoading className="h-full min-h-[240px]" />,
+  },
+);
+import { TrackingV2DebugPanel } from "@/features/live-tracking-v2/components/TrackingV2DebugPanel";
+import { ENABLE_TRACKING_V2_DEBUG } from "@/features/live-tracking-v2/config/debug";
+import { formatETA } from "@/features/delivery/services/eta.service";
+import { DeliveryActions } from "../DeliveryActions";
+import { DriverOrderDetailsSection } from "../DriverOrderDetailsSection";
+import { buildMapboxDirectionsUrl, buildTelHref } from "../../utils/driver-order-display";
+import type { useETA } from "../../hooks/useETA";
+import type { DeliveryUiState } from "../../utils/delivery-ui-selector";
+import type { ActiveDeliveryView as ActiveDeliveryViewModel } from "../../utils/active-delivery";
+import type { DriverOrderDetails } from "../../types/driver-order.types";
 
 interface ActiveDeliveryViewProps {
   activeDeliveryView: ActiveDeliveryViewModel;
@@ -58,19 +67,15 @@ export function ActiveDeliveryView({
             routePoints={routePoints}
             showDriverTrail={showDriverTrail}
             telemetryContext={{
-              surface: 'driver',
+              surface: "driver",
               assignmentId: activeDeliveryView.assignment?.id ?? null,
             }}
           />
           {!hasDestination && (
             <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/50 px-6 text-center">
               <MapPin className="h-10 w-10 text-white/40" />
-              <p className="text-sm font-medium text-white/90">
-                Αναμονή τοποθεσίας παραγγελίας...
-              </p>
-              {destinationResolving && (
-                <Loader2 className="h-5 w-5 animate-spin text-white/50" />
-              )}
+              <p className="text-sm font-medium text-white/90">Αναμονή τοποθεσίας παραγγελίας...</p>
+              {destinationResolving && <Loader2 className="h-5 w-5 animate-spin text-white/50" />}
             </div>
           )}
         </div>
@@ -89,11 +94,11 @@ export function ActiveDeliveryView({
                 {eta?.etaResult
                   ? formatETA(eta.etaResult.eta)
                   : order.estimated_delivery_eta
-                    ? new Date(order.estimated_delivery_eta).toLocaleTimeString('el-GR', {
-                        hour: '2-digit',
-                        minute: '2-digit',
+                    ? new Date(order.estimated_delivery_eta).toLocaleTimeString("el-GR", {
+                        hour: "2-digit",
+                        minute: "2-digit",
                       })
-                    : '—'}
+                    : "—"}
               </span>
             </div>
           </div>

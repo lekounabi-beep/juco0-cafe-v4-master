@@ -1,19 +1,19 @@
-'use client';
+"use client";
 
-import { useCallback, useRef, useState } from 'react';
-import { LogOut, RefreshCw, Truck, User, Wifi, WifiOff } from 'lucide-react';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { useDriverLogout } from '@/features/driver/hooks/useDriverLogout';
-import { DRIVER_AVAILABILITY } from '@/features/delivery/types/delivery.types';
+import { useCallback, useRef, useState } from "react";
+import { LogOut, RefreshCw, Truck, User, Wifi, WifiOff } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useDriverLogout } from "@/features/driver/hooks/useDriverLogout";
+import { DRIVER_AVAILABILITY } from "@/features/delivery/types/delivery.types";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
-import { cn } from '@/lib/utils';
+} from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { cn } from "@/lib/utils";
 
 type DriverProfile = {
   full_name: string;
@@ -31,7 +31,7 @@ export interface DriverProfileMenuProps {
 }
 
 type StatusInfo = {
-  label: 'Online' | 'Busy' | 'Offline';
+  label: "Online" | "Busy" | "Offline";
   emoji: string;
   colorClass: string;
   Icon: typeof Wifi;
@@ -39,19 +39,18 @@ type StatusInfo = {
 
 function resolveStatus(isOnDelivery: boolean, availabilityStatus: string): StatusInfo {
   if (isOnDelivery) {
-    return { label: 'Busy', emoji: '🟡', colorClass: 'text-amber-400', Icon: Truck };
+    return { label: "Busy", emoji: "🟡", colorClass: "text-amber-400", Icon: Truck };
   }
   if (availabilityStatus === DRIVER_AVAILABILITY.ONLINE) {
-    return { label: 'Online', emoji: '🟢', colorClass: 'text-green-400', Icon: Wifi };
+    return { label: "Online", emoji: "🟢", colorClass: "text-green-400", Icon: Wifi };
   }
-  return { label: 'Offline', emoji: '🔴', colorClass: 'text-red-400', Icon: WifiOff };
+  return { label: "Offline", emoji: "🔴", colorClass: "text-red-400", Icon: WifiOff };
 }
 
-const menuSurfaceClass =
-  'border-white/10 bg-black/95 text-white backdrop-blur-xl shadow-xl';
+const menuSurfaceClass = "border-white/10 bg-black/95 text-white backdrop-blur-xl shadow-xl";
 
 const sheetItemClass =
-  'flex min-h-12 w-full items-center gap-3 rounded-xl px-4 text-left text-sm font-medium text-white transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60';
+  "flex min-h-12 w-full items-center gap-3 rounded-xl px-4 text-left text-sm font-medium text-white transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60";
 
 function ProfileSummary({
   driverName,
@@ -71,7 +70,9 @@ function ProfileSummary({
       </p>
       <p className="mt-2 text-base font-semibold text-white">{driverName}</p>
       <p className="mt-0.5 text-xs text-white/60">{vehicleType}</p>
-      <div className={cn('mt-2 flex items-center gap-1.5 text-xs font-semibold', status.colorClass)}>
+      <div
+        className={cn("mt-2 flex items-center gap-1.5 text-xs font-semibold", status.colorClass)}
+      >
         <Icon className="h-3.5 w-3.5" aria-hidden />
         <span>{status.label}</span>
       </div>
@@ -85,12 +86,12 @@ function DriverMenuActions({
   onRefresh,
   onLogout,
 }: {
-  variant: 'sheet' | 'dropdown';
+  variant: "sheet" | "dropdown";
   status: StatusInfo;
   onRefresh: () => void;
   onLogout: () => void;
 }) {
-  if (variant === 'dropdown') {
+  if (variant === "dropdown") {
     return (
       <>
         <DropdownMenuItem
@@ -125,7 +126,7 @@ function DriverMenuActions({
       <div
         role="menuitem"
         aria-disabled="true"
-        className={cn(sheetItemClass, 'cursor-default text-white/80 hover:bg-transparent')}
+        className={cn(sheetItemClass, "cursor-default text-white/80 hover:bg-transparent")}
       >
         <span aria-hidden>{status.emoji}</span>
         {status.label}
@@ -139,7 +140,7 @@ function DriverMenuActions({
       <button
         type="button"
         role="menuitem"
-        className={cn(sheetItemClass, 'text-red-400 hover:bg-red-500/10')}
+        className={cn(sheetItemClass, "text-red-400 hover:bg-red-500/10")}
         onClick={onLogout}
       >
         <LogOut className="h-4 w-4" aria-hidden />
@@ -161,8 +162,8 @@ export function DriverProfileMenu({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
 
-  const driverName = driverProfile?.full_name || 'Οδηγός';
-  const vehicleType = driverProfile?.vehicle_type || 'Μέσο';
+  const driverName = driverProfile?.full_name || "Οδηγός";
+  const vehicleType = driverProfile?.vehicle_type || "Μέσο";
   const status = resolveStatus(isOnDelivery, availabilityStatus);
 
   const handleOpenChange = useCallback((next: boolean) => {
@@ -187,7 +188,7 @@ export function DriverProfileMenu({
       ref={triggerRef}
       type="button"
       aria-label="Open driver profile menu"
-      aria-haspopup={isMobile ? 'dialog' : 'menu'}
+      aria-haspopup={isMobile ? "dialog" : "menu"}
       aria-expanded={open}
       onClick={isMobile ? () => setOpen(true) : undefined}
       className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/20 ring-offset-background transition hover:bg-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
@@ -206,11 +207,11 @@ export function DriverProfileMenu({
         sideOffset={8}
         className={cn(
           menuSurfaceClass,
-          'min-w-[15rem] p-2',
-          'data-[state=open]:animate-in data-[state=closed]:animate-out',
-          'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
-          'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
-          'data-[state=open]:duration-200 data-[state=closed]:duration-150'
+          "min-w-[15rem] p-2",
+          "data-[state=open]:animate-in data-[state=closed]:animate-out",
+          "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+          "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+          "data-[state=open]:duration-200 data-[state=closed]:duration-150",
         )}
       >
         <div className="px-2 py-2">
@@ -233,9 +234,9 @@ export function DriverProfileMenu({
         side="bottom"
         className={cn(
           menuSurfaceClass,
-          'rounded-t-2xl border-t px-4 pb-8 pt-6',
-          'data-[state=open]:duration-200 data-[state=closed]:duration-150',
-          '[&>button.absolute]:hidden'
+          "rounded-t-2xl border-t px-4 pb-8 pt-6",
+          "data-[state=open]:duration-200 data-[state=closed]:duration-150",
+          "[&>button.absolute]:hidden",
         )}
       >
         <SheetTitle className="sr-only">Driver profile menu</SheetTitle>
@@ -276,7 +277,7 @@ export function DriverProfileMenu({
 
         {!hideStatusBadge && (
           <div
-            className={cn('flex shrink-0 items-center gap-1', status.colorClass)}
+            className={cn("flex shrink-0 items-center gap-1", status.colorClass)}
             aria-label={`Availability: ${status.label}`}
           >
             <StatusIcon className="h-4 w-4" aria-hidden />

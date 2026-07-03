@@ -1,17 +1,23 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle } from 'lucide-react';
-import { orderCoordinates } from '@/shared/utils/order-fields';
-import { LiveTrackingMap } from './LiveTrackingMap';
-import type { DriverTrailDebugState } from './LiveTrackingMap';
-import { TrackingV2DebugPanel } from './TrackingV2DebugPanel';
-import type { CustomerTrackingDebugSnapshot } from '../types/customer-tracking-debug.types';
-import type { TrailPoint } from '../utils/driver-trail-geojson';
-import { V2TrackingStatusCard } from './V2TrackingStatusCard';
-import { useLiveDriverLocation } from '../hooks/useLiveDriverLocation';
-import { trackV2 } from '../telemetry/tracking-v2-telemetry';
-import type { TrackingConnectionState } from '@/features/tracking/types/tracking-session.types';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import { AlertCircle } from "lucide-react";
+import { orderCoordinates } from "@/shared/utils/order-fields";
+import type { DriverTrailDebugState } from "./LiveTrackingMap";
+import { MapDynamicLoading } from "@/features/maps/components/MapDynamicLoading";
+
+const LiveTrackingMap = dynamic(() => import("./LiveTrackingMap").then((m) => m.LiveTrackingMap), {
+  ssr: false,
+  loading: () => <MapDynamicLoading className="h-full min-h-[280px]" />,
+});
+import { TrackingV2DebugPanel } from "./TrackingV2DebugPanel";
+import type { CustomerTrackingDebugSnapshot } from "../types/customer-tracking-debug.types";
+import type { TrailPoint } from "../utils/driver-trail-geojson";
+import { V2TrackingStatusCard } from "./V2TrackingStatusCard";
+import { useLiveDriverLocation } from "../hooks/useLiveDriverLocation";
+import { trackV2 } from "../telemetry/tracking-v2-telemetry";
+import type { TrackingConnectionState } from "@/features/tracking/types/tracking-session.types";
 
 type V2OrderFields = {
   id?: string;
@@ -67,36 +73,29 @@ export function V2TrackingSection({
     }
     destinationCacheRef.current = next;
     return next;
-  }, [
-    order?.lat,
-    order?.lng,
-    order?.coords?.lat,
-    order?.coords?.lng,
-  ]);
-  const assignmentId = assignment?.id ?? '';
-  const orderId = order?.id ?? '';
+  }, [order?.lat, order?.lng, order?.coords?.lat, order?.coords?.lng]);
+  const assignmentId = assignment?.id ?? "";
+  const orderId = order?.id ?? "";
 
   const legacy = useLiveDriverLocation(assignmentId, orderId, {
     enabled: !session,
   });
 
-  const location = session
-    ? session.driverLocation
-    : legacy.location;
+  const location = session ? session.driverLocation : legacy.location;
   const loading = session ? session.locationLoading : legacy.loading;
   const connected = session
-    ? session.connectionState === 'polling' || session.connectionState === 'idle'
+    ? session.connectionState === "polling" || session.connectionState === "idle"
     : legacy.connected;
   const locationError = session ? session.locationError : legacy.error;
   const lastUpdatedAt = session ? session.lastUpdatedAt : legacy.lastUpdatedAt;
 
-  const [mapStatus, setMapStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [mapStatus, setMapStatus] = useState<"loading" | "ready" | "error">("loading");
   const [trailDebug, setTrailDebug] = useState<DriverTrailDebugState | null>(null);
   const renderCountRef = useRef(0);
   renderCountRef.current += 1;
 
   const lastRenderTimeRef = useRef<string | null>(null);
-  const lastRenderDepsRef = useRef('');
+  const lastRenderDepsRef = useRef("");
   const renderDepsKey = [
     destination?.lat,
     destination?.lng,
@@ -109,7 +108,7 @@ export function V2TrackingSection({
     mapStatus,
     showDriverTrail,
     routePoints.length,
-  ].join('|');
+  ].join("|");
 
   if (renderDepsKey !== lastRenderDepsRef.current) {
     lastRenderDepsRef.current = renderDepsKey;
@@ -131,29 +130,26 @@ export function V2TrackingSection({
     });
   }, []);
 
-  const mergedCustomerDebug = useMemo(
-    (): CustomerTrackingDebugSnapshot | undefined => {
-      if (!customerDebug && !trailDebug) return undefined;
-      return {
-        ...customerDebug,
-        trailVisible: trailDebug?.trailVisible,
-        trailPoints: trailDebug?.trailPoints,
-        trailSourceReady: trailDebug?.trailSourceReady,
-        trailLayerReady: trailDebug?.trailLayerReady,
-      };
-    },
-    [customerDebug, trailDebug],
-  );
+  const mergedCustomerDebug = useMemo((): CustomerTrackingDebugSnapshot | undefined => {
+    if (!customerDebug && !trailDebug) return undefined;
+    return {
+      ...customerDebug,
+      trailVisible: trailDebug?.trailVisible,
+      trailPoints: trailDebug?.trailPoints,
+      trailSourceReady: trailDebug?.trailSourceReady,
+      trailLayerReady: trailDebug?.trailLayerReady,
+    };
+  }, [customerDebug, trailDebug]);
 
   useEffect(() => {
-    trackV2('mounted', {
-      surface: 'customer',
+    trackV2("mounted", {
+      surface: "customer",
       assignmentId: assignment?.id ?? null,
-      mode: session ? 'session' : 'legacy',
+      mode: session ? "session" : "legacy",
     });
     return () => {
-      trackV2('unmounted', {
-        surface: 'customer',
+      trackV2("unmounted", {
+        surface: "customer",
         assignmentId: assignment?.id ?? null,
       });
     };
@@ -211,7 +207,9 @@ export function V2TrackingSection({
       className="overflow-hidden rounded-2xl border border-primary/30 bg-black/40 backdrop-blur-sm"
     >
       <div className="border-b border-white/10 px-4 py-3">
-        <h2 className="font-display text-base font-semibold text-white">Ζωντανή παρακολούθηση (V2)</h2>
+        <h2 className="font-display text-base font-semibold text-white">
+          Ζωντανή παρακολούθηση (V2)
+        </h2>
       </div>
 
       <div className="relative h-[280px] w-full sm:h-[340px]">
@@ -222,7 +220,7 @@ export function V2TrackingSection({
           routePoints={routePoints}
           showDriverTrail={showDriverTrail}
           telemetryContext={{
-            surface: 'customer',
+            surface: "customer",
             assignmentId: assignment?.id ?? null,
           }}
           onMapStatusChange={setMapStatus}

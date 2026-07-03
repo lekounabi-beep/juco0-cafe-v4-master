@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo } from "react";
 import {
   disableDriverNetworkCoordinator,
   enableDriverNetworkCoordinator,
   startDriverNetworkMonitoring,
-} from '@/lib/network/driver-network';
-import { useDriverNetworkState } from '@/hooks/useDriverNetwork';
+} from "@/lib/network/driver-network";
+import { useDriverNetworkState } from "@/hooks/useDriverNetwork";
 
 /**
  * Activates the driver network coordinator — call once from useDriverPage.

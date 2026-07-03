@@ -1,26 +1,25 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
-import { cn } from '@/lib/utils';
-import { liveTrackingMapboxConfig } from '../config/mapbox';
+import { useEffect, useMemo, useRef, useState } from "react";
+import type mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
+import { storeLocation } from "@/config/map-defaults";
+import { attachJucoCafeMarker } from "@/features/maps/juco-cafe-mapbox-marker";
+import { cn } from "@/lib/utils";
+import { liveTrackingMapboxConfig } from "../config/mapbox";
 import {
   isTrailRenderable,
   toDriverTrailGeoJson,
   trailLayerDataKey,
   trailPointsSignature,
   type TrailPoint,
-} from '../utils/driver-trail-geojson';
+} from "../utils/driver-trail-geojson";
 import {
   ensureDriverTrailLayer,
   removeDriverTrailLayer,
   updateDriverTrailLayer,
-} from '../utils/driver-trail-mapbox';
-import {
-  trackV2,
-  type TrackingV2TelemetryContext,
-} from '../telemetry/tracking-v2-telemetry';
+} from "../utils/driver-trail-mapbox";
+import { trackV2, type TrackingV2TelemetryContext } from "../telemetry/tracking-v2-telemetry";
 
 export type DriverTrailDebugState = {
   trailVisible: boolean;
@@ -49,11 +48,11 @@ export type LiveTrackingMapProps = {
   showDriverTrail?: boolean;
   className?: string;
   telemetryContext?: TrackingV2TelemetryContext;
-  onMapStatusChange?: (status: 'loading' | 'ready' | 'error') => void;
+  onMapStatusChange?: (status: "loading" | "ready" | "error") => void;
   onTrailDebugChange?: (state: DriverTrailDebugState) => void;
 };
 
-type MapboxModule = typeof import('mapbox-gl');
+type MapboxModule = typeof import("mapbox-gl");
 
 type LatLng = { lat: number; lng: number };
 
@@ -63,8 +62,8 @@ function isValidCoord(point: LatLng | null | undefined): point is LatLng {
 }
 
 function createDestinationMarkerElement(): HTMLDivElement {
-  const el = document.createElement('div');
-  el.setAttribute('aria-label', 'Destination');
+  const el = document.createElement("div");
+  el.setAttribute("aria-label", "Destination");
   el.innerHTML = `
     <div style="
       width: 28px;
@@ -80,8 +79,8 @@ function createDestinationMarkerElement(): HTMLDivElement {
 }
 
 function createDriverMarkerElement(): HTMLDivElement {
-  const el = document.createElement('div');
-  el.setAttribute('aria-label', 'Driver');
+  const el = document.createElement("div");
+  el.setAttribute("aria-label", "Driver");
   el.innerHTML = `
     <div style="
       width: 22px;
@@ -96,8 +95,8 @@ function createDriverMarkerElement(): HTMLDivElement {
 }
 
 function warnInvalidDriverLocation(currentDriver: LatLng | undefined): void {
-  if (process.env.NODE_ENV === 'development') {
-    console.warn('[LiveTrackingMap] Ignoring invalid driver location', currentDriver);
+  if (process.env.NODE_ENV === "development") {
+    console.warn("[LiveTrackingMap] Ignoring invalid driver location", currentDriver);
   }
 }
 
@@ -111,23 +110,22 @@ function resolveSafeDriverLocation(currentDriver: LatLng | undefined): LatLng | 
   return currentDriver;
 }
 
+function resolveMapboxMarkerCtor(mapbox: MapboxModule): typeof mapboxgl.Marker {
+  return mapbox.default.Marker;
+}
+
 function collectFitPoints(destination: LatLng, driverLocation?: LatLng | null): LatLng[] {
-  const points: LatLng[] = [];
+  const points: LatLng[] = [storeLocation];
   if (isValidCoord(destination)) points.push(destination);
   if (isValidCoord(driverLocation)) points.push(driverLocation);
   return points;
 }
 
-function mapCoordsFingerprint(
-  destination: LatLng,
-  driverLocation?: LatLng | null,
-): string {
-  const dest = isValidCoord(destination)
-    ? `${destination.lat},${destination.lng}`
-    : 'none';
+function mapCoordsFingerprint(destination: LatLng, driverLocation?: LatLng | null): string {
+  const dest = isValidCoord(destination) ? `${destination.lat},${destination.lng}` : "none";
   const driver = isValidCoord(driverLocation)
     ? `${driverLocation.lat},${driverLocation.lng}`
-    : 'none';
+    : "none";
   return `${dest}|${driver}`;
 }
 
@@ -135,12 +133,20 @@ function fitMapToPoints(
   map: mapboxgl.Map,
   mapbox: MapboxModule,
   points: LatLng[],
-  animate: boolean
+  animate: boolean,
 ): void {
-  if (points.length === 0) return;
-
   const padding = liveTrackingMapboxConfig.fitPadding;
   const duration = animate ? 450 : 0;
+
+  if (points.length === 0) {
+    map.easeTo({
+      center: [storeLocation.lng, storeLocation.lat],
+      zoom: liveTrackingMapboxConfig.defaultZoom,
+      duration,
+      essential: true,
+    });
+    return;
+  }
 
   if (points.length === 1) {
     const p = points[0]!;
@@ -180,11 +186,12 @@ export function LiveTrackingMap({
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const mapboxRef = useRef<MapboxModule | null>(null);
   const destinationMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const cafeMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const driverMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const hasFittedRef = useRef(false);
   const lastMapCoordsFingerprintRef = useRef<string | null>(null);
 
-  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const destinationRef = useRef(destination);
@@ -201,31 +208,28 @@ export function LiveTrackingMap({
   }
   const stableTrailPoints = stableTrailPointsRef.current;
 
-  const trailGeoJson = useMemo(
-    () => toDriverTrailGeoJson(stableTrailPoints),
-    [trailSignature],
-  );
+  const trailGeoJson = useMemo(() => toDriverTrailGeoJson(stableTrailPoints), [trailSignature]);
   const trailDebugRef = useRef<DriverTrailDebugState | null>(null);
 
   const telemetryPayload = (extra?: Record<string, unknown>) => ({
     assignmentId: telemetryContext?.assignmentId ?? null,
-    surface: telemetryContext?.surface ?? 'customer',
+    surface: telemetryContext?.surface ?? "customer",
     destinationPresent: isValidCoord(destination),
     driverPresent: isValidCoord(driverLocation),
     ...extra,
   });
 
   useEffect(() => {
-    trackV2('mounted', telemetryPayload());
+    trackV2("mounted", telemetryPayload());
     return () => {
-      trackV2('unmounted', telemetryPayload());
+      trackV2("unmounted", telemetryPayload());
     };
   }, []);
 
   useEffect(() => {
     onMapStatusChange?.(status);
-    if (status === 'ready') {
-      trackV2('ready', telemetryPayload());
+    if (status === "ready") {
+      trackV2("ready", telemetryPayload());
     }
   }, [status, onMapStatusChange]);
 
@@ -236,6 +240,7 @@ export function LiveTrackingMap({
     let cancelled = false;
     let map: mapboxgl.Map | null = null;
     let destinationMarker: mapboxgl.Marker | null = null;
+    let cafeMarker: mapboxgl.Marker | null = null;
     let driverMarker: mapboxgl.Marker | null = null;
     let rafId: number | null = null;
 
@@ -253,8 +258,8 @@ export function LiveTrackingMap({
           if (performance.now() - startedAt > 5000) {
             reject(
               new Error(
-                `Map container has no size (${Math.round(rect.width)}×${Math.round(rect.height)})`
-              )
+                `Map container has no size (${Math.round(rect.width)}×${Math.round(rect.height)})`,
+              ),
             );
             return;
           }
@@ -266,40 +271,43 @@ export function LiveTrackingMap({
 
     void (async () => {
       try {
-        setStatus('loading');
+        setStatus("loading");
         setErrorMessage(null);
 
         if (!isValidCoord(destinationRef.current)) {
-          throw new Error('Invalid destination coordinates');
+          throw new Error("Invalid destination coordinates");
         }
 
         const token = liveTrackingMapboxConfig.accessToken;
         if (!token) {
           throw new Error(
-            'NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN is required (same as checkout address map)'
+            "NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN is required (same as checkout address map)",
           );
         }
 
-        if (process.env.NODE_ENV === 'development') {
-          trackV2('map_load', telemetryPayload({ phase: 'importing' }));
+        if (process.env.NODE_ENV === "development") {
+          trackV2("map_load", telemetryPayload({ phase: "importing" }));
         }
-        const mapbox = await import('mapbox-gl');
+        const mapbox = await import("mapbox-gl");
         if (cancelled) return;
 
         mapboxRef.current = mapbox;
         await waitForContainerSize();
         if (cancelled) return;
 
-        trackV2('map_load', telemetryPayload({
-          phase: 'container_ready',
-          width: container.clientWidth,
-          height: container.clientHeight,
-        }));
+        trackV2(
+          "map_load",
+          telemetryPayload({
+            phase: "container_ready",
+            width: container.clientWidth,
+            height: container.clientHeight,
+          }),
+        );
 
         mapbox.default.accessToken = token;
 
         const dest = destinationRef.current;
-        trackV2('map_load', telemetryPayload({ phase: 'creating_map' }));
+        trackV2("map_load", telemetryPayload({ phase: "creating_map" }));
         map = new mapbox.default.Map({
           container,
           style: liveTrackingMapboxConfig.style,
@@ -312,27 +320,32 @@ export function LiveTrackingMap({
 
         mapRef.current = map;
 
-        map.on('error', (event) => {
+        map.on("error", (event) => {
           if (cancelled) return;
-          const message = event.error?.message ?? 'Mapbox map failed to load';
-          trackV2('map_error', telemetryPayload({ message }));
+          const message = event.error?.message ?? "Mapbox map failed to load";
+          trackV2("map_error", telemetryPayload({ message }));
           setErrorMessage(message);
-          setStatus('error');
+          setStatus("error");
         });
 
         const onMapReady = () => {
           if (cancelled || !map) return;
 
-          trackV2('map_load', telemetryPayload({ phase: 'map_ready' }));
+          trackV2("map_load", telemetryPayload({ phase: "map_ready" }));
 
           map.resize();
 
           ensureDriverTrailLayer(map);
 
+          cafeMarker = attachJucoCafeMarker(map, mapbox);
+          cafeMarkerRef.current = cafeMarker;
+
+          const MarkerCtor = resolveMapboxMarkerCtor(mapbox);
+
           if (!destinationMarker) {
-            destinationMarker = new mapbox.default.Marker({
+            destinationMarker = new MarkerCtor({
               element: createDestinationMarkerElement(),
-              anchor: 'bottom',
+              anchor: "bottom",
             })
               .setLngLat([dest.lng, dest.lat])
               .addTo(map);
@@ -342,9 +355,9 @@ export function LiveTrackingMap({
           const currentDriver = driverLocationRef.current;
           const safeDriverLocation = resolveSafeDriverLocation(currentDriver);
           if (safeDriverLocation) {
-            driverMarker = new mapbox.default.Marker({
+            driverMarker = new MarkerCtor({
               element: createDriverMarkerElement(),
-              anchor: 'center',
+              anchor: "center",
             })
               .setLngLat([safeDriverLocation.lng, safeDriverLocation.lat])
               .addTo(map);
@@ -355,36 +368,38 @@ export function LiveTrackingMap({
           fitMapToPoints(map, mapbox, points, false);
           hasFittedRef.current = true;
 
-          setStatus('ready');
+          setStatus("ready");
         };
 
         if (map.loaded()) {
           onMapReady();
         } else {
-          map.once('load', onMapReady);
+          map.once("load", onMapReady);
         }
-        map.once('remove', () => {
-          trackV2('map_remove', telemetryPayload());
+        map.once("remove", () => {
+          trackV2("map_remove", telemetryPayload());
         });
       } catch (err) {
         if (cancelled) return;
-        const message = err instanceof Error ? err.message : 'Map failed to initialize';
-        trackV2('map_error', telemetryPayload({ message, phase: 'init' }));
+        const message = err instanceof Error ? err.message : "Map failed to initialize";
+        trackV2("map_error", telemetryPayload({ message, phase: "init" }));
         setErrorMessage(message);
-        setStatus('error');
+        setStatus("error");
       }
     })();
 
     return () => {
       cancelled = true;
-      trackV2('map_remove', telemetryPayload({ phase: 'cleanup' }));
+      trackV2("map_remove", telemetryPayload({ phase: "cleanup" }));
       if (rafId != null) {
         cancelAnimationFrame(rafId);
       }
 
       destinationMarker?.remove();
+      cafeMarker?.remove();
       driverMarker?.remove();
       destinationMarkerRef.current = null;
+      cafeMarkerRef.current = null;
       driverMarkerRef.current = null;
 
       removeDriverTrailLayer(map);
@@ -399,7 +414,7 @@ export function LiveTrackingMap({
   useEffect(() => {
     const map = mapRef.current;
     const mapbox = mapboxRef.current;
-    if (!map || !mapbox || status !== 'ready') return;
+    if (!map || !mapbox || status !== "ready") return;
     if (!isValidCoord(destination)) return;
 
     const currentDriver = driverLocationRef.current;
@@ -411,12 +426,14 @@ export function LiveTrackingMap({
     }
     lastMapCoordsFingerprintRef.current = fingerprint;
 
-    trackV2('destination_updated', telemetryPayload({ destination }));
+    const MarkerCtor = resolveMapboxMarkerCtor(mapbox);
+
+    trackV2("destination_updated", telemetryPayload({ destination }));
 
     if (!destinationMarkerRef.current) {
-      destinationMarkerRef.current = new mapbox.Marker({
+      destinationMarkerRef.current = new MarkerCtor({
         element: createDestinationMarkerElement(),
-        anchor: 'bottom',
+        anchor: "bottom",
       })
         .setLngLat([destination.lng, destination.lat])
         .addTo(map);
@@ -425,17 +442,17 @@ export function LiveTrackingMap({
     }
 
     if (!safeDriverLocation && currentDriver !== undefined) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('[LiveTrackingMap] invalid driver location', currentDriver);
+      if (process.env.NODE_ENV === "development") {
+        console.warn("[LiveTrackingMap] invalid driver location", currentDriver);
       }
     }
-    trackV2('driver_updated', telemetryPayload({ driverLocation: safeDriverLocation }));
+    trackV2("driver_updated", telemetryPayload({ driverLocation: safeDriverLocation }));
 
     if (safeDriverLocation) {
       if (!driverMarkerRef.current) {
-        driverMarkerRef.current = new mapbox.Marker({
+        driverMarkerRef.current = new MarkerCtor({
           element: createDriverMarkerElement(),
-          anchor: 'center',
+          anchor: "center",
         })
           .setLngLat([safeDriverLocation.lng, safeDriverLocation.lat])
           .addTo(map);
@@ -454,22 +471,25 @@ export function LiveTrackingMap({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || status !== 'ready') return;
+    if (!map || status !== "ready") return;
 
     const visible = isTrailRenderable(showDriverTrail, stableTrailPoints);
     const dataKey = trailLayerDataKey(stableTrailPoints, visible);
     updateDriverTrailLayer(map, trailGeoJson, visible, dataKey);
 
-    trackV2('trail_updated', telemetryPayload({
-      trailVisible: visible,
-      trailPoints: stableTrailPoints.length,
-    }));
+    trackV2(
+      "trail_updated",
+      telemetryPayload({
+        trailVisible: visible,
+        trailPoints: stableTrailPoints.length,
+      }),
+    );
 
     const nextTrailDebug: DriverTrailDebugState = {
       trailVisible: visible,
       trailPoints: stableTrailPoints.length,
-      trailSourceReady: Boolean(map.getSource('driver-trail-source')),
-      trailLayerReady: Boolean(map.getLayer('driver-trail-layer')),
+      trailSourceReady: Boolean(map.getSource("driver-trail-source")),
+      trailLayerReady: Boolean(map.getLayer("driver-trail-layer")),
     };
 
     if (!isSameTrailDebugState(trailDebugRef.current, nextTrailDebug)) {
@@ -479,23 +499,26 @@ export function LiveTrackingMap({
   }, [trailGeoJson, trailSignature, showDriverTrail, status, onTrailDebugChange]);
 
   useEffect(() => {
-    if (!mapRef.current || status !== 'ready') return;
+    if (!mapRef.current || status !== "ready") return;
 
     const id = requestAnimationFrame(() => {
       mapRef.current?.resize();
-      trackV2('resize', telemetryPayload({
-        rect: containerRef.current?.getBoundingClientRect(),
-      }));
+      trackV2(
+        "resize",
+        telemetryPayload({
+          rect: containerRef.current?.getBoundingClientRect(),
+        }),
+      );
     });
 
     return () => cancelAnimationFrame(id);
   }, [status]);
 
-  const showLoading = status === 'loading';
-  const showError = status === 'error';
+  const showLoading = status === "loading";
+  const showError = status === "error";
 
   return (
-    <div className={cn('relative h-full w-full min-h-[220px] overflow-hidden', className)}>
+    <div className={cn("relative h-full w-full min-h-[220px] overflow-hidden", className)}>
       <div
         ref={containerRef}
         className="absolute inset-0 z-0 h-full w-full"
@@ -520,7 +543,7 @@ export function LiveTrackingMap({
           role="alert"
         >
           <p className="text-sm font-medium text-red-300">Ο χάρτης δεν φορτώθηκε</p>
-          <p className="text-xs text-white/60">{errorMessage ?? 'Άγνωστο σφάλμα'}</p>
+          <p className="text-xs text-white/60">{errorMessage ?? "Άγνωστο σφάλμα"}</p>
         </div>
       )}
     </div>

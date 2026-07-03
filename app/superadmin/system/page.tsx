@@ -49,8 +49,14 @@ export default function SuperAdminSystemPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             <OperationsStatRow label={t("system.version")} value={stats?.system.version ?? "—"} />
-            <OperationsStatRow label={t("system.environment")} value={stats?.system.environment ?? "—"} />
-            <OperationsStatRow label={t("system.buildMode")} value={stats?.system.environment ?? "—"} />
+            <OperationsStatRow
+              label={t("system.environment")}
+              value={stats?.system.environment ?? "—"}
+            />
+            <OperationsStatRow
+              label={t("system.buildMode")}
+              value={stats?.system.environment ?? "—"}
+            />
             <OperationsStatRow label={t("system.node")} value={stats?.system.nodeVersion ?? "—"} />
             <OperationsStatRow label={t("system.next")} value={stats?.system.nextVersion ?? "—"} />
             <OperationsStatRow

@@ -2,13 +2,11 @@
  * Orders Section component
  */
 
-// @ts-nocheck - TypeScript module resolution issue with OrderCard
+"use client";
 
-'use client';
-
-import { useOrders } from '../hooks/useOrders';
-import { OrderCard } from './OrderCard';
-import { Loader2, ShoppingBag } from 'lucide-react';
+import { useOrders } from "../hooks/useOrders";
+import { OrderCard } from "./OrderCard";
+import { Loader2, ShoppingBag } from "lucide-react";
 
 export function OrdersSection() {
   const { orders, loading, error } = useOrders();
@@ -29,9 +27,7 @@ export function OrdersSection() {
       </div>
 
       {error && (
-        <div className="rounded-lg bg-red-500/20 px-4 py-3 text-sm text-red-200">
-          {error}
-        </div>
+        <div className="rounded-lg bg-red-500/20 px-4 py-3 text-sm text-red-200">{error}</div>
       )}
 
       {orders.length === 0 && (

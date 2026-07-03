@@ -2,8 +2,8 @@
  * Canonical delivery state types — single source of truth domain models.
  */
 
-import type { CustomerOrderStep } from '@/shared/utils/customer-status';
-import type { Coordinates } from '@/shared/types/common.types';
+import type { CustomerOrderStep } from "@/shared/utils/customer-status";
+import type { Coordinates } from "@/shared/types/common.types";
 
 export type DeliveryLocationRow = {
   lat: number;
@@ -37,7 +37,7 @@ export type DeliveryStateAssignment = {
   cancelled_at?: string | null;
 } | null;
 
-export type DeliveryStateRole = 'customer' | 'driver';
+export type DeliveryStateRole = "customer" | "driver";
 
 export type DriverPosition = {
   lat: number;

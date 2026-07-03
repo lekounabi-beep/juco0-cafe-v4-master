@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { completeVivaOrderByOrderCode } from "@/lib/server/complete-viva-order.server";
 import { serverLog } from "@/lib/server/logger";
+import { captureException } from "@/lib/server/monitoring.server";
 import { isProduction } from "@/lib/server/env";
+import { checkWebhookRateLimit } from "@/lib/server/webhook-rate-limit.server";
+import { isWebhookIpAllowed, resolveWebhookClientIp } from "@/lib/server/webhook-request.server";
 
 const TRANSACTION_PAYMENT_CREATED = 1796;
 
@@ -39,9 +42,53 @@ function parseTransactionId(raw: string | undefined): string | null {
   return id.length > 0 ? id : null;
 }
 
-/** Viva payment webhook — authoritative order creation (browser redirect is UX-only). */
+async function enforceWebhookGuards(request: NextRequest): Promise<NextResponse | null> {
+  const clientIp = resolveWebhookClientIp(request);
+
+  const rateLimit = await checkWebhookRateLimit(clientIp);
+  if (!rateLimit.allowed) {
+    serverLog.warn("payment.webhook.rate_limited", { clientIp });
+    return NextResponse.json(
+      { error: "Too many requests" },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rateLimit.retryAfterSec) },
+      },
+    );
+  }
+
+  if (isProduction() && !isWebhookIpAllowed(clientIp)) {
+    serverLog.warn("payment.webhook.ip_rejected", { clientIp });
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const contentType = request.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().includes("application/json")) {
+    serverLog.warn("payment.webhook.invalid_content_type", { clientIp, contentType });
+    return NextResponse.json({ error: "Content-Type must be application/json" }, { status: 415 });
+  }
+
+  return null;
+}
+
+/**
+ * Viva payment webhook — authoritative order completion (browser redirect is UX-only).
+ *
+ * Signature headers (Viva-Signature / Viva-Signature-256) apply to file-export webhooks,
+ * not Transaction Payment Created. Payment authenticity is verified server-side via
+ * Viva Retrieve Transaction API inside completeVivaOrderByOrderCode.
+ *
+ * TODO: Re-evaluate HMAC verification if Viva documents signatures for payment webhooks.
+ * TODO: Enforce CIDR allowlist at firewall/CDN — see docs/PUBLIC_API_KEYS.md.
+ * Multi-instance: set UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN for shared rate limits.
+ */
 export async function POST(request: NextRequest) {
   try {
+    const guardResponse = await enforceWebhookGuards(request);
+    if (guardResponse) {
+      return guardResponse;
+    }
+
     if (isProduction() && !getWebhookKey()) {
       serverLog.error("payment.webhook.misconfigured", {});
       return NextResponse.json({ error: "Webhook not configured" }, { status: 503 });
@@ -54,7 +101,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
 
+    if (typeof body !== "object" || body === null || Array.isArray(body)) {
+      return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 });
+    }
+
     const eventTypeId = body.EventTypeId;
+    if (typeof eventTypeId !== "number") {
+      return NextResponse.json({ error: "Invalid EventTypeId" }, { status: 400 });
+    }
+
     if (eventTypeId !== TRANSACTION_PAYMENT_CREATED) {
       serverLog.info("payment.webhook.ignored", { eventTypeId });
       return NextResponse.json({ ok: true, ignored: true });
@@ -97,6 +152,7 @@ export async function POST(request: NextRequest) {
     serverLog.error("payment.webhook.error", {
       error: error instanceof Error ? error.message : "unknown",
     });
+    captureException(error, { event: "payment.webhook.error" });
     return NextResponse.json({ error: "Webhook processing failed" }, { status: 500 });
   }
 }

@@ -17,7 +17,7 @@ export function CartFab() {
   return (
     <Link
       href="/checkout"
-      className="fixed bottom-5 left-1/2 z-40 -translate-x-1/2 flex items-center gap-3 rounded-full bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] transition-transform hover:-translate-y-0.5 hover:-translate-x-1/2 animate-fade-up"
+      className="fixed bottom-5 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] transition-transform hover:-translate-y-0.5 animate-fade-up"
     >
       <span className="relative">
         <ShoppingBag className="h-5 w-5" />

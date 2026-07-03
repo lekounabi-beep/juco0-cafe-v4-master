@@ -25,8 +25,7 @@ export function OverviewMetricsGrid({
   loading: boolean;
 }) {
   const { t } = useSuperAdminT();
-  const peakHour =
-    stats?.insights.peakHour != null ? `${stats.insights.peakHour}:00` : undefined;
+  const peakHour = stats?.insights.peakHour != null ? `${stats.insights.peakHour}:00` : undefined;
 
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">

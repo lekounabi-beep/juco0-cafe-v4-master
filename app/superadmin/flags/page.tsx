@@ -11,10 +11,7 @@ export default function SuperAdminFlagsPage() {
 
   return (
     <div>
-      <SuperAdminPageHeader
-        title={t("nav.flags")}
-        description={t("page.flags.description")}
-      />
+      <SuperAdminPageHeader title={t("nav.flags")} description={t("page.flags.description")} />
       {loading ? (
         <p className="text-sm text-zinc-500">{t("page.flags.loading")}</p>
       ) : (

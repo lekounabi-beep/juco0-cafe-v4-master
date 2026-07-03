@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Placeholder values for production build validation (instrumentation hook).
+      # Replace with GitHub Secrets only if you add deploy jobs in a later phase.
+      NODE_ENV: production
+      NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key
+      ADMIN_USERNAME: ci-admin
+      ADMIN_PASSWORD: ci-placeholder-password
+      SESSION_SECRET: ci-placeholder-session-secret-minimum-32-characters
+      VIVA_CLIENT_ID: ci-viva-client-id
+      VIVA_CLIENT_SECRET: ci-viva-client-secret
+      VIVA_SOURCE_CODE: ci-viva-source
+      VIVA_WEBHOOK_KEY: ci-viva-webhook-key
+      NEXT_PUBLIC_BASE_URL: https://nixk-server.shares.zrok.io
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Test
+        run: bun run test
+
+      - name: Build
+        run: bun run build
+
+  e2e:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NODE_ENV: production
+      NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key
+      ADMIN_USERNAME: ci-admin
+      ADMIN_PASSWORD: ci-placeholder-password
+      SESSION_SECRET: ci-placeholder-session-secret-minimum-32-characters
+      VIVA_CLIENT_ID: ci-viva-client-id
+      VIVA_CLIENT_SECRET: ci-viva-client-secret
+      VIVA_SOURCE_CODE: ci-viva-source
+      VIVA_WEBHOOK_KEY: ci-viva-webhook-key
+      NEXT_PUBLIC_BASE_URL: http://127.0.0.1:8092
+      E2E_PORT: "8092"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps chromium
+
+      - name: Build application
+        run: bun run build
+
+      - name: E2E tests
+        run: bunx playwright test

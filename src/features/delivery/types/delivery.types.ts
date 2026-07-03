@@ -2,54 +2,55 @@
  * Delivery feature type definitions
  */
 
-import type { Coordinates } from '@/shared/types/common.types';
+import type { Coordinates } from "@/shared/types/common.types";
+import type { DriverOrderItem } from "./driver-order.types";
 
 // Order Status Workflow
 export const ORDER_STATUS = {
-  PENDING: 'pending',
-  ACCEPTED: 'accepted',
-  PREPARING: 'preparing',
-  READY: 'ready',
-  ASSIGNED: 'assigned',
-  PICKED_UP: 'picked_up',
-  IN_TRANSIT: 'in_transit',
-  ARRIVED: 'arrived',
-  DELIVERED: 'delivered',
-  CANCELLED: 'cancelled',
+  PENDING: "pending",
+  ACCEPTED: "accepted",
+  PREPARING: "preparing",
+  READY: "ready",
+  ASSIGNED: "assigned",
+  PICKED_UP: "picked_up",
+  IN_TRANSIT: "in_transit",
+  ARRIVED: "arrived",
+  DELIVERED: "delivered",
+  CANCELLED: "cancelled",
 } as const;
 
-export type OrderStatus = typeof ORDER_STATUS[keyof typeof ORDER_STATUS];
+export type OrderStatus = (typeof ORDER_STATUS)[keyof typeof ORDER_STATUS];
 
 // Delivery Status Workflow
 export const DELIVERY_STATUS = {
-  PENDING: 'pending',
-  ASSIGNED: 'assigned',
-  PICKED_UP: 'picked_up',
-  IN_TRANSIT: 'in_transit',
-  ARRIVED: 'arrived',
-  DELIVERED: 'delivered',
-  CANCELLED: 'cancelled',
+  PENDING: "pending",
+  ASSIGNED: "assigned",
+  PICKED_UP: "picked_up",
+  IN_TRANSIT: "in_transit",
+  ARRIVED: "arrived",
+  DELIVERED: "delivered",
+  CANCELLED: "cancelled",
 } as const;
 
-export type DeliveryStatus = typeof DELIVERY_STATUS[keyof typeof DELIVERY_STATUS];
+export type DeliveryStatus = (typeof DELIVERY_STATUS)[keyof typeof DELIVERY_STATUS];
 
 // Driver Availability States
 export const DRIVER_AVAILABILITY = {
-  ONLINE: 'online',
-  BUSY: 'busy',
-  OFFLINE: 'offline',
+  ONLINE: "online",
+  BUSY: "busy",
+  OFFLINE: "offline",
 } as const;
 
-export type DriverAvailability = typeof DRIVER_AVAILABILITY[keyof typeof DRIVER_AVAILABILITY];
+export type DriverAvailability = (typeof DRIVER_AVAILABILITY)[keyof typeof DRIVER_AVAILABILITY];
 
 // Vehicle Types
 export const VEHICLE_TYPE = {
-  CAR: 'car',
-  MOTORCYCLE: 'motorcycle',
-  BICYCLE: 'bicycle',
+  CAR: "car",
+  MOTORCYCLE: "motorcycle",
+  BICYCLE: "bicycle",
 } as const;
 
-export type VehicleType = typeof VEHICLE_TYPE[keyof typeof VEHICLE_TYPE];
+export type VehicleType = (typeof VEHICLE_TYPE)[keyof typeof VEHICLE_TYPE];
 
 // Driver Profile
 export interface DriverProfile {
@@ -117,7 +118,7 @@ export interface OrderWithDelivery {
   lat: number | null;
   lng: number | null;
   total: number;
-  items: any;
+  items: DriverOrderItem[];
   created_at: string;
 }
 
@@ -137,7 +138,7 @@ export interface AvailableOrder {
   lat: number | null;
   lng: number | null;
   total: number;
-  items: any;
+  items: DriverOrderItem[];
   created_at: string;
   distance_from_driver_km: number | null;
   estimated_pickup_time: string | null;

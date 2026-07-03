@@ -2,12 +2,12 @@
  * Login page
  */
 
-'use client';
+"use client";
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { LoginForm } from '@/features/auth/components/LoginForm';
-import { useAuth } from '@/features/auth/hooks/useAuth';
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { LoginForm } from "@/features/auth/components/LoginForm";
+import { useAuth } from "@/features/auth/hooks/useAuth";
 
 export default function LoginPage() {
   const { isAuthenticated, loading } = useAuth();
@@ -15,7 +15,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!loading && isAuthenticated) {
-      router.push('/account');
+      router.push("/account");
     }
   }, [isAuthenticated, loading, router]);
 

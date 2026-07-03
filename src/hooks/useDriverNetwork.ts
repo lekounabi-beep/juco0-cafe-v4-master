@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useMemo, useSyncExternalStore } from 'react';
+import { useMemo, useSyncExternalStore } from "react";
 import {
   getDriverNetworkState,
   isDriverPollingAllowed,
@@ -8,9 +8,9 @@ import {
   shouldSkipDriverRealtimeCallback,
   subscribeDriverNetwork,
   type DriverNetworkState,
-} from '@/lib/network/driver-network';
+} from "@/lib/network/driver-network";
 
-const SERVER_SNAPSHOT: DriverNetworkState = { phase: 'online', isVisible: true };
+const SERVER_SNAPSHOT: DriverNetworkState = { phase: "online", isVisible: true };
 
 function subscribe(callback: () => void): () => void {
   return subscribeDriverNetwork(() => callback());
@@ -32,8 +32,8 @@ export function useDriverNetworkState() {
     () => ({
       phase: state.phase,
       isVisible: state.isVisible,
-      isOnline: state.phase === 'online',
-      isReconnecting: state.phase === 'reconnecting',
+      isOnline: state.phase === "online",
+      isReconnecting: state.phase === "reconnecting",
       isPollingAllowed: isDriverPollingAllowed(),
       isRefreshAllowed: isDriverRefreshAllowed(),
       shouldSkipRealtime: shouldSkipDriverRealtimeCallback(),
